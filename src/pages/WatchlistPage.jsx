@@ -1,20 +1,23 @@
 import { useState, useEffect } from "react";
-import { getWatchlist, addToWatchlist, removeFromWatchlist } from "../api/portfolio";
-import { searchStocks } from "../api/portfolio";
-import LoadingSpinner from "../components/LoadingSpinner";
+import { getWatchlist, addToWatchlist, removeFromWatchlist, searchStocks } from "../api/portfolio";
+import { SkeletonTable } from "../components/Skeleton";
 import ErrorMessage from "../components/ErrorMessage";
+import EmptyState from "../components/EmptyState";
+import { useToast } from "../context/ToastContext";
 
 const fmt = (val) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR",
-        maximumFractionDigits: 2 }).format(val);
+    new Intl.NumberFormat("en-IN", {
+        style: "currency", currency: "INR", maximumFractionDigits: 2
+    }).format(val);
 
 export default function WatchlistPage() {
-    const [watchlist, setWatchlist] = useState(null);
-    const [loading, setLoading]     = useState(true);
-    const [error, setError]         = useState("");
+    const [watchlist, setWatchlist]       = useState(null);
+    const [loading, setLoading]           = useState(true);
+    const [error, setError]               = useState("");
     const [stockSearch, setStockSearch]   = useState("");
     const [stockResults, setStockResults] = useState([]);
     const [adding, setAdding]             = useState(false);
+    const toast = useToast();
 
     const loadWatchlist = () => {
         getWatchlist()
@@ -31,35 +34,33 @@ export default function WatchlistPage() {
         try {
             const res = await searchStocks(q);
             setStockResults(res.data.content || []);
-        } catch {
-            setStockResults([]);
-        }
+        } catch { setStockResults([]); }
     };
 
     const handleAdd = async (stock) => {
-        setAdding(true);
-        setStockSearch("");
-        setStockResults([]);
+        setAdding(true); setStockSearch(""); setStockResults([]);
         try {
             await addToWatchlist({ stockId: stock.id });
+            toast.success(`${stock.symbol} added to watchlist`);
             loadWatchlist();
         } catch (err) {
-            setError(err.response?.data?.message || "Failed to add stock");
+            toast.error(err.response?.data?.message || "Failed to add stock");
         } finally {
             setAdding(false);
         }
     };
 
-    const handleRemove = async (itemId) => {
+    const handleRemove = async (item) => {
         try {
-            await removeFromWatchlist(itemId);
+            await removeFromWatchlist(item.id);
+            toast.success(`${item.stock.symbol} removed from watchlist`);
             loadWatchlist();
         } catch {
-            setError("Failed to remove stock");
+            toast.error("Failed to remove stock");
         }
     };
 
-    if (loading) return <LoadingSpinner />;
+    if (loading) return <SkeletonTable rows={4} cols={5} />;
 
     return (
         <div className="space-y-4">
@@ -73,33 +74,24 @@ export default function WatchlistPage() {
                     Add a stock to watch
                 </h2>
                 <div className="relative">
-                    <input
-                        type="text"
-                        value={stockSearch}
-                        onChange={e => handleStockSearch(e.target.value)}
-                        placeholder="Search symbol or name..."
-                        className="w-full bg-slate-700 border border-slate-600
-                                   rounded-lg px-3 py-2 text-white text-sm
-                                   focus:outline-none focus:border-blue-500"
-                        disabled={adding}
-                    />
+                    <input type="text" value={stockSearch}
+                           onChange={e => handleStockSearch(e.target.value)}
+                           placeholder="Search symbol or name..."
+                           className="w-full bg-slate-700 border border-slate-600 rounded-lg
+                                      px-3 py-2 text-white text-sm focus:outline-none
+                                      focus:border-blue-500"
+                           disabled={adding} />
                     {stockResults.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-slate-700
-                                        border border-slate-600 rounded-lg
-                                        shadow-xl max-h-48 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-slate-700 border
+                                        border-slate-600 rounded-lg shadow-xl max-h-48
+                                        overflow-y-auto">
                             {stockResults.map(s => (
-                                <button
-                                    key={s.id}
-                                    type="button"
-                                    onClick={() => handleAdd(s)}
-                                    className="w-full text-left px-3 py-2
-                                               hover:bg-slate-600 text-sm"
-                                >
+                                <button key={s.id} type="button" onClick={() => handleAdd(s)}
+                                        className="w-full text-left px-3 py-2
+                                                   hover:bg-slate-600 text-sm">
                                     <span className="font-medium text-white">{s.symbol}</span>
                                     <span className="text-slate-400 ml-2">{s.name}</span>
-                                    <span className="text-slate-500 ml-2 text-xs">
-                                        {s.exchange}
-                                    </span>
+                                    <span className="text-slate-500 ml-2 text-xs">{s.exchange}</span>
                                 </button>
                             ))}
                         </div>
@@ -107,17 +99,15 @@ export default function WatchlistPage() {
                 </div>
             </div>
 
-            {/* Watchlist items */}
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                {!watchlist || watchlist.items.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400">
-                        Your watchlist is empty. Search for a stock above to add it.
-                    </div>
-                ) : (
+            {/* List */}
+            {!watchlist || watchlist.items.length === 0 ? (
+                <EmptyState icon="👁" title="Your watchlist is empty"
+                            message="Search for a stock above to start watching it." />
+            ) : (
+                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
-                        <tr className="border-b border-slate-700 text-slate-400
-                                           text-xs uppercase">
+                        <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
                             <th className="text-left px-4 py-3">Stock</th>
                             <th className="text-left px-4 py-3">Exchange</th>
                             <th className="text-right px-4 py-3">Current Price</th>
@@ -127,11 +117,8 @@ export default function WatchlistPage() {
                         </thead>
                         <tbody>
                         {watchlist.items.map(item => {
-                            const chg = parseFloat(
-                                item.currentPrice?.changePercent || 0
-                            );
-                            const chgColor = chg >= 0
-                                ? "text-green-400" : "text-red-400";
+                            const chg = parseFloat(item.currentPrice?.changePercent || 0);
+                            const chgColor = chg >= 0 ? "text-green-400" : "text-red-400";
                             return (
                                 <tr key={item.id}
                                     className="border-b border-slate-700/50
@@ -153,15 +140,12 @@ export default function WatchlistPage() {
                                             : "—"}
                                     </td>
                                     <td className={`text-right px-4 py-3 font-medium ${chgColor}`}>
-                                        {chg >= 0 ? "+" : ""}
-                                        {chg.toFixed(2)}%
+                                        {chg >= 0 ? "+" : ""}{chg.toFixed(2)}%
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <button
-                                            onClick={() => handleRemove(item.id)}
-                                            className="text-slate-500 hover:text-red-400
-                                                           transition-colors text-xs"
-                                        >
+                                        <button onClick={() => handleRemove(item)}
+                                                className="text-slate-500 hover:text-red-400
+                                                               transition-colors text-xs">
                                             Remove
                                         </button>
                                     </td>
@@ -170,8 +154,8 @@ export default function WatchlistPage() {
                         })}
                         </tbody>
                     </table>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,14 +1,10 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 
-// 1. Create the context (like a global store)
 const AuthContext = createContext(null);
 
-// 2. The Provider wraps your whole app and makes the data available everywhere
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(() =>
-        localStorage.getItem("token") || null
-    );
-    const [user, setUser] = useState(() => {
+    const [token, setToken] = useState(() => localStorage.getItem("token") || null);
+    const [user, setUser]   = useState(() => {
         const saved = localStorage.getItem("user");
         return saved ? JSON.parse(saved) : null;
     });
@@ -27,16 +23,13 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("user");
     };
 
-    const isAuthenticated = !!token;
-
     return (
-        <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated }}>
+        <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: !!token }}>
             {children}
         </AuthContext.Provider>
     );
 }
 
-// 3. Custom hook — any component calls useAuth() to get the token
 export function useAuth() {
     return useContext(AuthContext);
 }
