@@ -1,107 +1,84 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Embeds TradingView's Advanced Chart Widget.
+ * TradingView Advanced Chart — FREE embed widget.
  *
- * Completely free — TradingView pulls its own real-time data.
- * No API key needed. Works for NSE, BSE, NASDAQ, NYSE.
+ * Critical: use embed-widget-advanced-chart.js NOT tv.js
+ * tv.js = paid Charting Library (requires private GitHub access)
+ * embed-widget-advanced-chart.js = free public widget (supports NSE)
  *
- * Symbol format:
- *   NSE:RELIANCE, NSE:TCS, NASDAQ:AAPL, NYSE:MSFT
- *
- * How it works:
- * TradingView publishes a JS widget library at s3.tradingview.com.
- * We dynamically create a <script> tag that loads it, then it
- * renders a full chart into our container div.
- * useEffect cleans up the script and container when unmounted.
+ * NSE symbol format: NSE:TCS, NSE:RELIANCE, NSE:INFY
+ * US symbol format:  NASDAQ:AAPL, NYSE:MSFT
  */
-export default function TradingViewChart({ symbol, exchange, theme = "dark" }) {
+export default function TradingViewChart({ symbol, exchange }) {
     const containerRef = useRef(null);
-    const scriptRef    = useRef(null);
 
-    // Convert our DB exchange + symbol → TradingView format
     const tvSymbol = toTradingViewSymbol(symbol, exchange);
 
     useEffect(() => {
         if (!containerRef.current) return;
 
-        // Clear any previous chart
+        // Clear previous widget
         containerRef.current.innerHTML = "";
 
-        // TradingView widget config
-        const widgetConfig = {
-            autosize:          true,
-            symbol:            tvSymbol,
-            interval:          "D",           // default: daily candles
-            timezone:          "Asia/Kolkata",
-            theme:             theme,
-            style:             "1",           // 1 = candlestick
-            locale:            "en",
-            toolbar_bg:        "#1e293b",
-            enable_publishing: false,
-            hide_top_toolbar:  false,
-            hide_legend:       false,
-            save_image:        true,
-            container_id:      `tv_chart_${symbol}`,
-            // These make it feel native to your dark UI
-            backgroundColor:   "rgba(15, 23, 42, 0)",
-            gridColor:         "rgba(51, 65, 85, 0.5)",
-        };
+        // TradingView requires this exact structure:
+        // outer div → inner widget div + script with JSON as innerHTML
+        const widgetDiv = document.createElement("div");
+        widgetDiv.className = "tradingview-widget-container__widget";
+        widgetDiv.style.height = "100%";
+        widgetDiv.style.width  = "100%";
+        containerRef.current.appendChild(widgetDiv);
 
-        // Create inner div with the container id TradingView needs
-        const innerDiv = document.createElement("div");
-        innerDiv.id = widgetConfig.container_id;
-        innerDiv.style.width  = "100%";
-        innerDiv.style.height = "100%";
-        containerRef.current.appendChild(innerDiv);
-
-        // Dynamically load TradingView's widget script
         const script = document.createElement("script");
-        script.src   = "https://s3.tradingview.com/tv.js";
+        script.type  = "text/javascript";
+        script.src   = "https://s3.tradingview.com/external-embedding/" +
+            "embed-widget-advanced-chart.js";
         script.async = true;
-        script.onload = () => {
-            // Script loaded — instantiate the widget
-            if (window.TradingView) {
-                new window.TradingView.widget(widgetConfig);
-            }
-        };
+
+        // Config goes as script innerHTML — this is how TradingView's
+        // free widgets work (different from tv.js approach)
+        script.innerHTML = JSON.stringify({
+            autosize:              true,
+            symbol:                tvSymbol,
+            interval:              "D",
+            timezone:              "Asia/Kolkata",
+            theme:                 "dark",
+            style:                 "1",          // 1 = candlestick
+            locale:                "en",
+            allow_symbol_change:   false,        // lock to our symbol
+            calendar:              false,
+            support_host:          "https://www.tradingview.com",
+            hide_top_toolbar:      false,
+            hide_legend:           false,
+            save_image:            true,
+            backgroundColor:       "rgba(15, 23, 42, 1)",
+        });
 
         containerRef.current.appendChild(script);
-        scriptRef.current = script;
 
-        // Cleanup when component unmounts or symbol changes
         return () => {
             if (containerRef.current) {
                 containerRef.current.innerHTML = "";
             }
         };
-    }, [tvSymbol, theme]);
+    }, [tvSymbol]);
 
     return (
         <div
             ref={containerRef}
+            className="tradingview-widget-container"
             style={{ width: "100%", height: "100%" }}
         />
     );
 }
 
-/**
- * Maps your DB symbol + exchange to TradingView's format.
- *
- * TradingView exchange prefixes:
- *   NSE    → NSE:SYMBOL
- *   BSE    → BSE:SYMBOL
- *   NASDAQ → NASDAQ:SYMBOL
- *   NYSE   → NYSE:SYMBOL
- */
 function toTradingViewSymbol(symbol, exchange) {
-    const exchangeMap = {
+    const map = {
         "NSE":    "NSE",
         "BSE":    "BSE",
         "NASDAQ": "NASDAQ",
         "NYSE":   "NYSE",
     };
-
-    const tvExchange = exchangeMap[exchange?.toUpperCase()] || "NSE";
+    const tvExchange = map[exchange?.toUpperCase()] || "NSE";
     return `${tvExchange}:${symbol?.toUpperCase()}`;
 }
