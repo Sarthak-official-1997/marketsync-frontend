@@ -29,3 +29,6 @@ export const getMfNavHistory = (schemeCode, range = "1Y") =>
     api.get(`/mf/schemes/${schemeCode}/nav-history?range=${range}`);
 export const getMfNavOnDate = (schemeCode, date) =>
     api.get(`/mf/schemes/${schemeCode}/nav-on-date?date=${date}`);
+export const getMfWatchlist      = () => api.get("/mf/watchlist");
+export const addToMfWatchlist    = (data) => api.post("/mf/watchlist", data);
+export const removeFromMfWatchlist = (id) => api.delete(`/mf/watchlist/${id}`);
