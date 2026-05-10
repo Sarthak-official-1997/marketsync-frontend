@@ -77,3 +77,4 @@ export const getStockHistory = (symbol, exchange, range = "1M") =>
     api.get(`/market-data/history/${symbol}?exchange=${exchange}&range=${range}`);
 export const getStockChart = (symbol, exchange, interval, range) =>
     api.get(`/market-data/chart/${symbol}?exchange=${exchange}&interval=${interval}&range=${range}`);
+export const getIndices = () => api.get("/market-data/indices");
