@@ -65,6 +65,7 @@ export default function Layout() {
                         <NavLink to="/holdings"     className={navClass}>💼 Holdings</NavLink>
                         <NavLink to="/transactions" className={navClass}>🔄 Transactions</NavLink>
                         <NavLink to="/watchlist"    className={navClass}>👁 Watchlist</NavLink>
+                        <NavLink to="/mutual-funds" className={navClass}>📊 Mutual Funds</NavLink>
                     </nav>
                 </aside>
 

@@ -7,6 +7,7 @@ import HoldingsPage    from "./pages/HoldingsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import WatchlistPage   from "./pages/WatchlistPage";
 import Layout          from "./components/Layout";
+import MutualFundsPage from "./pages/MutualFundsPage";
 
 function PrivateRoute({ children }) {
     const { isAuthenticated } = useAuth();
@@ -18,14 +19,13 @@ export default function App() {
         <Routes>
             <Route path="/login"    element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/" element={
-                <PrivateRoute><Layout /></PrivateRoute>
-            }>
+            <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard"    element={<DashboardPage />} />
                 <Route path="holdings"     element={<HoldingsPage />} />
                 <Route path="transactions" element={<TransactionsPage />} />
                 <Route path="watchlist"    element={<WatchlistPage />} />
+                <Route path="/mutual-funds" element={<MutualFundsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

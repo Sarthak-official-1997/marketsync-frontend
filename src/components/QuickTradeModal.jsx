@@ -76,7 +76,7 @@ export default function QuickTradeModal({ holding, defaultType = "BUY", onClose,
                     <div className="flex justify-between text-slate-400">
                         <span>Avg buy price</span>
                         <span className="text-white font-medium">
-                            ₹{parseFloat(holding.avgBuyPrice).toFixed(2)}
+                            ₹{parseFloat(holding.averageBuyPrice).toFixed(2)}
                         </span>
                     </div>
                 </div>
