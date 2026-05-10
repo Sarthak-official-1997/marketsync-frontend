@@ -8,3 +8,16 @@
 .animate-slide-in {
     animation: slide-in 0.2s ease-out;
 }
+/* Light mode — invert the entire dark UI */
+html.light-mode {
+    filter: invert(1) hue-rotate(180deg);
+    background: #0f172a;
+}
+
+/* Re-invert elements that should NOT be inverted */
+html.light-mode img,
+html.light-mode video,
+html.light-mode canvas,
+html.light-mode svg image {
+    filter: invert(1) hue-rotate(180deg);
+}

@@ -46,7 +46,7 @@ export default function TransactionsPage() {
                 setTotalPages(res.data.totalPages || 0);
                 setPage(p);
             })
-            .catch(() => setError("Failed to load transactions"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load transactions"))
             .finally(() => setLoading(false));
     };
 

@@ -43,7 +43,7 @@ export default function HoldingsPage() {
                 setHoldings(stockRes.data);
                 setMfHoldings(mfRes.data);
             })
-            .catch(() => setError("Failed to load holdings"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load holdings"))
             .finally(() => { setLoading(false); setRefreshing(false); });
     };
 

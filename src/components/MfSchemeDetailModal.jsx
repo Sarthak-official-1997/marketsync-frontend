@@ -24,13 +24,47 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
     const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const [error, setError]         = useState(false);
+    const [attemptNum, setAttemptNum] = useState(0);
+    const MAX_AUTO_RETRIES = 2;
+
+
+
+    const loadData = (rangeVal, retryCount = 0) => {
+        setLoading(true);
+        setError(false);
+        setAttemptNum(retryCount + 1);
+        getMfNavHistory(scheme.schemeCode, rangeVal)
+            .then((res) => {
+                setData(res.data);
+                setLoading(false);
+            })
+            .catch(() => {
+                if (retryCount < MAX_AUTO_RETRIES) {
+                    // Auto-retry silently — most corporate proxies clear on 2nd attempt
+                    setTimeout(() => loadData(rangeVal, retryCount + 1), 800);
+                } else {
+                    setError(true);
+                    setLoading(false);
+                }
+            });
+    };
+
+    useEffect(() => {
+        if (!scheme) return;
+        setData(null);
+        setError(false);
+        loadData(range);
+    }, [scheme?.schemeCode, range]);
+
     useEffect(() => {
         if (!scheme) return;
         setLoading(true);
+        setError(false);
         setData(null);
         getMfNavHistory(scheme.schemeCode, range)
             .then((res) => setData(res.data))
-            .catch(() => setData(null))
+            .catch(() => setError(true))
             .finally(() => setLoading(false));
     }, [scheme?.schemeCode, range]);
 
@@ -164,8 +198,36 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                     {/* NAV CHART */}
                     <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
                         {loading ? (
-                            <div className="h-52 flex items-center justify-center">
-                                <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            <div className="h-52 flex flex-col items-center justify-center gap-3">
+                                <div className="w-8 h-8 border-2 border-blue-400
+                        border-t-transparent rounded-full animate-spin" />
+                                <p className="text-slate-400 text-sm">
+                                    {attemptNum === 1
+                                        ? "Loading NAV history..."
+                                        : "Retrying... (" + attemptNum + " of 3)"}
+                                </p>
+                                {attemptNum > 1 && (
+                                    <p className="text-slate-500 text-xs">
+                                        Connection slow — hang tight
+                                    </p>
+                                )}
+                            </div>
+                        ) : error ? (
+                            <div className="h-52 flex flex-col items-center justify-center gap-3">
+                                <p className="text-4xl">📡</p>
+                                <p className="text-slate-300 text-sm font-medium">
+                                    mfapi.in is unreachable
+                                </p>
+                                <p className="text-slate-500 text-xs text-center max-w-xs">
+                                    This is usually a network timeout. Try again.
+                                </p>
+                                <button
+                                    onClick={() => loadData(range)}
+                                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700
+                       text-white text-sm rounded-lg transition-colors"
+                                >
+                                    Try Again
+                                </button>
                             </div>
                         ) : chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height={220}>

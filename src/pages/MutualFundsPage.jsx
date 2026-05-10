@@ -1,13 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import {
-    getMfHoldings,
-    getMfPortfolioSummary,
-    getMfTransactions,
-    addMfTransaction,
-    deleteMfTransaction,
-    searchMfSchemes,
-    getMfScheme,
-} from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 
@@ -19,7 +10,7 @@ import {
     deleteMfTransaction,
     searchMfSchemes,
     getMfScheme,
-    getMfNavOnDate,   // ← add this
+    getMfNavOnDate,
 } from "../api/portfolio";
 
 
@@ -126,7 +117,7 @@ function MfSummaryBar() {
     useEffect(() => {
         getMfPortfolioSummary()
             .then((res) => setSummary(res.data))
-            .catch(() => setSummary(null));
+            .catch((err) => toast.error(err.userMessage || "Failed to load"))
     }, []);
 
     if (!summary || summary.schemeCount === 0) return null;
@@ -173,7 +164,7 @@ function MfHoldingsTab({ toast }) {
         setLoading(true);
         getMfHoldings()
             .then((res) => setHoldings(res.data))
-            .catch(() => toast.error("Failed to load MF holdings"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load MF holdings"))
             .finally(() => setLoading(false));
     };
 
@@ -668,7 +659,7 @@ function MfHistoryTab({ toast }) {
                 setTotalPages(res.data.totalPages || 0);
                 setPage(p);
             })
-            .catch(() => toast.error("Failed to load transactions"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load transactions"))
             .finally(() => setLoading(false));
     };
 

@@ -39,7 +39,7 @@ export default function DashboardPage() {
     useEffect(() => {
         getSummary()
             .then(res => setSummary(res.data))
-            .catch(() => setError("Failed to load portfolio summary"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load portfolio summary"))
             .finally(() => setLoading(false));
     }, []);
 

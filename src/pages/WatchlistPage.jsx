@@ -84,7 +84,7 @@ function StocksWatchlist({ toast }) {
     const load = () => {
         getWatchlist()
             .then(res => setWatchlist(res.data))
-            .catch(() => toast.error("Failed to load stock watchlist"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load Stock watchlist"))
             .finally(() => setLoading(false));
     };
 
@@ -265,7 +265,7 @@ function MfWatchlist({ toast }) {
     const load = () => {
         getMfWatchlist()
             .then(res => setItems(res.data))
-            .catch(() => toast.error("Failed to load MF watchlist"))
+            .catch((err) => toast.error(err.userMessage || "Failed to load MF watchlist"))
             .finally(() => setLoading(false));
     };
 

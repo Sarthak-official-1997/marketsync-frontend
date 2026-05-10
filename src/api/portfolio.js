@@ -1,4 +1,40 @@
 import api from "./axios";
+// Global response interceptor — converts HTTP errors to readable messages
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const status  = error.response?.status;
+        const code    = error.response?.data?.error;
+        const message = error.response?.data?.message;
+
+        // Don't show toast for auth errors — login page handles those
+        if (status === 401) return Promise.reject(error);
+
+        // Map backend error codes to user-friendly messages
+        const userMessage = getUserFriendlyMessage(status, code, message);
+        error.userMessage = userMessage;
+
+        return Promise.reject(error);
+    }
+);
+
+function getUserFriendlyMessage(status, code, backendMessage) {
+    if (status === 504 || code === "UPSTREAM_TIMEOUT") {
+        return "Data source is slow — please try again";
+    }
+    if (status === 502 || code === "MF_API_ERROR") {
+        return "Could not reach mfapi.in — please retry";
+    }
+    if (code === "MARKET_DATA_ERROR") {
+        return "Could not fetch live price — showing last known value";
+    }
+    if (status === 404) return backendMessage || "Not found";
+    if (status === 400) return backendMessage || "Invalid request";
+    if (status === 409) return backendMessage || "Already exists";
+    if (status === 403) return "You don't have permission for this";
+    if (status >= 500)  return "Server error — please try again";
+    return backendMessage || "Something went wrong";
+}
 
 export const getSummary          = ()           => api.get("/portfolio/summary");
 export const getHoldings         = ()           => api.get("/holdings");
