@@ -1,47 +1,91 @@
 import { useState, useEffect } from "react";
-import { getMfNavHistory } from "../api/portfolio";
+import { getMfNavHistory, getMfHoldings } from "../api/portfolio";
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer,
-    CartesianGrid,
+    AreaChart, Area, XAxis, YAxis, Tooltip,
+    ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
+
+// ── Helpers ───────────────────────────────────────────────────────────
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 2,
+        style: "currency", currency: "INR", maximumFractionDigits: 2,
     }).format(val || 0);
 
+const fmtUnits = (val) => parseFloat(val || 0).toFixed(4);
+
+// DD/MM/YYYY format for all dates in the app
+const fmtDate = (dateStr) => {
+    if (!dateStr) return "—";
+    try {
+        // Handles YYYY-MM-DD from backend
+        const [y, m, d] = dateStr.split("-");
+        if (d) return `${d}/${m}/${y}`;
+        return dateStr;
+    } catch { return dateStr; }
+};
+
+const fmtPct = (val) => {
+    if (val == null) return null;
+    const n = parseFloat(val);
+    return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+};
+
+const pctColor = (val) => {
+    if (val == null) return "text-slate-400";
+    return parseFloat(val) >= 0 ? "text-green-400" : "text-red-400";
+};
+
+// Chart X-axis tick: YYYY-MM-DD → DD/MM/YY
+const fmtChartTick = (d) => {
+    if (!d) return "";
+    const parts = d.toString().split("T")[0].split("-");
+    return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(2)}` : d;
+};
+
 const RANGES = ["1M", "2M", "3M", "6M", "1Y", "3Y", "5Y", "All"];
+const MULTI_YEAR = new Set(["3Y", "5Y", "All"]);
+const PERIOD_LABEL = {
+    "1M": "1 Month",   "2M": "2 Months",  "3M": "3 Months",
+    "6M": "6 Months",  "1Y": "1 Year",    "3Y": "3 Years",
+    "5Y": "5 Years",   "All": "Since inception",
+};
+
+const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="bg-slate-900/95 border border-slate-600
+                        rounded-xl px-4 py-2.5 shadow-2xl">
+            <p className="text-slate-400 text-xs mb-1">{fmtDate(label)}</p>
+            <p className="text-white font-bold text-base">
+                {fmt(payload[0].value)}
+            </p>
+        </div>
+    );
+};
+
+// ── Component ─────────────────────────────────────────────────────────
 
 export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
-    const [range, setRange]     = useState("1Y");
-    const [data, setData]       = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [range,         setRange]         = useState("1Y");
+    const [data,          setData]          = useState(null);
+    const [loading,       setLoading]       = useState(true);
+    const [error,         setError]         = useState(false);
+    const [attemptNum,    setAttemptNum]    = useState(0);
+    const [holding,       setHolding]       = useState(null);
+    const [holdingLoaded, setHoldingLoaded] = useState(false);
+    const [showReturns,   setShowReturns]   = useState(false);
 
-    const [error, setError]         = useState(false);
-    const [attemptNum, setAttemptNum] = useState(0);
     const MAX_AUTO_RETRIES = 2;
-
-
 
     const loadData = (rangeVal, retryCount = 0) => {
         setLoading(true);
         setError(false);
         setAttemptNum(retryCount + 1);
         getMfNavHistory(scheme.schemeCode, rangeVal)
-            .then((res) => {
-                setData(res.data);
-                setLoading(false);
-            })
+            .then(res => { setData(res.data); setLoading(false); })
             .catch(() => {
                 if (retryCount < MAX_AUTO_RETRIES) {
-                    // Auto-retry silently — most corporate proxies clear on 2nd attempt
                     setTimeout(() => loadData(rangeVal, retryCount + 1), 800);
                 } else {
                     setError(true);
@@ -52,350 +96,486 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
 
     useEffect(() => {
         if (!scheme) return;
-        setData(null);
-        setError(false);
+        setData(null); setError(false);
         loadData(range);
+
+        getMfHoldings()
+            .then(res => {
+                const found = (res.data || []).find(
+                    h => h.schemeCode === scheme.schemeCode);
+                setHolding(found || null);
+            })
+            .catch(() => setHolding(null))
+            .finally(() => setHoldingLoaded(true));
     }, [scheme?.schemeCode, range]);
 
     useEffect(() => {
-        if (!scheme) return;
-        setLoading(true);
-        setError(false);
-        setData(null);
-        getMfNavHistory(scheme.schemeCode, range)
-            .then((res) => setData(res.data))
-            .catch(() => setError(true))
-            .finally(() => setLoading(false));
-    }, [scheme?.schemeCode, range]);
-
-    useEffect(() => {
-        const handler = (e) => {
-            if (e.key === "Escape") onClose();
-        };
-        document.addEventListener("keydown", handler);
-        return () => document.removeEventListener("keydown", handler);
+        const h = (e) => { if (e.key === "Escape") onClose(); };
+        document.addEventListener("keydown", h);
+        return () => document.removeEventListener("keydown", h);
     }, [onClose]);
 
     if (!scheme) return null;
 
-    const currentReturn = data?.returns?.[range];
-    const isPositive    = currentReturn >= 0;
-    const plColor       = isPositive ? "text-green-400" : "text-red-400";
+    const currentRet = data?.returns?.[range];
+    const currentAbs = currentRet?.absoluteReturn;
 
-    const growwUrl =
-        "https://groww.in/mutual-funds/search?q=" +
-        encodeURIComponent(scheme.schemeName || "");
-
-    const vrUrl = "https://www.valueresearchonline.com/funds/selector/";
-
-    const chartData = (data?.navHistory || []).map((p) => ({
+    const chartData = (data?.navHistory || []).map(p => ({
         date: p.date,
         nav:  parseFloat(p.nav),
     }));
 
+    const isUp      = chartData.length >= 2
+        && chartData[chartData.length - 1].nav >= chartData[0].nav;
+    const lineColor = isUp ? "#22c55e" : "#ef4444";
+    const firstNav  = chartData.length > 0 ? chartData[0].nav : null;
+
+    const periodChange = chartData.length >= 2
+        ? (((chartData[chartData.length-1].nav - chartData[0].nav)
+            / chartData[0].nav) * 100).toFixed(2)
+        : null;
+
+    const holdingPL    = holding ? parseFloat(holding.unrealizedPnl || 0) : 0;
+    const holdingPLPct = holding ? parseFloat(holding.unrealizedPnlPercent || 0) : 0;
+    const holdingColor = holdingPL >= 0 ? "text-green-400" : "text-red-400";
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center"
             onClick={onClose}
         >
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
+            {/* Full-size modal */}
             <div
-                className="relative z-50 w-full max-w-4xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl flex flex-col"
-                style={{ height: "90vh" }}
-                onClick={(e) => e.stopPropagation()}
+                className="relative z-50 bg-slate-900 flex flex-col"
+                style={{
+                    width: "calc(100vw - 32px)",
+                    height: "calc(100vh - 32px)",
+                    maxWidth: "1200px",
+                    maxHeight: "960px",
+                    borderRadius: "20px",
+                    border: "1px solid rgba(71,85,105,0.6)",
+                    boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
+                }}
+                onClick={e => e.stopPropagation()}
             >
-                {/* HEADER */}
-                <div className="flex items-start justify-between p-5 border-b border-slate-700 flex-shrink-0">
-                    <div className="flex-1 min-w-0 pr-4">
-                        <p className="text-white font-bold text-lg leading-tight">
-                            {scheme.schemeName}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {/* ── HEADER ── */}
+                <div className="flex items-center justify-between
+                                px-7 py-4 border-b border-slate-700/60
+                                flex-shrink-0">
+                    <div className="flex-1 min-w-0 pr-6">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <p className="text-white font-bold text-xl leading-tight">
+                                {scheme.schemeName}
+                            </p>
+                            {holding && (
+                                <span className="text-xs bg-green-900/40 text-green-400
+                                                 px-2.5 py-1 rounded-full flex-shrink-0">
+                                    ✓ In your portfolio
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                             {scheme.fundHouse && (
-                                <span className="text-xs text-slate-400">
+                                <span className="text-sm text-slate-400">
                                     {scheme.fundHouse}
                                 </span>
                             )}
                             {scheme.schemeCategory && (
-                                <span className="text-xs bg-blue-900/40 text-blue-300 px-2 py-0.5 rounded-full">
+                                <span className="text-xs bg-blue-900/40 text-blue-300
+                                                 px-2.5 py-1 rounded-full">
                                     {scheme.schemeCategory}
                                 </span>
                             )}
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-5 h-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                    </button>
-                </div>
 
-                {/* SCROLLABLE BODY */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-6 min-h-0">
-
-                    {/* NAV + current range return */}
-                    <div className="flex items-end gap-6 flex-wrap">
-                        <div>
-                            <p className="text-xs text-slate-500">Current NAV</p>
-                            {loading ? (
-                                <div className="h-9 w-32 bg-slate-700 rounded animate-pulse mt-1" />
-                            ) : (
-                                <p className="text-3xl font-bold text-white">
-                                    {fmt(data?.currentNav)}
+                    {/* NAV + close */}
+                    <div className="flex items-center gap-5 flex-shrink-0">
+                        {!loading && data?.currentNav && (
+                            <div className="text-right">
+                                <p className="text-3xl font-bold text-white tracking-tight">
+                                    {fmt(data.currentNav)}
                                 </p>
-                            )}
-                            {data?.navDate && (
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    as of {data.navDate}
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    NAV as of {fmtDate(data.navDate)}
                                 </p>
-                            )}
-                        </div>
-                        {!loading && currentReturn != null && (
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    {range} return
-                                </p>
-                                <p className={"text-2xl font-bold " + plColor}>
-                                    {isPositive ? "+" : ""}
-                                    {currentReturn}%
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* RANGE SELECTOR */}
-                    <div className="flex gap-1 bg-slate-800 p-1 rounded-xl w-fit">
-                        {RANGES.map((r) => (
-                            <button
-                                key={r}
-                                onClick={() => setRange(r)}
-                                className={
-                                    "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors " +
-                                    (range === r
-                                        ? "bg-blue-600 text-white"
-                                        : "text-slate-400 hover:text-white")
-                                }
-                            >
-                                {r}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* NAV CHART */}
-                    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                        {loading ? (
-                            <div className="h-52 flex flex-col items-center justify-center gap-3">
-                                <div className="w-8 h-8 border-2 border-blue-400
-                        border-t-transparent rounded-full animate-spin" />
-                                <p className="text-slate-400 text-sm">
-                                    {attemptNum === 1
-                                        ? "Loading NAV history..."
-                                        : "Retrying... (" + attemptNum + " of 3)"}
-                                </p>
-                                {attemptNum > 1 && (
-                                    <p className="text-slate-500 text-xs">
-                                        Connection slow — hang tight
+                                {currentAbs != null && (
+                                    <p className={"text-sm font-semibold mt-0.5 " +
+                                    pctColor(currentAbs)}>
+                                        {fmtPct(currentAbs)}
+                                        {" "}({PERIOD_LABEL[range]})
                                     </p>
                                 )}
                             </div>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="p-2 text-slate-400 hover:text-white
+                                       hover:bg-slate-700 rounded-xl transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 className="w-5 h-5" viewBox="0 0 24 24"
+                                 fill="none" stroke="currentColor"
+                                 strokeWidth="2" strokeLinecap="round"
+                                 strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── SCHEME INFO STRIP ── */}
+                {scheme.schemeCode && (
+                    <div className="grid grid-cols-4 gap-px bg-slate-800/40
+                                    border-b border-slate-700/40 flex-shrink-0">
+                        {[
+                            ["Scheme Code", scheme.schemeCode],
+                            ["Fund House",  scheme.fundHouse  || "—"],
+                            ["Category",    scheme.schemeCategory || "—"],
+                            ["Type",        scheme.schemeType || "—"],
+                        ].map(([label, value]) => (
+                            <div key={label} className="bg-slate-900 px-5 py-3">
+                                <p className="text-xs text-slate-500">{label}</p>
+                                <p className="text-sm font-semibold text-white mt-0.5
+                                              truncate">
+                                    {value}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* ── CHART SECTION — fills all remaining space ── */}
+                <div className="flex-1 flex flex-col min-h-0 px-6 pt-4 pb-2">
+
+                    {/* Chart controls */}
+                    <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                            <p className="text-sm font-semibold text-white">NAV Chart</p>
+                            {periodChange && !loading && (
+                                <span className={
+                                    "text-xs font-semibold px-2.5 py-1 rounded-full " +
+                                    (parseFloat(periodChange) >= 0
+                                        ? "bg-green-900/40 text-green-400"
+                                        : "bg-red-900/40 text-red-400")
+                                }>
+                                    {parseFloat(periodChange) >= 0 ? "+" : ""}
+                                    {periodChange}% this period
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Range selector */}
+                        <div className="flex gap-0.5 bg-slate-800 p-1 rounded-xl">
+                            {RANGES.map(r => (
+                                <button
+                                    key={r}
+                                    onClick={() => setRange(r)}
+                                    className={
+                                        "px-3.5 py-1.5 rounded-lg text-xs " +
+                                        "font-semibold transition-all " +
+                                        (range === r
+                                            ? "bg-blue-600 text-white shadow"
+                                            : "text-slate-400 hover:text-white " +
+                                            "hover:bg-slate-700")
+                                    }
+                                >
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Chart — fills all vertical space */}
+                    <div className="flex-1 min-h-0 bg-slate-800/40 rounded-2xl
+                                    border border-slate-700/40 overflow-hidden">
+                        {loading ? (
+                            <div className="h-full flex flex-col items-center
+                                            justify-center gap-3">
+                                <div className="w-8 h-8 border-2 border-blue-400
+                                                border-t-transparent rounded-full
+                                                animate-spin" />
+                                <p className="text-slate-500 text-sm">
+                                    {attemptNum === 1
+                                        ? "Loading NAV history..."
+                                        : `Retrying... (${attemptNum} of 3)`}
+                                </p>
+                            </div>
                         ) : error ? (
-                            <div className="h-52 flex flex-col items-center justify-center gap-3">
+                            <div className="h-full flex flex-col items-center
+                                            justify-center gap-3">
                                 <p className="text-4xl">📡</p>
                                 <p className="text-slate-300 text-sm font-medium">
                                     mfapi.in is unreachable
                                 </p>
-                                <p className="text-slate-500 text-xs text-center max-w-xs">
-                                    This is usually a network timeout. Try again.
-                                </p>
                                 <button
                                     onClick={() => loadData(range)}
                                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700
-                       text-white text-sm rounded-lg transition-colors"
+                                               text-white text-sm rounded-xl
+                                               transition-colors"
                                 >
-                                    Try Again
+                                    Retry
                                 </button>
                             </div>
-                        ) : chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={220}>
-                                <LineChart data={chartData}>
+                        ) : chartData.length > 1 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart
+                                    data={chartData}
+                                    margin={{ top: 16, right: 24, bottom: 8, left: 0 }}
+                                >
+                                    <defs>
+                                        <linearGradient
+                                            id="navGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"
+                                                  stopColor={lineColor}
+                                                  stopOpacity={0.35}/>
+                                            <stop offset="100%"
+                                                  stopColor={lineColor}
+                                                  stopOpacity={0.02}/>
+                                        </linearGradient>
+                                    </defs>
                                     <CartesianGrid
                                         strokeDasharray="3 3"
-                                        stroke="#334155"
+                                        stroke="rgba(30,41,59,0.8)"
+                                        vertical={false}
                                     />
                                     <XAxis
                                         dataKey="date"
-                                        tick={{ fill: "#94a3b8", fontSize: 11 }}
-                                        tickFormatter={(d) => {
-                                            const parts = d.split("-");
-                                            if (parts.length < 3) return d;
-                                            return parts[1] + "/" + parts[0].slice(2);
-                                        }}
+                                        tick={{ fill: "#475569", fontSize: 11 }}
+                                        tickFormatter={fmtChartTick}
                                         interval="preserveStartEnd"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        dy={8}
                                     />
                                     <YAxis
-                                        tick={{ fill: "#94a3b8", fontSize: 11 }}
-                                        tickFormatter={(v) =>
-                                            "₹" + v.toFixed(0)
-                                        }
+                                        tick={{ fill: "#475569", fontSize: 11 }}
+                                        tickFormatter={v =>
+                                            "₹" + (v >= 1000
+                                                ? (v / 1000).toFixed(1) + "k"
+                                                : v.toFixed(0))}
                                         domain={["auto", "auto"]}
-                                        width={65}
+                                        width={64}
+                                        axisLine={false}
+                                        tickLine={false}
                                     />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "#1e293b",
-                                            border: "1px solid #334155",
-                                            borderRadius: "8px",
-                                            color: "#fff",
-                                        }}
-                                        formatter={(v) => [
-                                            "₹" + v.toFixed(4),
-                                            "NAV",
-                                        ]}
-                                        labelFormatter={(l) => "Date: " + l}
-                                    />
-                                    <Line
+                                    <Tooltip content={<CustomTooltip />} />
+                                    {firstNav && (
+                                        <ReferenceLine
+                                            y={firstNav}
+                                            stroke="#334155"
+                                            strokeDasharray="6 4"
+                                            strokeWidth={1.5}
+                                        />
+                                    )}
+                                    <Area
                                         type="monotone"
                                         dataKey="nav"
-                                        stroke="#3b82f6"
-                                        strokeWidth={2}
+                                        stroke={lineColor}
+                                        strokeWidth={2.5}
+                                        fill="url(#navGrad)"
                                         dot={false}
+                                        activeDot={{
+                                            r: 6, fill: lineColor,
+                                            stroke: "#0f172a", strokeWidth: 2,
+                                        }}
                                     />
-                                </LineChart>
+                                </AreaChart>
                             </ResponsiveContainer>
                         ) : (
-                            <p className="text-slate-400 text-center py-16">
-                                No chart data available
-                            </p>
+                            <div className="h-full flex items-center justify-center">
+                                <p className="text-slate-400 text-sm">
+                                    No chart data for this range
+                                </p>
+                            </div>
                         )}
                     </div>
+                </div>
 
-                    {/* RETURNS TABLE */}
-                    {!loading && data?.returns && (
-                        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                            <div className="px-4 py-3 border-b border-slate-700">
-                                <p className="text-white font-semibold text-sm">
-                                    Returns
-                                </p>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Absolute for less than 1Y · CAGR for multi-year
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-3 md:grid-cols-6 gap-px bg-slate-700/50">
-                                {Object.entries(data.returns).map(
-                                    ([period, ret]) => {
-                                        if (ret == null) return null;
-                                        const pos = ret >= 0;
-                                        const col = pos
-                                            ? "text-green-400"
-                                            : "text-red-400";
+                {/* ── BOTTOM SECTION — returns + holdings collapsible ── */}
+                <div className="px-6 pb-5 flex-shrink-0 space-y-2">
+
+                    {/* Returns — collapsible with quick summary pills */}
+                    {!loading && !error && data?.returns && (
+                        <div>
+                            <button
+                                onClick={() => setShowReturns(v => !v)}
+                                className="w-full flex items-center justify-between
+                                           px-5 py-3 bg-slate-800/60 hover:bg-slate-800
+                                           rounded-2xl border border-slate-700/40
+                                           transition-colors"
+                            >
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <p className="text-sm font-semibold text-white">
+                                        Historical Returns
+                                    </p>
+                                    {/* Quick return pills */}
+                                    {RANGES.filter(r =>
+                                        !MULTI_YEAR.has(r) || r === "3Y"
+                                    ).map(r => {
+                                        const ret = data.returns?.[r];
+                                        if (!ret) return null;
+                                        const abs = ret.absoluteReturn ?? ret;
+                                        const v   = parseFloat(abs);
                                         return (
-                                            <div
-                                                key={period}
-                                                className="bg-slate-900 px-4 py-3 text-center"
-                                            >
-                                                <p className="text-xs text-slate-500">
-                                                    {period}
-                                                </p>
-                                                <p className={"text-base font-bold mt-1 " + col}>
-                                                    {pos ? "+" : ""}
-                                                    {ret}%
-                                                </p>
-                                            </div>
+                                            <span key={r}
+                                                  className={
+                                                      "text-xs font-medium px-2 py-0.5 " +
+                                                      "rounded-full " +
+                                                      (v >= 0
+                                                          ? "bg-green-900/30 text-green-400"
+                                                          : "bg-red-900/30 text-red-400")
+                                                  }>
+                                                {r}: {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                                            </span>
                                         );
-                                    }
-                                )}
-                            </div>
-                        </div>
-                    )}
+                                    })}
+                                </div>
+                                <span className={"text-slate-400 text-xs " +
+                                "transition-transform flex-shrink-0 " +
+                                (showReturns ? "rotate-180" : "")}>
+                                    ▼
+                                </span>
+                            </button>
 
-                    {/* SCHEME INFO */}
-                    {scheme.schemeCode && (
-                        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 grid grid-cols-2 gap-4">
-                            {[
-                                ["Scheme Code", scheme.schemeCode],
-                                ["Fund House",  scheme.fundHouse],
-                                ["Category",    scheme.schemeCategory],
-                                ["Type",        scheme.schemeType],
-                            ].map(([label, value]) =>
-                                value ? (
-                                    <div key={label}>
-                                        <p className="text-xs text-slate-500">{label}</p>
-                                        <p className="text-sm text-white mt-0.5">{value}</p>
-                                    </div>
-                                ) : null
+                            {showReturns && (
+                                <div className="mt-1 bg-slate-800/60 rounded-2xl
+                                                border border-slate-700/40 overflow-hidden">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                        <tr className="text-slate-500 text-xs uppercase
+                                                           border-b border-slate-700/40">
+                                            <th className="text-left px-5 py-2.5">
+                                                Period
+                                            </th>
+                                            <th className="text-right px-5 py-2.5">
+                                                Absolute Return
+                                            </th>
+                                            <th className="text-right px-5 py-2.5">
+                                                CAGR (p.a.)
+                                            </th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {RANGES.map(period => {
+                                            const ret = data.returns?.[period];
+                                            if (ret == null) return null;
+                                            const abs  = ret.absoluteReturn ?? ret;
+                                            const cagr = ret.annualizedReturn;
+                                            const isMulti = MULTI_YEAR.has(period);
+                                            return (
+                                                <tr key={period}
+                                                    className={
+                                                        "border-b border-slate-700/30 " +
+                                                        "hover:bg-slate-700/20 " +
+                                                        (range === period
+                                                            ? "bg-blue-900/10" : "")
+                                                    }>
+                                                    <td className="px-5 py-2.5
+                                                                       text-white font-medium">
+                                                        {PERIOD_LABEL[period] || period}
+                                                    </td>
+                                                    <td className={"text-right px-5 py-2.5 " +
+                                                    "font-semibold " + pctColor(abs)}>
+                                                        {fmtPct(abs)}
+                                                    </td>
+                                                    <td className="text-right px-5 py-2.5">
+                                                        {isMulti && cagr != null ? (
+                                                            <span className={pctColor(cagr)}>
+                                                                    {fmtPct(cagr)}
+                                                                </span>
+                                                        ) : (
+                                                            <span className="text-slate-500 text-xs">
+                                                                    = absolute
+                                                                </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             )}
                         </div>
                     )}
 
-                    {/* EXTERNAL LINKS */}
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                        <p className="text-sm font-semibold text-white mb-1">
-                            Full Details — Holdings, AUM, Fund Managers
-                        </p>
-                        <p className="text-xs text-slate-400 mb-3">
-                            AUM, expense ratio, fund holdings and manager details
-                            are available on these platforms:
-                        </p>
-                        <div className="flex gap-3">
-                            <a
-                                href={growwUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 flex items-center justify-center
-                                           bg-green-800/30 hover:bg-green-800/50 border
-                                           border-green-700/50 text-green-300 py-2.5
-                                           rounded-xl text-sm font-medium transition-colors"
+                    {/* Holdings + action buttons row */}
+                    <div className="flex gap-3">
+                        {/* Your Holdings */}
+                        {holdingLoaded && holding ? (
+                            <div className="flex-1 bg-slate-800/60 rounded-2xl
+                                            border border-slate-700/40 px-5 py-3">
+                                <p className="text-xs text-slate-500 mb-2">
+                                    Your Holdings
+                                </p>
+                                <div className="grid grid-cols-5 gap-4">
+                                    {[
+                                        ["Units",    fmtUnits(holding.units)],
+                                        ["Avg NAV",  fmt(holding.avgCostNav)],
+                                        ["Invested", fmt(holding.totalInvested)],
+                                        ["Value",    fmt(holding.currentValue)],
+                                    ].map(([l, v]) => (
+                                        <div key={l}>
+                                            <p className="text-xs text-slate-500">{l}</p>
+                                            <p className="text-sm font-semibold
+                                                          text-white mt-0.5">{v}</p>
+                                        </div>
+                                    ))}
+                                    <div>
+                                        <p className="text-xs text-slate-500">P&amp;L</p>
+                                        <p className={"text-sm font-bold mt-0.5 " +
+                                        holdingColor}>
+                                            {fmt(holding.unrealizedPnl)}
+                                        </p>
+                                        <p className={"text-xs " + holdingColor}>
+                                            {holdingPL >= 0 ? "+" : ""}
+                                            {holdingPLPct.toFixed(2)}%
+                                        </p>
+                                    </div>
+                                </div>
+                                {holding.navDate && (
+                                    <p className="text-xs text-slate-600 mt-2">
+                                        NAV as of {fmtDate(holding.navDate)}
+                                    </p>
+                                )}
+                            </div>
+                        ) : holdingLoaded && !holding ? (
+                            <div className="flex-1 bg-slate-800/60 rounded-2xl
+                                            border border-slate-700/40 px-5 py-3
+                                            flex items-center gap-3">
+                                <p className="text-slate-400 text-sm flex-1">
+                                    You don't hold this fund yet
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex-1 h-16 bg-slate-700 rounded-2xl
+                                            animate-pulse" />
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="flex flex-col gap-2">
+                            <button
+                                onClick={() => { onTransact(scheme); onClose(); }}
+                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700
+                                           text-white font-semibold text-sm rounded-xl
+                                           transition-colors whitespace-nowrap"
                             >
-                                Open in Groww →
-                            </a>
-                            <a
-                                href={vrUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 flex items-center justify-center
-                                           bg-slate-700 hover:bg-slate-600 border
-                                           border-slate-600 text-slate-300 py-2.5
-                                           rounded-xl text-sm font-medium transition-colors"
+                                {holding ? "Buy More / Redeem" : "+ Start Investing"}
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="px-6 py-3 bg-slate-700 hover:bg-slate-600
+                                           text-white font-medium text-sm rounded-xl
+                                           transition-colors"
                             >
-                                Value Research →
-                            </a>
+                                Close
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                {/* FOOTER */}
-                <div className="p-4 border-t border-slate-700 flex-shrink-0 flex gap-3">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 bg-slate-700 hover:bg-slate-600 text-white
-                                   font-semibold py-3 rounded-xl transition-colors"
-                    >
-                        Close
-                    </button>
-                    <button
-                        onClick={() => {
-                            onTransact(scheme);
-                            onClose();
-                        }}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white
-                                   font-semibold py-3 rounded-xl transition-colors"
-                    >
-                        + Record Transaction
-                    </button>
                 </div>
             </div>
         </div>

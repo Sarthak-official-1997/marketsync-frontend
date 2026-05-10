@@ -68,3 +68,12 @@ export const getMfNavOnDate = (schemeCode, date) =>
 export const getMfWatchlist      = () => api.get("/mf/watchlist");
 export const addToMfWatchlist    = (data) => api.post("/mf/watchlist", data);
 export const removeFromMfWatchlist = (id) => api.delete(`/mf/watchlist/${id}`);
+// Fix double /api bug:
+export const getStockReturns = (symbol, exchange) =>
+    api.get(`/market-data/returns/${symbol}?exchange=${exchange}`);
+
+// Add if not already there:
+export const getStockHistory = (symbol, exchange, range = "1M") =>
+    api.get(`/market-data/history/${symbol}?exchange=${exchange}&range=${range}`);
+export const getStockChart = (symbol, exchange, interval, range) =>
+    api.get(`/market-data/chart/${symbol}?exchange=${exchange}&interval=${interval}&range=${range}`);
