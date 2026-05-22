@@ -6,6 +6,7 @@ import { ToastProvider } from './context/ToastContext'
 import { ThemeProvider } from './context/ThemeContext'
 import App from './App.jsx'
 import './index.css'
+import "./styles/themes.css";
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>

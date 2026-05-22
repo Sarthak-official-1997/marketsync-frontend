@@ -1,0 +1,309 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser } from "../api/admin";
+
+const fmtDate = (d) => {
+    if (!d) return "—";
+    try { const [y,m,day] = d.toString().split("T")[0].split("-"); return `${day}/${m}/${y}`; }
+    catch { return "—"; }
+};
+
+const ROLE_STYLES = {
+    CLIENT:  "bg-blue-900/30 text-blue-400 border-blue-500/30",
+    ADMIN:   "bg-purple-900/30 text-purple-400 border-purple-500/30",
+    CREATOR: "bg-amber-900/30 text-amber-400 border-amber-500/30",
+};
+
+function ConfirmModal({ message, onConfirm, onCancel, danger = false }) {
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50
+                        flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl
+                            p-6 w-full max-w-sm shadow-2xl">
+                <p className="text-white font-semibold mb-2">Are you sure?</p>
+                <p className="text-slate-400 text-sm mb-6">{message}</p>
+                <div className="flex gap-3 justify-end">
+                    <button onClick={onCancel}
+                            className="px-4 py-2 text-sm text-slate-400 hover:text-white
+                                       bg-slate-700 hover:bg-slate-600 rounded-xl transition-colors">
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm}
+                            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors
+                                       text-white ${danger
+                                ? "bg-red-600 hover:bg-red-700"
+                                : "bg-blue-600 hover:bg-blue-700"}`}>
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function AdminUserManagementPage() {
+    const [users,   setUsers]   = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [busy,    setBusy]    = useState(null);  // userId currently being acted on
+    const [confirm, setConfirm] = useState(null);  // { type, userId, username }
+    const [search,  setSearch]  = useState("");
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        getAllUsers().then(setUsers).finally(() => setLoading(false));
+    }, []);
+
+    const refresh = () => getAllUsers().then(setUsers);
+
+    const handleRoleChange = async (userId, currentRole) => {
+        const newRole = currentRole === "CLIENT" ? "ADMIN" : "CLIENT";
+        setBusy(userId);
+        try {
+            const updated = await changeUserRole(userId, newRole);
+            setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+        } finally { setBusy(null); }
+    };
+
+    const handleBlock = async (userId, currentlyBlocked) => {
+        setBusy(userId);
+        try {
+            const updated = currentlyBlocked
+                ? await unblockUser(userId)
+                : await blockUser(userId);
+            setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+        } finally { setBusy(null); }
+    };
+
+    const handleDelete = async (userId) => {
+        setConfirm(null);
+        setBusy(userId);
+        try {
+            await deleteUser(userId);
+            setUsers(prev => prev.filter(u => u.id !== userId));
+        } finally { setBusy(null); }
+    };
+
+    const filtered = users.filter(u => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (u.fullName||"").toLowerCase().includes(q)
+            || u.username.toLowerCase().includes(q)
+            || u.email.toLowerCase().includes(q);
+    });
+
+    const adminCount  = users.filter(u => u.role === "ADMIN").length;
+    const clientCount = users.filter(u => u.role === "CLIENT").length;
+    const blockedCount = users.filter(u => u.blocked).length;
+
+    return (
+        <div className="space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-white">User Management</h1>
+                        <span className="text-xs bg-amber-500/20 text-amber-400 border
+                                         border-amber-500/30 px-2.5 py-1 rounded-full font-bold">
+                            👑 CREATOR
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                        {adminCount} admins · {clientCount} clients · {blockedCount} blocked
+                    </p>
+                </div>
+                <button onClick={() => navigate("/admin")}
+                        className="text-sm text-slate-400 hover:text-white hover:underline">
+                    ← Dashboard
+                </button>
+            </div>
+
+            {/* Legend + search */}
+            <div className="flex items-center gap-3 flex-wrap">
+                {[
+                    ["CLIENT", "Regular user"],
+                    ["ADMIN",  "Can view all portfolios"],
+                ].map(([role, desc]) => (
+                    <div key={role} className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border
+                                          ${ROLE_STYLES[role]}`}>
+                            {role}
+                        </span>
+                        <span className="text-slate-500 text-xs">{desc}</span>
+                    </div>
+                ))}
+                <div className="ml-auto">
+                    <input value={search} onChange={e => setSearch(e.target.value)}
+                           placeholder="Search users…"
+                           className="w-52 bg-slate-800 border border-slate-700 text-slate-300
+                                      text-xs rounded-xl px-3 py-2 focus:outline-none
+                                      focus:border-blue-500 placeholder:text-slate-600" />
+                </div>
+            </div>
+
+            {/* Table */}
+            {loading ? (
+                <div className="space-y-2">
+                    {[1,2,3].map(i => (
+                        <div key={i} className="h-16 bg-slate-800 rounded-xl animate-pulse" />
+                    ))}
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-12 text-center">
+                    <p className="text-slate-400">No users found</p>
+                </div>
+            ) : (
+                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead>
+                        <tr className="border-b border-slate-700 bg-slate-900/30 text-xs
+                                       text-slate-400 uppercase tracking-wide">
+                            <th className="text-left px-5 py-3">User</th>
+                            <th className="text-center px-4 py-3">Role</th>
+                            <th className="text-center px-4 py-3">Status</th>
+                            <th className="text-right px-4 py-3 hidden md:table-cell">Holdings</th>
+                            <th className="text-right px-4 py-3 hidden md:table-cell">Joined</th>
+                            <th className="text-right px-5 py-3">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {filtered.map(u => {
+                            const isBusy = busy === u.id;
+                            return (
+                                <tr key={u.id}
+                                    className={"border-b border-slate-700/40 last:border-0 " +
+                                    (u.blocked ? "opacity-60" : "")}>
+
+                                    {/* User info */}
+                                    <td className="px-5 py-4">
+                                        <p className="text-white font-semibold text-sm">
+                                            {u.fullName || u.username}
+                                        </p>
+                                        <p className="text-slate-500 text-xs">{u.email}</p>
+                                        <p className="text-slate-600 text-xs">@{u.username}</p>
+                                    </td>
+
+                                    {/* Role badge */}
+                                    <td className="text-center px-4 py-4">
+                                        <span className={`text-xs font-bold px-2.5 py-1
+                                                          rounded-full border ${ROLE_STYLES[u.role] || ""}`}>
+                                            {u.role}
+                                        </span>
+                                    </td>
+
+                                    {/* Blocked status */}
+                                    <td className="text-center px-4 py-4">
+                                        {u.blocked ? (
+                                            <span className="text-xs bg-red-900/40 text-red-400
+                                                             border border-red-500/30 px-2 py-0.5
+                                                             rounded-full font-semibold">
+                                                🚫 Blocked
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs bg-green-900/20 text-green-500
+                                                             border border-green-500/20 px-2 py-0.5
+                                                             rounded-full">
+                                                ✓ Active
+                                            </span>
+                                        )}
+                                    </td>
+
+                                    {/* Holdings + joined */}
+                                    <td className="text-right px-4 py-4 hidden md:table-cell">
+                                        <p className="text-slate-300 text-xs">
+                                            {u.holdingCount} holdings
+                                        </p>
+                                        <p className="text-slate-600 text-xs">
+                                            {u.transactionCount} txns
+                                        </p>
+                                    </td>
+                                    <td className="text-right px-4 py-4 hidden md:table-cell">
+                                        <p className="text-slate-400 text-xs">
+                                            {fmtDate(u.createdAt)}
+                                        </p>
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td className="px-5 py-4">
+                                        <div className="flex items-center justify-end gap-2">
+
+                                            {/* Promote / Demote */}
+                                            <button
+                                                disabled={isBusy}
+                                                onClick={() => handleRoleChange(u.id, u.role)}
+                                                className={`text-xs px-3 py-1.5 rounded-xl
+                                                            font-semibold transition-colors
+                                                            disabled:opacity-40 disabled:cursor-not-allowed
+                                                            ${u.role === "CLIENT"
+                                                    ? "bg-purple-900/40 text-purple-400 hover:bg-purple-900/70 border border-purple-500/30"
+                                                    : "bg-blue-900/40 text-blue-400 hover:bg-blue-900/70 border border-blue-500/30"}`}
+                                                title={u.role === "CLIENT" ? "Promote to Admin" : "Demote to Client"}>
+                                                {isBusy ? "…" : u.role === "CLIENT" ? "↑ Make Admin" : "↓ Make Client"}
+                                            </button>
+
+                                            {/* Block / Unblock */}
+                                            <button
+                                                disabled={isBusy}
+                                                onClick={() => {
+                                                    if (!u.blocked) {
+                                                        setConfirm({
+                                                            type: "block", userId: u.id,
+                                                            username: u.username,
+                                                        });
+                                                    } else {
+                                                        handleBlock(u.id, true);
+                                                    }
+                                                }}
+                                                className={`text-xs px-3 py-1.5 rounded-xl
+                                                            font-semibold transition-colors
+                                                            disabled:opacity-40 disabled:cursor-not-allowed
+                                                            ${u.blocked
+                                                    ? "bg-green-900/30 text-green-400 hover:bg-green-900/50 border border-green-500/30"
+                                                    : "bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 border border-amber-500/30"}`}
+                                                title={u.blocked ? "Unblock user" : "Block user"}>
+                                                {isBusy ? "…" : u.blocked ? "✓ Unblock" : "🚫 Block"}
+                                            </button>
+
+                                            {/* Delete */}
+                                            <button
+                                                disabled={isBusy}
+                                                onClick={() => setConfirm({
+                                                    type: "delete", userId: u.id,
+                                                    username: u.username,
+                                                })}
+                                                className="text-xs px-3 py-1.5 rounded-xl
+                                                           font-semibold transition-colors
+                                                           bg-red-900/30 text-red-400
+                                                           hover:bg-red-900/60 border border-red-500/30
+                                                           disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Delete account permanently">
+                                                🗑 Delete
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Confirmation modals */}
+            {confirm?.type === "block" && (
+                <ConfirmModal
+                    message={`Block @${confirm.username}? They will be kicked out immediately — even if they have a remember-me session.`}
+                    onConfirm={() => { setConfirm(null); handleBlock(confirm.userId, false); }}
+                    onCancel={() => setConfirm(null)}
+                />
+            )}
+            {confirm?.type === "delete" && (
+                <ConfirmModal
+                    danger
+                    message={`Permanently delete @${confirm.username} and ALL their data (holdings, transactions, watchlist)? This cannot be undone.`}
+                    onConfirm={() => handleDelete(confirm.userId)}
+                    onCancel={() => setConfirm(null)}
+                />
+            )}
+        </div>
+    );
+}

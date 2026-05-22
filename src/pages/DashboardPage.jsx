@@ -9,6 +9,7 @@ import StockComparison from "../components/StockComparison";
 import PortfolioPerformanceChart from "../components/PortfolioPerformanceChart";
 import PLCalendar from "../components/PLCalendar";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useToast } from "../context/ToastContext";
 
 const COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444",
     "#8b5cf6","#06b6d4","#ec4899","#84cc16"];
@@ -34,6 +35,7 @@ const tooltipStyle = {
 export default function DashboardPage() {
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
+    const toast = useToast();
     const [error, setError]     = useState("");
 
     useEffect(() => {
