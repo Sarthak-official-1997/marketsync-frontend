@@ -7,6 +7,7 @@ import { searchStocks, searchMfSchemes, addToWatchlist } from "../api/portfolio"
 import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
 import { trackStockView } from "./RecentStocksMarquee";
+import ChangePasswordModal from "./ChangePasswordModal";
 
 import logo from "../assets/logo.png";
 
@@ -116,6 +117,10 @@ export default function Layout({ children, portfolioSummary }) {
     const [mfOpen,        setMfOpen]        = useState(true);
     const [selectedStock, setSelectedStock] = useState(null);
 
+    const [userMenuOpen,       setUserMenuOpen]       = useState(false);
+    const [showChangePw,       setShowChangePw]       = useState(false);
+    const userMenuRef = useRef(null);
+
     const handleLogout = () => { logout(); navigate("/login"); };
 
     const totalValue = portfolioSummary?.totalValue;
@@ -135,6 +140,15 @@ export default function Layout({ children, portfolioSummary }) {
     useEffect(() => {
         const h = (e) => {
             if (themeRef.current && !themeRef.current.contains(e.target)) setThemeOpen(false);
+        };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, []);
+
+    useEffect(() => {
+        const h = (e) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target))
+                setUserMenuOpen(false);
         };
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
@@ -257,19 +271,63 @@ export default function Layout({ children, portfolioSummary }) {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2 bg-slate-800
-                                    border border-slate-700 rounded-xl px-3 py-1.5">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center
-                                        justify-center text-white text-xs font-bold flex-shrink-0">
-                            {user?.username?.[0]?.toUpperCase() || "U"}
-                        </div>
-                        <span className="text-sm text-white hidden sm:block">{user?.username}</span>
-                        <button onClick={handleLogout}
-                                className="text-slate-400 hover:text-red-400 transition-colors
-                                           text-xs ml-1 hover:underline">
-                            Logout
+                    <div ref={userMenuRef} className="relative">
+                        <button
+                            onClick={() => setUserMenuOpen(v => !v)}
+                            className="flex items-center gap-2 bg-slate-800 border border-slate-700
+                   rounded-xl px-3 py-1.5 hover:bg-slate-700 transition-colors">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center
+                        justify-center text-white text-xs font-bold flex-shrink-0">
+                                {user?.username?.[0]?.toUpperCase() || "U"}
+                            </div>
+                            <span className="text-sm text-white hidden sm:block">{user?.username}</span>
+                            <span className="text-slate-500 text-xs">▾</span>
                         </button>
+
+                        {userMenuOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800 border
+                        border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                                {/* User info header */}
+                                <div className="px-4 py-3 border-b border-slate-700/50">
+                                    <p className="text-white font-semibold text-sm">{user?.fullName || user?.username}</p>
+                                    <p className="text-slate-500 text-xs mt-0.5">{user?.email || user?.username}</p>
+                                    <span className={
+                                        "inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-bold border " +
+                                        (user?.role === "CREATOR"
+                                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                            : user?.role === "ADMIN"
+                                                ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                                : "bg-blue-500/20 text-blue-400 border-blue-500/30")
+                                    }>
+                    {user?.role === "CREATOR" ? "👑 CREATOR" : user?.role}
+                </span>
+                                </div>
+
+                                {/* Change password */}
+                                <button
+                                    onClick={() => { setUserMenuOpen(false); setShowChangePw(true); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                           text-slate-300 hover:text-white hover:bg-slate-700/60
+                           transition-colors text-left">
+                                    <span>🔑</span> Change Password
+                                </button>
+
+                                {/* Logout */}
+                                <button
+                                    onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                           text-red-400 hover:text-red-300 hover:bg-red-900/20
+                           transition-colors text-left border-t border-slate-700/50">
+                                    <span>🚪</span> Logout
+                                </button>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Change password modal */}
+                    {showChangePw && (
+                        <ChangePasswordModal onClose={() => setShowChangePw(false)} />
+                    )}
                 </div>
             </header>
 

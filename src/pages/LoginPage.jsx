@@ -13,6 +13,7 @@ export default function LoginPage() {
     const [loading,         setLoading]         = useState(false);
     const [error,           setError]           = useState("");
     const [sessionExpired,  setSessionExpired]  = useState(false);
+    const [showForgot, setShowForgot] = useState(false);
 
     const auth     = useAuth();
     const navigate = useNavigate();
@@ -200,10 +201,37 @@ export default function LoginPage() {
                         Don't have an account?{" "}
                         <Link to="/register"
                               className="text-blue-400 hover:text-blue-300 font-medium
-                                         hover:underline transition-colors">
+                     hover:underline transition-colors">
                             Register
                         </Link>
                     </p>
+
+                    {/* Forgot password */}
+                    <div className="mt-4 pt-4 border-t border-slate-800 text-center">
+                        <button
+                            onClick={() => setShowForgot(v => !v)}
+                            className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+                            Forgot your password?
+                        </button>
+                        {showForgot && (
+                            <div className="mt-3 bg-slate-800 border border-slate-700 rounded-xl p-4 text-left">
+                                <p className="text-slate-300 text-sm font-semibold mb-1">
+                                    🔒 Password Reset
+                                </p>
+                                <p className="text-slate-400 text-xs leading-relaxed">
+                                    Password resets are handled by your administrator.
+                                    Contact <span className="text-amber-400 font-semibold">915 CLUB Support</span> and
+                                    your account will be given a temporary password to sign in with.
+                                </p>
+                                <a href="mailto:sarthaksharma1997@gmail.com?subject=MarketSync Password Reset"
+                                   className="inline-flex items-center gap-1.5 mt-3 text-xs
+                          bg-blue-600 hover:bg-blue-700 text-white font-medium
+                          px-3 py-2 rounded-lg transition-colors">
+                                    📧 Contact Admin
+                                </a>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser } from "../api/admin";
+import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser, resetUserPassword } from "../api/admin";
+
 
 const fmtDate = (d) => {
     if (!d) return "—";
@@ -47,6 +48,7 @@ export default function AdminUserManagementPage() {
     const [busy,    setBusy]    = useState(null);  // userId currently being acted on
     const [confirm, setConfirm] = useState(null);  // { type, userId, username }
     const [search,  setSearch]  = useState("");
+    const [resetResult, setResetResult] = useState(null); // { username, tempPassword }
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -54,6 +56,15 @@ export default function AdminUserManagementPage() {
     }, []);
 
     const refresh = () => getAllUsers().then(setUsers);
+
+    const handleResetPassword = async (userId, username) => {
+        setConfirm(null);
+        setBusy(userId);
+        try {
+            const res = await resetUserPassword(userId);
+            setResetResult({ username, tempPassword: res.tempPassword });
+        } finally { setBusy(null); }
+    };
 
     const handleRoleChange = async (userId, currentRole) => {
         const newRole = currentRole === "CLIENT" ? "ADMIN" : "CLIENT";
@@ -278,6 +289,20 @@ export default function AdminUserManagementPage() {
                                                 title="Delete account permanently">
                                                 🗑 Delete
                                             </button>
+
+                                            {/* Reset Password */}
+                                            <button
+                                                disabled={isBusy}
+                                                onClick={() => setConfirm({
+                                                    type: "resetPassword", userId: u.id, username: u.username,
+                                                })}
+                                                className="text-xs px-3 py-1.5 rounded-xl font-semibold
+                                                           transition-colors bg-slate-700/60 text-slate-400
+                                                           hover:bg-slate-700 border border-slate-600
+                                                           disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Generate a temporary password">
+                                                🔑 Reset PW
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -303,6 +328,54 @@ export default function AdminUserManagementPage() {
                     onConfirm={() => handleDelete(confirm.userId)}
                     onCancel={() => setConfirm(null)}
                 />
+            )}
+
+            {confirm?.type === "resetPassword" && (
+                <ConfirmModal
+                    message={`Reset @${confirm.username}'s password? A temporary password will be generated for you to share with them.`}
+                    onConfirm={() => handleResetPassword(confirm.userId, confirm.username)}
+                    onCancel={() => setConfirm(null)}
+                />
+            )}
+
+            {/* Show generated temp password */}
+            {resetResult && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50
+                    flex items-center justify-center p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl
+                        p-6 w-full max-w-sm shadow-2xl">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">✅</span>
+                            <h3 className="text-white font-bold">Password Reset</h3>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-4">
+                            Share this temporary password with
+                            <span className="text-white font-semibold"> @{resetResult.username}</span>.
+                            They should change it after logging in.
+                        </p>
+                        <div className="bg-slate-900 border border-slate-600 rounded-xl
+                            px-4 py-3 flex items-center justify-between">
+                            <code className="text-amber-400 font-bold text-lg tracking-wider">
+                                {resetResult.tempPassword}
+                            </code>
+                            <button
+                                onClick={() => navigator.clipboard.writeText(resetResult.tempPassword)}
+                                className="text-xs text-slate-400 hover:text-white
+                               transition-colors ml-3 flex-shrink-0">
+                                📋 Copy
+                            </button>
+                        </div>
+                        <p className="text-slate-600 text-xs mt-3">
+                            ⚠️ This password is shown only once. Copy it now.
+                        </p>
+                        <button
+                            onClick={() => setResetResult(null)}
+                            className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700
+                           text-white font-semibold rounded-xl text-sm transition-colors">
+                            Done
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );
