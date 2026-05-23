@@ -233,9 +233,18 @@ export default function AdminClientsPage() {
                                     onClick={() => navigate(`/admin/clients/${c.id}`)}>
 
                                     <td className="px-5 py-3.5">
-                                        <p className="text-white font-semibold text-sm">
-                                            {c.fullName || c.username}
-                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-white font-semibold text-sm">
+                                                {c.fullName || c.username}
+                                            </p>
+                                            {c.role === "ADMIN" && (
+                                                <span className="text-xs px-1.5 py-0.5 bg-amber-500/20
+                             text-amber-400 border border-amber-500/30
+                             rounded font-bold">
+                ADMIN
+            </span>
+                                            )}
+                                        </div>
                                         <p className="text-slate-500 text-xs">{c.email}</p>
                                     </td>
 
