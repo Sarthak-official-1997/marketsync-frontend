@@ -5,6 +5,7 @@ import {
 } from "../api/portfolio";
 import StockTransactionPanel from "../components/StockTransactionPanel";
 import {useToast} from "../context/ToastContext";
+import AiTradeImportModal from "../components/AiTradeImportModal";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (val) =>
@@ -539,6 +540,7 @@ export default function TransactionsPage() {
     const [calYear, setCalYear] = useState(new Date().getFullYear());
     const [calMonth, setCalMonth] = useState(new Date().getMonth());
     const [expandedSymbol, setExpanded] = useState(null);
+    const [showAiImport, setShowAiImport] = useState(false);
     const toast = useToast();
 
     const load = async () => {
@@ -644,10 +646,16 @@ export default function TransactionsPage() {
                                        rounded-xl border border-slate-600 transition-colors">
                         📥 Export CSV
                     </button>
+                    <button onClick={() => setShowAiImport(true)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-purple-600
+                   hover:bg-purple-700 text-white text-sm font-semibold
+                   rounded-xl transition-colors">
+                        ✨ AI Import
+                    </button>
                     <button onClick={() => setShowAdd(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600
-                                       hover:bg-blue-700 text-white text-sm font-semibold
-                                       rounded-xl transition-colors">
+                   hover:bg-blue-700 text-white text-sm font-semibold
+                   rounded-xl transition-colors">
                         + Add Transaction
                     </button>
                 </div>
@@ -785,6 +793,13 @@ export default function TransactionsPage() {
                     stock={activeStock}
                     onClose={() => setActiveStock(null)}
                     onChanged={() => load()}
+                />
+            )}
+
+            {showAiImport && (
+                <AiTradeImportModal
+                    onClose={() => setShowAiImport(false)}
+                    onImported={() => { setShowAiImport(false); load(); }}
                 />
             )}
 
