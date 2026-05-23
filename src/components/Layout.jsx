@@ -17,8 +17,13 @@ const BOARD_KEY = "ms_board_stocks";
 export function addToBoard(stock) {
     try {
         const existing = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]");
-        if (existing.some(s => s.symbol === stock.symbol)) return false; // already there
-        const updated = [...existing, { symbol: stock.symbol, name: stock.name, exchange: stock.exchange }];
+        if (existing.some(s => s.symbol === stock.symbol)) return false;
+        const updated = [...existing, {
+            id: stock.id,
+            symbol: stock.symbol,
+            name: stock.name,
+            exchange: stock.exchange
+        }];
         localStorage.setItem(BOARD_KEY, JSON.stringify(updated));
         window.dispatchEvent(new Event("ms_board_updated"));
         return true;

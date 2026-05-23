@@ -4,17 +4,10 @@ import StockDetailModal from "../components/StockDetailModal";
 import StockLogo        from "../components/StockLogo";
 import { useToast } from "../context/ToastContext";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { addToBoard, getBoardStocks, removeFromBoard } from "../components/Layout";
 
-const PINNED_KEY           = "ms_pinned_stocks";
 const RECENTLY_VISITED_KEY = "ms_recently_visited";
 
-const getPinned = () => {
-    try { return JSON.parse(localStorage.getItem(PINNED_KEY) || "[]"); }
-    catch { return []; }
-};
-const savePinned = (arr) => {
-    try { localStorage.setItem(PINNED_KEY, JSON.stringify(arr)); } catch {}
-};
 const getRecentlyVisited = () => {
     try { return JSON.parse(localStorage.getItem(RECENTLY_VISITED_KEY) || "[]"); }
     catch { return []; }
@@ -176,7 +169,7 @@ export default function StocksMarketPage() {
 // ====================================================================
     const [pinned,     setPinned]     = useState([]);
     const [prices,     setPrices]     = useState({});
-    const [holdingsMap,setHoldingsMap]= useState({}); // symbol → holding
+    const [holdingsMap,setHoldingsMap]= useState({});
     const [chartStock, setChartStock] = useState(null);
     const [showSearch, setShowSearch] = useState(false);
     const [query,      setQuery]      = useState("");
@@ -187,12 +180,13 @@ export default function StocksMarketPage() {
     const debRef = useRef(null);
     const toast  = useToast();
 
-    // Board loads from localStorage only.
-    // Auto-merge was removed: it caused recently-visited stocks to appear
-    // in pinned state without showing a card (corrupted), triggering false
-    // "already on board" errors. Board = explicit user additions only.
+    // Load board from unified storage + listen for updates from top search bar
     useEffect(() => {
-        setPinned(getPinned());
+        setPinned(getBoardStocks());
+
+        const handleBoardUpdate = () => setPinned(getBoardStocks());
+        window.addEventListener("ms_board_updated", handleBoardUpdate);
+        return () => window.removeEventListener("ms_board_updated", handleBoardUpdate);
     }, []);
 
     // Fetch holdings to show invested/current on cards
@@ -228,19 +222,17 @@ export default function StocksMarketPage() {
     };
 
     const pinStock = (s) => {
-        if (pinned.find(p => p.symbol === s.symbol)) {
-            toast.error(`${s.symbol} is already on your board`); return;
+        const added = addToBoard(s);
+        if (!added) {
+            toast.error(`${s.symbol} is already on your board`);
+            return;
         }
-        const updated = [...pinned,
-            { id: s.id, symbol: s.symbol, name: s.name, exchange: s.exchange }];
-        setPinned(updated); savePinned(updated);
         toast.success(`${s.symbol} added to board`);
         setShowSearch(false); setQuery(""); setResults([]);
     };
 
     const removeStock = (symbol) => {
-        const updated = pinned.filter(s => s.symbol !== symbol);
-        setPinned(updated); savePinned(updated);
+        removeFromBoard(symbol);
     };
 
     const handleSearch = (q) => {
@@ -275,7 +267,11 @@ export default function StocksMarketPage() {
         const arr = [...pinned];
         const [moved] = arr.splice(dragIdx, 1);
         arr.splice(i, 0, moved);
-        setPinned(arr); savePinned(arr);
+        // Save reordered list to unified storage
+        try {
+            localStorage.setItem("ms_board_stocks", JSON.stringify(arr));
+        } catch {}
+        setPinned(arr);
         setDragIdx(null); setOverIdx(null);
     };
 
