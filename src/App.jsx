@@ -9,6 +9,7 @@ import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
 import NotificationModal    from "./components/NotificationModal";
+import WelcomeModal       from "./components/WelcomeModal";
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
 import AdminClientViewPage    from "./pages/AdminClientViewPage";
 
@@ -61,7 +62,13 @@ function AppShell() {
     const [portfolioSummary,    setPortfolioSummary]    = useState(null);
     const [pendingNotifs,       setPendingNotifs]       = useState([]);
     const [notifsChecked,       setNotifsChecked]       = useState(false);
+    const [showWelcome,         setShowWelcome]         = useState(false);
     const { user } = useAuth();
+    useEffect(() => {
+        if (user?.firstLogin) {
+            setShowWelcome(true);
+        }
+    }, [user?.firstLogin]);
 
     // Check for pending notifications on login
     useEffect(() => {
@@ -234,6 +241,12 @@ function AppShell() {
                 <NotificationModal
                     notifications={pendingNotifs}
                     onAllAcknowledged={() => setPendingNotifs([])}
+                />
+            )}
+            {showWelcome && (
+                <WelcomeModal
+                    user={user}
+                    onClose={() => setShowWelcome(false)}
                 />
             )}
         </>
