@@ -10,6 +10,7 @@ import {
     AreaChart, Area, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
+import { addToBoard, getBoardStocks, removeFromBoard } from "./Layout";
 
 const fmt = (val, currency = "INR") => {
     if (val == null || isNaN(val)) return "—";
@@ -82,6 +83,7 @@ export default function StockDetailModal({ stock, onClose }) {
     const [chartLoading, setCL]          = useState(true);
     const [showReturns,  setShowReturns] = useState(false);
     const [addingWatch,  setAddingWatch] = useState(false);
+    const [onBoard, setOnBoard] = useState(false);
 
     // PIECE 2: Declared missing reactive state variables for Watchlist functionality
     const [inWatchlist, setInWatchlist]         = useState(false);
@@ -159,6 +161,15 @@ export default function StockDetailModal({ stock, onClose }) {
             .catch(() => setChartData([]))
             .finally(() => setCL(false));
     }, [stock?.symbol, tf]);
+
+    useEffect(() => {
+        if (!stock?.symbol) return;
+        setOnBoard(getBoardStocks().some(s => s.symbol === stock.symbol));
+        const handler = () =>
+            setOnBoard(getBoardStocks().some(s => s.symbol === stock.symbol));
+        window.addEventListener("ms_board_updated", handler);
+        return () => window.removeEventListener("ms_board_updated", handler);
+    }, [stock?.symbol]);
 
     // Fetch user holdings to know if SELL button should show + hint in form
     useEffect(() => {
@@ -304,6 +315,37 @@ export default function StockDetailModal({ stock, onClose }) {
                                         : "bg-slate-700 hover:bg-slate-600 text-white")
                                 }>
                                 {addingWatch ? "…" : inWatchlist ? "✓ Watchlisted" : "👁 Watchlist"}
+                            </button>
+
+                            {/* Add to Board */}
+                            <button
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    if (onBoard) {
+                                        removeFromBoard(stock.symbol);
+                                        setOnBoard(false);
+                                        toast.success(`${stock.symbol} removed from board`);
+                                    } else {
+                                        const added = addToBoard({
+                                            id: stock.id, symbol: stock.symbol,
+                                            name: stock.name, exchange: stock.exchange,
+                                        });
+                                        if (added) {
+                                            setOnBoard(true);
+                                            toast.success(`${stock.symbol} added to board`);
+                                        } else {
+                                            toast.error(`${stock.symbol} already on board`);
+                                        }
+                                    }
+                                }}
+                                className={
+                                    "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
+                                    "rounded-xl transition-all whitespace-nowrap " +
+                                    (onBoard
+                                        ? "bg-purple-700 hover:bg-red-700 text-white ring-1 ring-purple-500/40"
+                                        : "bg-slate-700 hover:bg-purple-600 text-white")
+                                }>
+                                {onBoard ? "✓ On Board" : "📌 Board"}
                             </button>
 
                             {/* TradingView */}

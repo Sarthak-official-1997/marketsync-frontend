@@ -9,6 +9,8 @@ import StockDetailModal from "./StockDetailModal";
 import { trackStockView } from "./RecentStocksMarquee";
 import ChangePasswordModal from "./ChangePasswordModal";
 import RevealPasswordModal from "./RevealPasswordModal";
+import { getRecentStocks } from "./RecentStocksMarquee";
+import { getStockPrice }   from "../api/portfolio";
 
 import logo from "../assets/logo.png";
 
@@ -425,6 +427,7 @@ function GlobalSearch({ onStockSelect }) {
     const [open,    setOpen]    = useState(false);
     const [loading, setLoading] = useState(false);
     const [tab,     setTab]     = useState("stocks");
+    const [recent,  setRecent]  = useState([]);   // ← recently viewed list
     const debounceRef = useRef(null);
     const wrapRef     = useRef(null);
     const navigate    = useNavigate();
@@ -432,26 +435,70 @@ function GlobalSearch({ onStockSelect }) {
 
     useEffect(() => {
         const h = (e) => {
-            if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+            if (wrapRef.current && !wrapRef.current.contains(e.target))
+                setOpen(false);
         };
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
     }, []);
 
+    // Refresh recent list when storage changes
+    useEffect(() => {
+        const refresh = () => setRecent(getRecentStocks().slice(0, 20));
+        refresh();
+        window.addEventListener("ms_recent_updated", refresh);
+        window.addEventListener("storage", refresh);
+        return () => {
+            window.removeEventListener("ms_recent_updated", refresh);
+            window.removeEventListener("storage", refresh);
+        };
+    }, []);
+
     const handleSearch = (q) => {
         setQuery(q);
         clearTimeout(debounceRef.current);
-        if (q.length < 2) { setResults({ stocks: [], mf: [] }); setOpen(false); return; }
-        setLoading(true); setOpen(true);
+        if (q.length < 2) {
+            setResults({ stocks: [], mf: [] });
+            // Show recently viewed dropdown when query is empty
+            setOpen(true);
+            return;
+        }
+        setLoading(true);
+        setOpen(true);
         debounceRef.current = setTimeout(async () => {
             try {
-                const [sRes, mRes] = await Promise.allSettled([searchStocks(q), searchMfSchemes(q)]);
-                const stocks = sRes.status === "fulfilled" ? (sRes.value?.content || sRes.value?.data?.content || []) : [];
-                const mf     = mRes.status === "fulfilled" ? (mRes.value?.content || mRes.value?.data?.content || []) : [];
+                const [sRes, mRes] = await Promise.allSettled([
+                    searchStocks(q), searchMfSchemes(q)
+                ]);
+                const stocks = sRes.status === "fulfilled"
+                    ? (sRes.value?.content || sRes.value?.data?.content || []) : [];
+                const mf     = mRes.status === "fulfilled"
+                    ? (mRes.value?.content || mRes.value?.data?.content || []) : [];
                 setResults({ stocks, mf });
                 setTab(stocks.length > 0 ? "stocks" : "mf");
-            } catch {} finally { setLoading(false); }
+            } catch {}
+            finally { setLoading(false); }
         }, 300);
+    };
+
+    // Fix 2: fetch price after selecting so trackStockView gets % data
+    const selectStock = async (item) => {
+        setOpen(false);
+        setQuery("");
+        trackStockView(item); // immediate save without price
+        onStockSelect(item);
+        // Async: fetch price and re-save with % data
+        try {
+            const res = await getStockPrice(item.symbol);
+            const p   = res?.data || res;
+            if (p?.changePercent != null || p?.currentPrice != null) {
+                trackStockView({
+                    ...item,
+                    changePercent: p.changePercent ?? p.regularMarketChangePercent ?? null,
+                    change:        p.change        ?? p.regularMarketChange        ?? null,
+                });
+            }
+        } catch {}
     };
 
     const handleAddWatchlist = async (stock) => {
@@ -463,126 +510,209 @@ function GlobalSearch({ onStockSelect }) {
         }
     };
 
-    const activeList = tab === "stocks" ? results.stocks : results.mf;
+    const activeList  = tab === "stocks" ? results.stocks : results.mf;
+    const isTyping    = query.length >= 2;
+
+    // Fix 1: recently viewed stocks filtered to not repeat search results
+    const searchSymbols = new Set(results.stocks.map(s => s.symbol));
+    const filteredRecent = recent.filter(s => !searchSymbols.has(s.symbol));
+
+    const showRecent  = !isTyping && recent.length > 0;
+    const showResults = isTyping;
 
     return (
         <div ref={wrapRef} className="relative flex-shrink-0">
             <div className="relative">
-                <input type="text" value={query}
-                       onChange={e => handleSearch(e.target.value)}
-                       onFocus={() => query.length >= 2 && setOpen(true)}
-                       placeholder="Search stocks & MF..."
-                       className="w-56 bg-slate-800 border border-slate-700 rounded-xl
-                                  px-4 py-2 text-white text-xs focus:outline-none
-                                  focus:border-blue-500 focus:w-72 transition-all duration-200
-                                  placeholder:text-slate-500" />
+                <input
+                    type="text"
+                    value={query}
+                    onChange={e => handleSearch(e.target.value)}
+                    onFocus={() => {
+                        setOpen(true);
+                        setRecent(getRecentStocks().slice(0, 20));
+                    }}
+                    placeholder="Search stocks & MF..."
+                    className="w-56 bg-slate-800 border border-slate-700 rounded-xl
+                               px-4 py-2 text-white text-xs focus:outline-none
+                               focus:border-blue-500 focus:w-72 transition-all duration-200
+                               placeholder:text-slate-500"
+                />
                 {loading && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent
-                                        rounded-full animate-spin" />
+                        <div className="w-3 h-3 border-2 border-blue-400
+                                        border-t-transparent rounded-full animate-spin" />
                     </div>
                 )}
             </div>
 
-            {open && query.length >= 2 && (
+            {open && (
                 <div className="absolute right-0 top-full mt-1 bg-slate-800 border
                                 border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden"
                      style={{ width: "360px" }}>
-                    <div className="flex border-b border-slate-700">
-                        {[
-                            { id: "stocks", label: `📈 Stocks (${results.stocks.length})` },
-                            { id: "mf",     label: `📊 MF (${results.mf.length})` },
-                        ].map(t => (
-                            <button key={t.id} onClick={() => setTab(t.id)}
-                                    className={"flex-1 py-2.5 text-xs font-semibold transition-colors " +
-                                    (tab === t.id
-                                        ? "text-white border-b-2 border-blue-500 bg-slate-700/40"
-                                        : "text-slate-400 hover:text-white")}>
-                                {t.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="max-h-72 overflow-y-auto">
-                        {activeList.length === 0 ? (
-                            <p className="text-slate-500 text-xs text-center py-6">
-                                No {tab === "stocks" ? "stocks" : "funds"} found
-                            </p>
-                        ) : activeList.map((item, idx) => {
-                            const isStock = tab === "stocks";
-                            return (
-                                <div key={idx}
-                                     className="flex items-center justify-between px-4 py-2.5
-                                                border-b border-slate-700/40 last:border-0
-                                                hover:bg-slate-700/40 transition-colors">
-                                    <button className="text-left flex-1 min-w-0"
-                                            onClick={() => {
-                                                setOpen(false); setQuery("");
-                                                if (isStock) {
-                                                    trackStockView(item);
-                                                    onStockSelect(item);
-                                                } else {
-                                                    navigate("/mf");
-                                                }
-                                            }}>
-                                        {isStock ? (
-                                            <>
-                                                <p className="text-white text-xs font-bold">
-                                                    {item.symbol}
-                                                    <span className="text-slate-500 font-normal ml-1">{item.exchange}</span>
+
+                    {/* ── Fix 1: Recently viewed default state ── */}
+                    {showRecent && (
+                        <>
+                            <div className="px-4 py-2 border-b border-slate-700/50">
+                                <p className="text-slate-500 text-[10px] font-bold
+                                              uppercase tracking-widest">
+                                    🕐 Recently Viewed
+                                </p>
+                            </div>
+                            <div className="max-h-72 overflow-y-auto">
+                                {filteredRecent.map((stock, i) => {
+                                    const pct   = parseFloat(stock.changePercent ?? 0);
+                                    const isPos = pct >= 0;
+                                    return (
+                                        <div key={i}
+                                             className="flex items-center justify-between
+                                                        px-4 py-2.5 border-b border-slate-700/30
+                                                        last:border-0 hover:bg-slate-700/40
+                                                        transition-colors cursor-pointer"
+                                             onClick={() => selectStock(stock)}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-white text-xs font-bold">
+                                                        {stock.symbol}
+                                                    </p>
+                                                    <span className="text-slate-600 text-[10px]">
+                                                        {stock.exchange}
+                                                    </span>
+                                                </div>
+                                                <p className="text-slate-400 text-xs truncate">
+                                                    {stock.name}
                                                 </p>
-                                                <p className="text-slate-400 text-xs truncate">{item.name}</p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <p className="text-white text-xs font-semibold truncate leading-tight">
-                                                    {item.schemeName}
-                                                </p>
-                                                <p className="text-slate-400 text-xs">
-                                                    {item.fundHouse}{item.nav ? ` · NAV ₹${item.nav}` : ""}
-                                                </p>
-                                            </>
-                                        )}
-                                    </button>
-                                    {isStock && (
-                                        <div className="flex-shrink-0 ml-2 flex gap-1">
-                                            <button onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleAddWatchlist(item);
-                                            }}
-                                                    className="text-xs px-2 py-1 bg-slate-700
-                                                               hover:bg-blue-600 text-slate-400
-                                                               hover:text-white rounded-lg
-                                                               transition-colors">
-                                                + Watch
-                                            </button>
-                                            <button onClick={(e) => {
-                                                e.stopPropagation();
-                                                const added = addToBoard(item);
-                                                toast[added ? "success" : "error"](
-                                                    added
-                                                        ? `${item.symbol} added to board`
-                                                        : `${item.symbol} already on board`
-                                                );
-                                            }}
-                                                    className="text-xs px-2 py-1 bg-slate-700
-                                                               hover:bg-purple-600 text-slate-400
-                                                               hover:text-white rounded-lg
-                                                               transition-colors"
-                                                    title="Add to market board">
-                                                + Board
-                                            </button>
+                                            </div>
+                                            {/* Fix 2: show % from trackStockView */}
+                                            {stock.changePercent != null && (
+                                                <span className={`text-xs font-semibold ml-3
+                                                    flex-shrink-0 ${isPos
+                                                    ? "text-green-400"
+                                                    : "text-red-400"}`}>
+                                                    {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
+                                                </span>
+                                            )}
                                         </div>
-                                    )}
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── Search results ── */}
+                    {showResults && (
+                        <>
+                            <div className="flex border-b border-slate-700">
+                                {[
+                                    { id: "stocks", label: `📈 Stocks (${results.stocks.length})` },
+                                    { id: "mf",     label: `📊 MF (${results.mf.length})` },
+                                ].map(t => (
+                                    <button key={t.id} onClick={() => setTab(t.id)}
+                                            className={"flex-1 py-2.5 text-xs font-semibold " +
+                                            "transition-colors " +
+                                            (tab === t.id
+                                                ? "text-white border-b-2 border-blue-500 bg-slate-700/40"
+                                                : "text-slate-400 hover:text-white")}>
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="max-h-72 overflow-y-auto">
+                                {activeList.length === 0 ? (
+                                    <p className="text-slate-500 text-xs text-center py-6">
+                                        No {tab === "stocks" ? "stocks" : "funds"} found
+                                    </p>
+                                ) : activeList.map((item, idx) => {
+                                    const isStock = tab === "stocks";
+                                    return (
+                                        <div key={idx}
+                                             className="flex items-center justify-between px-4
+                                                        py-2.5 border-b border-slate-700/40
+                                                        last:border-0 hover:bg-slate-700/40
+                                                        transition-colors">
+                                            <button className="text-left flex-1 min-w-0"
+                                                    onClick={() => {
+                                                        if (isStock) {
+                                                            trackStockView(item);
+                                                            selectStock(item);
+                                                        } else {
+                                                            setOpen(false);
+                                                            setQuery("");
+                                                            navigate("/mf");
+                                                        }
+                                                    }}>
+                                                {isStock ? (
+                                                    <>
+                                                        <p className="text-white text-xs font-bold">
+                                                            {item.symbol}
+                                                            <span className="text-slate-500
+                                                                             font-normal ml-1">
+                                                                {item.exchange}
+                                                            </span>
+                                                        </p>
+                                                        <p className="text-slate-400 text-xs truncate">
+                                                            {item.name}
+                                                        </p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-white text-xs font-semibold
+                                                                      truncate leading-tight">
+                                                            {item.schemeName}
+                                                        </p>
+                                                        <p className="text-slate-400 text-xs">
+                                                            {item.fundHouse}
+                                                            {item.nav ? ` · NAV ₹${item.nav}` : ""}
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </button>
+                                            {isStock && (
+                                                <div className="flex-shrink-0 ml-2 flex gap-1">
+                                                    <button
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleAddWatchlist(item);
+                                                        }}
+                                                        className="text-xs px-2 py-1 bg-slate-700
+                                                                   hover:bg-blue-600 text-slate-400
+                                                                   hover:text-white rounded-lg
+                                                                   transition-colors">
+                                                        + Watch
+                                                    </button>
+                                                    <button
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            const added = addToBoard(item);
+                                                            toast[added ? "success" : "error"](
+                                                                added
+                                                                    ? `${item.symbol} added to board`
+                                                                    : `${item.symbol} already on board`
+                                                            );
+                                                        }}
+                                                        className="text-xs px-2 py-1 bg-slate-700
+                                                                   hover:bg-purple-600 text-slate-400
+                                                                   hover:text-white rounded-lg
+                                                                   transition-colors"
+                                                        title="Add to market board">
+                                                        + Board
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {(results.stocks.length + results.mf.length) > 0 && (
+                                <div className="px-4 py-2 border-t border-slate-700/40
+                                                bg-slate-800/60">
+                                    <p className="text-xs text-slate-600 text-center">
+                                        {results.stocks.length + results.mf.length} results
+                                        — click to open chart
+                                    </p>
                                 </div>
-                            );
-                        })}
-                    </div>
-                    {(results.stocks.length + results.mf.length) > 0 && (
-                        <div className="px-4 py-2 border-t border-slate-700/40 bg-slate-800/60">
-                            <p className="text-xs text-slate-600 text-center">
-                                {results.stocks.length + results.mf.length} results — click to open chart
-                            </p>
-                        </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
