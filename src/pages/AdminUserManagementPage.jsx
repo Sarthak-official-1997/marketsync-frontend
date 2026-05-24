@@ -49,7 +49,8 @@ export default function AdminUserManagementPage() {
     const [busy,    setBusy]    = useState(null);  // userId currently being acted on
     const [confirm, setConfirm] = useState(null);  // { type, userId, username }
     const [search,  setSearch]  = useState("");
-    const [resetResult, setResetResult] = useState(null); // { username, tempPassword }
+    const [resetResult,     setResetResult]     = useState(null); // { username, tempPassword }
+    const [passkeyResetDone,setPasskeyResetDone]= useState(null); // username
     const navigate = useNavigate();
 
     useEffect(() => {
