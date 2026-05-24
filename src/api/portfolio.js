@@ -138,8 +138,8 @@ export const deleteMfTransaction   = (id)   => api.delete(`/mf/transactions/${id
 
 
 export const getMfWatchlist        = ()     => api.get("/mf/watchlist");
-export const addToMfWatchlist      = (data) => api.post("/mf/watchlist/items", data);
-export const removeFromMfWatchlist = (id)   => api.delete(`/mf/watchlist/items/${id}`);
+export const addToMfWatchlist = (data) => api.post("/mf/watchlist", data);
+export const removeFromMfWatchlist = (id) => api.delete(`/mf/watchlist/${id}`);
 
 export const getPortfolioHistory = (range = "3mo") => api.get("/api/holdings/history", { params: { range } }).then(r => r.data);
 

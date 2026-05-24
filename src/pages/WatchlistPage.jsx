@@ -7,6 +7,7 @@ import StockTransactionPanel from "../components/StockTransactionPanel";
 import StockQuickMenu   from "../components/StockQuickMenu";
 import StockDetailModal from "../components/StockDetailModal";
 import MfTransactionPanel    from "../components/MfTransactionPanel";
+import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import { useToast } from "../context/ToastContext";
 import DayChangeBadge from "../components/DayChangeBadge";
 import StockLogo      from "../components/StockLogo";
@@ -56,6 +57,7 @@ function StocksWatchlist({ toast }) {
     const [activeStock,  setActiveStock] = useState(null);
     const [quickMenuStock, setQuickMenuStock] = useState(null);
     const [chartStock,     setChartStock]     = useState(null);
+    const [detailMf, setDetailMf] = useState(null);
     const debounceRef = useRef(null);
     const inputRef    = useRef(null);
 
@@ -360,7 +362,7 @@ function MfWatchlist({ toast }) {
                         {items.map(item => (
                             <tr key={item.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                                 <td className="px-5 py-3">
-                                    <button onClick={() => setActiveMf({ schemeCode: item.schemeCode, schemeName: item.schemeName, fundHouse: item.fundHouse, nav: item.nav })}
+                                    <button onClick={() => setDetailMf({ schemeCode: item.schemeCode, schemeName: item.schemeName, fundHouse: item.fundHouse, nav: item.nav })}
                                             className="text-left group">
                                         <p className="font-semibold text-white group-hover:text-blue-400 transition-colors text-xs max-w-xs truncate" title={item.schemeName}>{item.schemeName}</p>
                                         <p className="text-xs text-slate-400 mt-0.5">{item.fundHouse || "—"}</p>
@@ -383,6 +385,17 @@ function MfWatchlist({ toast }) {
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {detailMf && (
+                <MfSchemeDetailModal
+                    scheme={detailMf}
+                    onClose={() => setDetailMf(null)}
+                    onTransact={(s) => {
+                        setDetailMf(null);
+                        setActiveMf(s);
+                    }}
+                />
             )}
 
             {activeMf && (

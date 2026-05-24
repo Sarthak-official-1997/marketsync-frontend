@@ -8,9 +8,9 @@ import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
 import ChangePasswordModal from "./ChangePasswordModal";
 import RevealPasswordModal from "./RevealPasswordModal";
-import { getRecentStocks, trackStockView,
-    getRecentMf, trackMfView } from "./RecentStocksMarquee";
+import { getRecentStocks, trackStockView, getRecentMf, trackMfView } from "./RecentStocksMarquee";
 import logo from "../assets/logo.png";
+import MfSchemeDetailModal from "./MfSchemeDetailModal";
 
 // ── Board helpers ─────────────────────────────────────────────────────────────
 // The "board" is the market page's personal stock widget.
@@ -117,6 +117,7 @@ export default function Layout({ children, portfolioSummary }) {
     const [stocksOpen,    setStocksOpen]    = useState(true);
     const [mfOpen,        setMfOpen]        = useState(true);
     const [selectedStock, setSelectedStock] = useState(null);
+    const [selectedMf, setSelectedMf] = useState(null);
 
     const [userMenuOpen,       setUserMenuOpen]       = useState(false);
     const [showChangePw,       setShowChangePw]       = useState(false);
@@ -178,7 +179,7 @@ export default function Layout({ children, portfolioSummary }) {
                     <IndexTicker />
                 </div>
 
-                <GlobalSearch onStockSelect={setSelectedStock} />
+                <GlobalSearch onStockSelect={setSelectedStock} onMfSelect={setSelectedMf} />
 
                 <div className="flex items-center gap-3 flex-shrink-0">
                     {/* Role badge — CREATOR gets gold crown, ADMIN gets amber */}
@@ -414,12 +415,23 @@ export default function Layout({ children, portfolioSummary }) {
             {selectedStock && (
                 <StockDetailModal stock={selectedStock} onClose={() => setSelectedStock(null)} />
             )}
+            {selectedMf && (
+                <MfSchemeDetailModal
+                    scheme={selectedMf}
+                    onClose={() => setSelectedMf(null)}
+                    onTransact={() => {
+                        setSelectedMf(null);
+                        navigate("/mf");
+                    }}
+                />
+            )}
         </div>
     );
 }
 
 // ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
-function GlobalSearch({ onStockSelect }) {
+// Changed signature:
+function GlobalSearch({ onStockSelect, onMfSelect }) {
     const [query,   setQuery]   = useState("");
     const [results, setResults] = useState({ stocks: [], mf: [] });
     const [open,    setOpen]    = useState(false);
@@ -533,6 +545,7 @@ function GlobalSearch({ onStockSelect }) {
                     onChange={e => handleSearch(e.target.value)}
                     onFocus={() => {
                         setOpen(true);
+                        setTab("stocks");  // always default to stocks tab on focus
                         setRecent(getRecentStocks().slice(0, 20));
                     }}
                     placeholder="Search stocks & MF..."
@@ -557,87 +570,101 @@ function GlobalSearch({ onStockSelect }) {
                     {/* ── Fix 1: Recently viewed default state ── */}
                     {showRecent && (
                         <>
-                            {/* Recently viewed stocks */}
-                            {filteredRecent.length > 0 && (
-                                <>
-                                    <div className="px-4 py-2 border-b border-slate-700/50">
-                                        <p className="text-slate-500 text-[10px] font-bold
-                                  uppercase tracking-widest">
-                                            🕐 Recently Viewed — Stocks
-                                        </p>
-                                    </div>
-                                    <div className="max-h-48 overflow-y-auto">
-                                        {filteredRecent.map((stock, i) => {
-                                            const pct   = parseFloat(stock.changePercent ?? 0);
-                                            const isPos = pct >= 0;
-                                            return (
-                                                <div key={i}
-                                                     className="flex items-center justify-between
-                                            px-4 py-2.5 border-b border-slate-700/30
-                                            last:border-0 hover:bg-slate-700/40
-                                            transition-colors cursor-pointer"
-                                                     onClick={() => selectStock(stock)}>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-white text-xs font-bold">
-                                                                {stock.symbol}
-                                                            </p>
-                                                            <span className="text-slate-600 text-[10px]">
-                                            {stock.exchange}
-                                        </span>
-                                                        </div>
-                                                        <p className="text-slate-400 text-xs truncate">
-                                                            {stock.name}
-                                                        </p>
-                                                    </div>
-                                                    {stock.changePercent != null && (
-                                                        <span className={`text-xs font-semibold ml-3
-                                        flex-shrink-0 ${isPos
-                                                            ? "text-green-400" : "text-red-400"}`}>
-                                        {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
-                                    </span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </>
-                            )}
+                            {/* Tab headers — same style as search results */}
+                            <div className="flex border-b border-slate-700">
+                                {[
+                                    { id: "stocks", label: `🕐 Stocks (${filteredRecent.length})` },
+                                    { id: "mf",     label: `📊 MF (${recentMf.length})` },
+                                ].map(t => (
+                                    <button key={t.id} onClick={() => setTab(t.id)}
+                                            className={"flex-1 py-2.5 text-xs font-semibold " +
+                                            "transition-colors " +
+                                            (tab === t.id
+                                                ? "text-white border-b-2 border-blue-500 bg-slate-700/40"
+                                                : "text-slate-400 hover:text-white")}>
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
 
-                            {/* Recently viewed MF — separate section */}
-                            {recentMf.length > 0 && (
-                                <>
-                                    <div className="px-4 py-2 border-b border-slate-700/50 border-t border-slate-700/30">
-                                        <p className="text-slate-500 text-[10px] font-bold
-                                  uppercase tracking-widest">
-                                            📊 Recently Viewed — Mutual Funds
+                            {/* Stocks tab */}
+                            {tab === "stocks" && (
+                                <div className="max-h-72 overflow-y-auto">
+                                    {filteredRecent.length === 0 ? (
+                                        <p className="text-slate-500 text-xs text-center py-6">
+                                            No recently viewed stocks
                                         </p>
-                                    </div>
-                                    <div className="max-h-40 overflow-y-auto">
-                                        {recentMf.map((mf, i) => (
+                                    ) : filteredRecent.map((stock, i) => {
+                                        const pct   = parseFloat(stock.changePercent ?? 0);
+                                        const isPos = pct >= 0;
+                                        return (
                                             <div key={i}
                                                  className="flex items-center justify-between
                                         px-4 py-2.5 border-b border-slate-700/30
                                         last:border-0 hover:bg-slate-700/40
                                         transition-colors cursor-pointer"
-                                                 onClick={() => {
-                                                     setOpen(false);
-                                                     setQuery("");
-                                                     navigate("/mf");
-                                                 }}>
+                                                 onClick={() => selectStock(stock)}>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-white text-xs font-semibold truncate">
-                                                        {mf.schemeName}
-                                                    </p>
-                                                    <p className="text-slate-400 text-xs">
-                                                        {mf.fundHouse}
-                                                        {mf.nav ? ` · NAV ₹${mf.nav}` : ""}
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-white text-xs font-bold">
+                                                            {stock.symbol}
+                                                        </p>
+                                                        <span className="text-slate-600 text-[10px]">
+                                        {stock.exchange}
+                                    </span>
+                                                    </div>
+                                                    <p className="text-slate-400 text-xs truncate">
+                                                        {stock.name}
                                                     </p>
                                                 </div>
+                                                {stock.changePercent != null && (
+                                                    <span className={`text-xs font-semibold ml-3
+                                    flex-shrink-0 ${isPos
+                                                        ? "text-green-400" : "text-red-400"}`}>
+                                    {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
+                                </span>
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
-                                </>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* MF tab */}
+                            {tab === "mf" && (
+                                <div className="max-h-72 overflow-y-auto">
+                                    {recentMf.length === 0 ? (
+                                        <p className="text-slate-500 text-xs text-center py-6">
+                                            No recently viewed funds
+                                        </p>
+                                    ) : recentMf.map((mf, i) => (
+                                        <div key={i}
+                                             className="flex items-center justify-between
+                                    px-4 py-2.5 border-b border-slate-700/30
+                                    last:border-0 hover:bg-slate-700/40
+                                    transition-colors cursor-pointer"
+                                             onClick={() => {
+                                                 setOpen(false);
+                                                 setQuery("");
+                                                 onMfSelect({
+                                                     schemeCode: mf.schemeCode,
+                                                     schemeName: mf.schemeName,
+                                                     fundHouse:  mf.fundHouse,
+                                                     nav:        mf.nav,
+                                                 });
+                                             }}>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white text-xs font-semibold truncate">
+                                                    {mf.schemeName}
+                                                </p>
+                                                <p className="text-slate-400 text-xs">
+                                                    {mf.fundHouse}
+                                                    {mf.nav ? ` · NAV ₹${mf.nav}` : ""}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </>
                     )}
@@ -682,7 +709,12 @@ function GlobalSearch({ onStockSelect }) {
                                                             trackMfView(item);
                                                             setOpen(false);
                                                             setQuery("");
-                                                            navigate("/mf");
+                                                            onMfSelect({
+                                                                schemeCode: item.schemeCode,
+                                                                schemeName: item.schemeName,
+                                                                fundHouse:  item.fundHouse,
+                                                                nav:        item.nav,
+                                                            });
                                                         }
                                                     }}>
                                                 {isStock ? (
