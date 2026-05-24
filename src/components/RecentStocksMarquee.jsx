@@ -131,3 +131,30 @@ export default function RecentStocksMarquee({ onStockClick }) {
         </div>
     );
 }
+
+// ── MF recently viewed (separate from stocks) ─────────────────────────────
+const MF_RECENT_KEY = "ms_recently_viewed_mf";
+const MAX_MF_RECENT = 20;
+
+export function trackMfView(scheme) {
+    try {
+        const existing = JSON.parse(localStorage.getItem(MF_RECENT_KEY) || "[]");
+        const filtered = existing.filter(s => s.schemeCode !== scheme.schemeCode);
+        const updated  = [
+            {
+                schemeCode: scheme.schemeCode,
+                schemeName: scheme.schemeName,
+                fundHouse:  scheme.fundHouse  || "",
+                nav:        scheme.nav        || null,
+            },
+            ...filtered,
+        ].slice(0, MAX_MF_RECENT);
+        localStorage.setItem(MF_RECENT_KEY, JSON.stringify(updated));
+        window.dispatchEvent(new Event("ms_mf_recent_updated"));
+    } catch {}
+}
+
+export function getRecentMf() {
+    try { return JSON.parse(localStorage.getItem(MF_RECENT_KEY) || "[]"); }
+    catch { return []; }
+}

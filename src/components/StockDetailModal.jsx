@@ -11,6 +11,7 @@ import {
     ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
 import { addToBoard, getBoardStocks, removeFromBoard } from "./Layout";
+import { trackStockView } from "./RecentStocksMarquee";
 
 const fmt = (val, currency = "INR") => {
     if (val == null || isNaN(val)) return "—";
@@ -116,6 +117,17 @@ export default function StockDetailModal({ stock, onClose }) {
                     setInWatchlist(r.data.inWatchlist);
                     setWatchlistItemId(r.data.watchlistItemId || null);
                 }
+                // ── Always re-save to recently viewed with fresh % data ──
+                // Works regardless of how the modal was opened (marquee, watchlist,
+                // board, search — all go through here)
+                trackStockView({
+                    id:            stock.id,
+                    symbol:        stock.symbol,
+                    name:          stock.name,
+                    exchange:      stock.exchange,
+                    changePercent: r.data?.changePercent ?? null,
+                    change:        r.data?.change        ?? null,
+                });
             })
             .catch(() => setQuote(null))
             .finally(() => setQL(false));

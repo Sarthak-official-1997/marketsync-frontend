@@ -10,6 +10,7 @@ import MfTransactionPanel    from "../components/MfTransactionPanel";
 import { useToast } from "../context/ToastContext";
 import DayChangeBadge from "../components/DayChangeBadge";
 import StockLogo      from "../components/StockLogo";
+import { trackStockView } from "../components/RecentStocksMarquee";
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -172,7 +173,7 @@ function StocksWatchlist({ toast }) {
                                                         <span className="text-xs bg-blue-900/30 text-blue-400
                                                                          border border-blue-500/20 px-1.5 py-0.5
                                                                          rounded-lg font-medium">
-                                                            {parseFloat(item.quantityHeld).toFixed(2)} held
+                                                            {Math.round(parseFloat(item.quantityHeld))} held
                                                         </span>
                                                     )}
                                                 </div>
@@ -229,7 +230,10 @@ function StocksWatchlist({ toast }) {
                 <StockQuickMenu
                     stock={quickMenuStock}
                     onClose={() => setQuickMenuStock(null)}
-                    onViewChart={() => setChartStock(quickMenuStock)}
+                    onViewChart={() => {
+                        trackStockView(quickMenuStock);
+                        setChartStock(quickMenuStock);
+                    }}
                     onTransact={() => setActiveStock(quickMenuStock)}
                 />
             )}

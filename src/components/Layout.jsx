@@ -11,6 +11,7 @@ import ChangePasswordModal from "./ChangePasswordModal";
 import RevealPasswordModal from "./RevealPasswordModal";
 import { getRecentStocks } from "./RecentStocksMarquee";
 import { getStockPrice }   from "../api/portfolio";
+import { getRecentStocks, trackStockView, getRecentMf, trackMfView } from "./RecentStocksMarquee";
 
 import logo from "../assets/logo.png";
 
@@ -428,6 +429,7 @@ function GlobalSearch({ onStockSelect }) {
     const [loading, setLoading] = useState(false);
     const [tab,     setTab]     = useState("stocks");
     const [recent,  setRecent]  = useState([]);   // ← recently viewed list
+    const [recentMf, setRecentMf] = useState([]);
     const debounceRef = useRef(null);
     const wrapRef     = useRef(null);
     const navigate    = useNavigate();
@@ -444,13 +446,18 @@ function GlobalSearch({ onStockSelect }) {
 
     // Refresh recent list when storage changes
     useEffect(() => {
-        const refresh = () => setRecent(getRecentStocks().slice(0, 20));
+        const refresh = () => {
+            setRecent(getRecentStocks().slice(0, 20));
+            setRecentMf(getRecentMf().slice(0, 20));
+        };
         refresh();
-        window.addEventListener("ms_recent_updated", refresh);
-        window.addEventListener("storage", refresh);
+        window.addEventListener("ms_recent_updated",    refresh);
+        window.addEventListener("ms_mf_recent_updated", refresh);
+        window.addEventListener("storage",              refresh);
         return () => {
-            window.removeEventListener("ms_recent_updated", refresh);
-            window.removeEventListener("storage", refresh);
+            window.removeEventListener("ms_recent_updated",    refresh);
+            window.removeEventListener("ms_mf_recent_updated", refresh);
+            window.removeEventListener("storage",              refresh);
         };
     }, []);
 
@@ -553,49 +560,88 @@ function GlobalSearch({ onStockSelect }) {
                     {/* ── Fix 1: Recently viewed default state ── */}
                     {showRecent && (
                         <>
-                            <div className="px-4 py-2 border-b border-slate-700/50">
-                                <p className="text-slate-500 text-[10px] font-bold
-                                              uppercase tracking-widest">
-                                    🕐 Recently Viewed
-                                </p>
-                            </div>
-                            <div className="max-h-72 overflow-y-auto">
-                                {filteredRecent.map((stock, i) => {
-                                    const pct   = parseFloat(stock.changePercent ?? 0);
-                                    const isPos = pct >= 0;
-                                    return (
-                                        <div key={i}
-                                             className="flex items-center justify-between
-                                                        px-4 py-2.5 border-b border-slate-700/30
-                                                        last:border-0 hover:bg-slate-700/40
-                                                        transition-colors cursor-pointer"
-                                             onClick={() => selectStock(stock)}>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-white text-xs font-bold">
-                                                        {stock.symbol}
-                                                    </p>
-                                                    <span className="text-slate-600 text-[10px]">
-                                                        {stock.exchange}
-                                                    </span>
+                            {/* Recently viewed stocks */}
+                            {filteredRecent.length > 0 && (
+                                <>
+                                    <div className="px-4 py-2 border-b border-slate-700/50">
+                                        <p className="text-slate-500 text-[10px] font-bold
+                                  uppercase tracking-widest">
+                                            🕐 Recently Viewed — Stocks
+                                        </p>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto">
+                                        {filteredRecent.map((stock, i) => {
+                                            const pct   = parseFloat(stock.changePercent ?? 0);
+                                            const isPos = pct >= 0;
+                                            return (
+                                                <div key={i}
+                                                     className="flex items-center justify-between
+                                            px-4 py-2.5 border-b border-slate-700/30
+                                            last:border-0 hover:bg-slate-700/40
+                                            transition-colors cursor-pointer"
+                                                     onClick={() => selectStock(stock)}>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-white text-xs font-bold">
+                                                                {stock.symbol}
+                                                            </p>
+                                                            <span className="text-slate-600 text-[10px]">
+                                            {stock.exchange}
+                                        </span>
+                                                        </div>
+                                                        <p className="text-slate-400 text-xs truncate">
+                                                            {stock.name}
+                                                        </p>
+                                                    </div>
+                                                    {stock.changePercent != null && (
+                                                        <span className={`text-xs font-semibold ml-3
+                                        flex-shrink-0 ${isPos
+                                                            ? "text-green-400" : "text-red-400"}`}>
+                                        {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
+                                    </span>
+                                                    )}
                                                 </div>
-                                                <p className="text-slate-400 text-xs truncate">
-                                                    {stock.name}
-                                                </p>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Recently viewed MF — separate section */}
+                            {recentMf.length > 0 && (
+                                <>
+                                    <div className="px-4 py-2 border-b border-slate-700/50 border-t border-slate-700/30">
+                                        <p className="text-slate-500 text-[10px] font-bold
+                                  uppercase tracking-widest">
+                                            📊 Recently Viewed — Mutual Funds
+                                        </p>
+                                    </div>
+                                    <div className="max-h-40 overflow-y-auto">
+                                        {recentMf.map((mf, i) => (
+                                            <div key={i}
+                                                 className="flex items-center justify-between
+                                        px-4 py-2.5 border-b border-slate-700/30
+                                        last:border-0 hover:bg-slate-700/40
+                                        transition-colors cursor-pointer"
+                                                 onClick={() => {
+                                                     setOpen(false);
+                                                     setQuery("");
+                                                     navigate("/mf");
+                                                 }}>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-white text-xs font-semibold truncate">
+                                                        {mf.schemeName}
+                                                    </p>
+                                                    <p className="text-slate-400 text-xs">
+                                                        {mf.fundHouse}
+                                                        {mf.nav ? ` · NAV ₹${mf.nav}` : ""}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            {/* Fix 2: show % from trackStockView */}
-                                            {stock.changePercent != null && (
-                                                <span className={`text-xs font-semibold ml-3
-                                                    flex-shrink-0 ${isPos
-                                                    ? "text-green-400"
-                                                    : "text-red-400"}`}>
-                                                    {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
-                                                </span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
 
@@ -636,6 +682,7 @@ function GlobalSearch({ onStockSelect }) {
                                                             trackStockView(item);
                                                             selectStock(item);
                                                         } else {
+                                                            trackMfView(item);
                                                             setOpen(false);
                                                             setQuery("");
                                                             navigate("/mf");
