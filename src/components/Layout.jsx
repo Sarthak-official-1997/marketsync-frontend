@@ -3,16 +3,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { useAuth }  from "../context/AuthContext";
 import IndexTicker  from "./IndexTicker";
-import { searchStocks, searchMfSchemes, addToWatchlist } from "../api/portfolio";
+import { searchStocks, searchMfSchemes, addToWatchlist, getStockPrice } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
 import ChangePasswordModal from "./ChangePasswordModal";
 import RevealPasswordModal from "./RevealPasswordModal";
-import { getRecentStocks } from "./RecentStocksMarquee";
-import { getStockPrice }   from "../api/portfolio";
 import { getRecentStocks, trackStockView,
     getRecentMf, trackMfView } from "./RecentStocksMarquee";
-
 import logo from "../assets/logo.png";
 
 // ── Board helpers ─────────────────────────────────────────────────────────────
