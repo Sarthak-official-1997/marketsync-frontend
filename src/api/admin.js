@@ -15,6 +15,7 @@ export const blockUser      = (userId)            => api.patch(`/admin/users/${u
 export const unblockUser    = (userId)            => api.patch(`/admin/users/${userId}/unblock`).then(r => r.data);
 export const deleteUser     = (userId)            => api.delete(`/admin/users/${userId}`).then(r => r.data);
 export const resetUserPassword = (userId) => api.post(`/admin/users/${userId}/reset-password`).then(r => r.data);
+export const resetUserPasskey = (userId) => api.delete(`/admin/users/${userId}/passkey`);
 
 // ── Notifications (CREATOR sends, ADMIN/CREATOR views) ────────────────────
 export const sendNotification      = (data)   => api.post("/admin/notifications", data).then(r => r.data);

@@ -2,9 +2,261 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link }   from "react-router-dom";
 import { useAuth }             from "../context/AuthContext";
 import { loginApi }            from "../api/portfolio";
+import { forgotPasswordWithPasskey } from "../api/user";
 import AppLogo from "../components/AppLogo";
 
 const SESSION_EXPIRED_KEY = "ms_session_expired";
+const PASSKEY_REGEX = /^[0-9]{10}[a-z]{5}[0-9]{4}[a-z]{1}$/;
+
+
+function ForgotPasswordPanel({ onCancel }) {
+    const [mode,        setMode]        = useState("choose");
+    // modes: "choose" | "passkey" | "contact" | "done"
+    const [username,    setUsername]    = useState("");
+    const [passkey,     setPasskey]     = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirm,     setConfirm]     = useState("");
+    const [loading,     setLoading]     = useState(false);
+    const [error,       setError]       = useState("");
+
+    const handleReset = async () => {
+        if (!username.trim()) {
+            setError("Enter your username or email"); return;
+        }
+        if (!PASSKEY_REGEX.test(passkey)) {
+            setError("Passkey format is incorrect (20 characters: 10digits+5alpha+4digits+1alpha)"); return;
+        }
+        if (newPassword.length < 6) {
+            setError("New password must be at least 6 characters"); return;
+        }
+        if (newPassword !== confirm) {
+            setError("Passwords do not match"); return;
+        }
+        setLoading(true);
+        setError("");
+        try {
+            await forgotPasswordWithPasskey(username, passkey, newPassword);
+            setMode("done");
+        } catch (err) {
+            setError(err.response?.data?.message || "Reset failed. Check your passkey.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ── Choose mode ───────────────────────────────────────────────────────
+    if (mode === "choose") {
+        return (
+            <div className="mt-3 bg-slate-800 border border-slate-700
+                            rounded-xl p-4 text-left space-y-3">
+                <p className="text-slate-300 text-sm font-semibold">
+                    🔒 How would you like to reset?
+                </p>
+                <button
+                    onClick={() => setMode("passkey")}
+                    className="w-full flex items-center gap-3 bg-slate-700
+                               hover:bg-slate-600 rounded-xl px-4 py-3
+                               text-left transition-colors">
+                    <span className="text-2xl">🔑</span>
+                    <div>
+                        <p className="text-white text-sm font-semibold">
+                            Use my Passkey
+                        </p>
+                        <p className="text-slate-400 text-xs mt-0.5">
+                            Reset instantly using your 20-character passkey
+                        </p>
+                    </div>
+                </button>
+                <button
+                    onClick={() => setMode("contact")}
+                    className="w-full flex items-center gap-3 bg-slate-700
+                               hover:bg-slate-600 rounded-xl px-4 py-3
+                               text-left transition-colors">
+                    <span className="text-2xl">📧</span>
+                    <div>
+                        <p className="text-white text-sm font-semibold">
+                            I forgot my passkey too
+                        </p>
+                        <p className="text-slate-400 text-xs mt-0.5">
+                            Contact administrator for manual reset
+                        </p>
+                    </div>
+                </button>
+            </div>
+        );
+    }
+
+    // ── Passkey reset form ────────────────────────────────────────────────
+    if (mode === "passkey") {
+        return (
+            <div className="mt-3 bg-slate-800 border border-slate-700
+                            rounded-xl p-4 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                    <p className="text-slate-300 text-sm font-semibold">
+                        🔑 Reset with Passkey
+                    </p>
+                    <button onClick={() => setMode("choose")}
+                            className="text-slate-500 hover:text-white text-xs">
+                        ← Back
+                    </button>
+                </div>
+
+                {/* Username */}
+                <div>
+                    <label className="text-xs text-slate-400 block mb-1">
+                        Username or Email
+                    </label>
+                    <input
+                        type="text"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        placeholder="Your username or email"
+                        className="w-full bg-slate-700 border border-slate-600
+                                   rounded-lg px-3 py-2 text-white text-sm
+                                   focus:outline-none focus:border-blue-500"
+                    />
+                </div>
+
+                {/* Passkey */}
+                <div>
+                    <label className="text-xs text-slate-400 block mb-1">
+                        Your Passkey
+                        <span className="text-slate-600 ml-1">
+                            (10digits+5alpha+4digits+1alpha)
+                        </span>
+                    </label>
+                    <input
+                        type="text"
+                        value={passkey}
+                        onChange={e => setPasskey(
+                            e.target.value.toLowerCase()
+                                .replace(/[^a-z0-9]/g, "").slice(0, 20)
+                        )}
+                        placeholder="e.g. 9876543210abcde7890m"
+                        className="w-full bg-slate-700 border border-slate-600
+                                   rounded-lg px-3 py-2 text-white text-sm
+                                   font-mono tracking-widest focus:outline-none
+                                   focus:border-blue-500"
+                    />
+                    {passkey.length > 0 && (
+                        <p className={`text-xs mt-1 ${
+                            PASSKEY_REGEX.test(passkey)
+                                ? "text-green-400" : "text-slate-500"
+                        }`}>
+                            {passkey.length}/20
+                            {PASSKEY_REGEX.test(passkey) ? " ✓ Valid format" : ""}
+                        </p>
+                    )}
+                </div>
+
+                {/* New password */}
+                <div>
+                    <label className="text-xs text-slate-400 block mb-1">
+                        New Password
+                    </label>
+                    <input
+                        type="password"
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        className="w-full bg-slate-700 border border-slate-600
+                                   rounded-lg px-3 py-2 text-white text-sm
+                                   focus:outline-none focus:border-blue-500"
+                    />
+                </div>
+
+                {/* Confirm */}
+                <div>
+                    <label className="text-xs text-slate-400 block mb-1">
+                        Confirm New Password
+                    </label>
+                    <input
+                        type="password"
+                        value={confirm}
+                        onChange={e => setConfirm(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className={`w-full bg-slate-700 border rounded-lg px-3
+                                   py-2 text-white text-sm focus:outline-none
+                                   ${confirm.length > 0
+                            ? newPassword === confirm
+                                ? "border-green-500"
+                                : "border-red-500"
+                            : "border-slate-600 focus:border-blue-500"}`}
+                    />
+                </div>
+
+                {error && (
+                    <p className="text-red-400 text-xs">{error}</p>
+                )}
+
+                <button
+                    onClick={handleReset}
+                    disabled={loading}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700
+                               disabled:opacity-40 disabled:cursor-not-allowed
+                               text-white font-bold rounded-xl text-sm
+                               transition-colors">
+                    {loading ? "Resetting…" : "Reset Password"}
+                </button>
+            </div>
+        );
+    }
+
+    // ── Contact admin ─────────────────────────────────────────────────────
+    if (mode === "contact") {
+        return (
+            <div className="mt-3 bg-slate-800 border border-slate-700
+                            rounded-xl p-4 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                    <p className="text-slate-300 text-sm font-semibold">
+                        📧 Contact Administrator
+                    </p>
+                    <button onClick={() => setMode("choose")}
+                            className="text-slate-500 hover:text-white text-xs">
+                        ← Back
+                    </button>
+                </div>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                    Both your password and passkey will be reset by the administrator.
+                    Contact{" "}
+                    <span className="text-amber-400 font-semibold">
+                        915 CLUB Support
+                    </span>{" "}
+                    — you'll receive a temporary password and be prompted to set
+                    a new passkey on next login.
+                </p>
+                <a href="mailto:sarthaksharma1997@gmail.com?subject=MarketSync Password Reset"
+                   className="inline-flex items-center gap-1.5 text-xs
+                              bg-blue-600 hover:bg-blue-700 text-white font-medium
+                              px-3 py-2 rounded-lg transition-colors">
+                    📧 Contact Admin
+                </a>
+            </div>
+        );
+    }
+
+    // ── Done ──────────────────────────────────────────────────────────────
+    if (mode === "done") {
+        return (
+            <div className="mt-3 bg-green-900/30 border border-green-700/50
+                            rounded-xl p-4 text-center space-y-2">
+                <p className="text-3xl">✅</p>
+                <p className="text-green-300 font-semibold text-sm">
+                    Password reset successfully!
+                </p>
+                <p className="text-slate-400 text-xs">
+                    You can now sign in with your new password.
+                </p>
+                <button
+                    onClick={onCancel}
+                    className="mt-1 text-xs text-blue-400 hover:text-blue-300
+                               underline transition-colors">
+                    Back to Sign In
+                </button>
+            </div>
+        );
+    }
+}
 
 export default function LoginPage() {
     const [usernameOrEmail, setUsernameOrEmail] = useState("");
@@ -213,23 +465,9 @@ export default function LoginPage() {
                             className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                             Forgot your password?
                         </button>
+
                         {showForgot && (
-                            <div className="mt-3 bg-slate-800 border border-slate-700 rounded-xl p-4 text-left">
-                                <p className="text-slate-300 text-sm font-semibold mb-1">
-                                    🔒 Password Reset
-                                </p>
-                                <p className="text-slate-400 text-xs leading-relaxed">
-                                    Password resets are handled by your administrator.
-                                    Contact <span className="text-amber-400 font-semibold">915 CLUB Support</span> and
-                                    your account will be given a temporary password to sign in with.
-                                </p>
-                                <a href="mailto:sarthaksharma1997@gmail.com?subject=MarketSync Password Reset"
-                                   className="inline-flex items-center gap-1.5 mt-3 text-xs
-                          bg-blue-600 hover:bg-blue-700 text-white font-medium
-                          px-3 py-2 rounded-lg transition-colors">
-                                    📧 Contact Admin
-                                </a>
-                            </div>
+                            <ForgotPasswordPanel onCancel={() => setShowForgot(false)} />
                         )}
                     </div>
                 </div>

@@ -1,4 +1,4 @@
-// src/components/StockLogo.jsx
+// src/components/CStockLogo.jsx
 //
 // Renders a company logo or a beautiful gradient fallback badge.
 // Strategy:

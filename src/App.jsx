@@ -8,8 +8,9 @@ import ProtectedRoute      from "./components/ProtectedRoute";
 import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
-import NotificationModal    from "./components/NotificationModal";
-import WelcomeModal       from "./components/WelcomeModal";
+import NotificationModal   from "./components/NotificationModal";
+import WelcomeModal        from "./components/WelcomeModal";
+import PasskeyBlocker      from "./components/PasskeyBlocker";
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
 import AdminClientViewPage    from "./pages/AdminClientViewPage";
 
@@ -59,23 +60,24 @@ function CreatorRoute({ children }) {
 // ── App shell ─────────────────────────────────────────────────────────────────
 
 function AppShell() {
-    const [portfolioSummary,    setPortfolioSummary]    = useState(null);
-    const [pendingNotifs,       setPendingNotifs]       = useState([]);
-    const [notifsChecked,       setNotifsChecked]       = useState(false);
-    const [showWelcome,         setShowWelcome]         = useState(false);
+    const [portfolioSummary, setPortfolioSummary] = useState(null);
+    const [pendingNotifs,    setPendingNotifs]    = useState([]);
+    const [notifsChecked,    setNotifsChecked]    = useState(false);
+    const [showWelcome,      setShowWelcome]      = useState(false);
     const { user } = useAuth();
+
     useEffect(() => {
-        if (user?.firstLogin) {
-            setShowWelcome(true);
-        }
+        if (user?.firstLogin) setShowWelcome(true);
     }, [user?.firstLogin]);
 
-    // Check for pending notifications on login
     useEffect(() => {
         if (!user) return;
         import("./api/admin").then(({ getPendingNotifications }) => {
             getPendingNotifications()
-                .then(notifs => { setPendingNotifs(notifs || []); setNotifsChecked(true); })
+                .then(notifs => {
+                    setPendingNotifs(notifs || []);
+                    setNotifsChecked(true);
+                })
                 .catch(() => setNotifsChecked(true));
         });
     }, [user?.id]);
@@ -89,11 +91,11 @@ function AppShell() {
                 ]);
                 const stockVal  = stockRes.status === "fulfilled"
                     ? parseFloat(stockRes.value.data?.totalCurrentValue || 0) : 0;
-                const mfVal     = mfRes.status    === "fulfilled"
+                const mfVal     = mfRes.status === "fulfilled"
                     ? parseFloat(mfRes.value.data?.totalCurrentValue    || 0) : 0;
                 const stockCost = stockRes.status === "fulfilled"
                     ? parseFloat(stockRes.value.data?.totalInvestment   || 0) : 0;
-                const mfCost    = mfRes.status    === "fulfilled"
+                const mfCost    = mfRes.status === "fulfilled"
                     ? parseFloat(mfRes.value.data?.totalInvested        || 0) : 0;
                 setPortfolioSummary({
                     totalValue: stockVal + mfVal,
@@ -107,7 +109,10 @@ function AppShell() {
     }, []);
 
     return (
-        <>
+        // PasskeyBlocker wraps everything — blurs the UI and forces
+        // passkey setup for CLIENT users who haven't done it yet.
+        // ADMIN and CREATOR are exempt (handled inside PasskeyBlocker).
+        <PasskeyBlocker>
             <Layout portfolioSummary={portfolioSummary}>
                 <Routes>
                     <Route path="/" element={<Navigate to="/stocks" replace />} />
@@ -115,8 +120,6 @@ function AppShell() {
                     {/* ── ADMIN ── */}
                     <Route path="/admin" element={
                         <AdminRoute>
-                            {/* Each admin page gets its own boundary so one bad page
-                            doesn't kill the whole admin section */}
                             <ErrorBoundary fallbackTitle="Admin dashboard failed to load">
                                 <AdminDashboardPage />
                             </ErrorBoundary>
@@ -232,24 +235,27 @@ function AppShell() {
                     <Route path="/mutual-funds" element={<Navigate to="/mf"                 replace />} />
                     <Route path="/dashboard"    element={<Navigate to="/stocks"             replace />} />
 
-                    {/* 404 — shown for any unknown path */}
+                    {/* 404 */}
                     <Route path="*" element={<NotFoundPage />} />
                 </Routes>
             </Layout>
-            {/* Notification modal — blocks UI until all messages acknowledged */}
+
+            {/* Notification modal — blocks UI until all messages acknowledged.
+                Sits outside Layout so it overlays everything including the blur. */}
             {notifsChecked && pendingNotifs.length > 0 && (
                 <NotificationModal
                     notifications={pendingNotifs}
                     onAllAcknowledged={() => setPendingNotifs([])}
                 />
             )}
+
             {showWelcome && (
                 <WelcomeModal
                     user={user}
                     onClose={() => setShowWelcome(false)}
                 />
             )}
-        </>
+        </PasskeyBlocker>
     );
 }
 
@@ -258,11 +264,6 @@ export default function App() {
         <ThemeProvider>
             <AuthProvider>
                 <ToastProvider>
-                    {/*
-                      Outermost boundary — catches crashes in Layout, providers, etc.
-                      This is the last line of defense. If this fires, the full-page
-                      sorry screen is shown.
-                    */}
                     <ErrorBoundary>
                         <Routes>
                             <Route path="/login"    element={<LoginPage />} />

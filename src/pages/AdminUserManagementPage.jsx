@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser, resetUserPassword } from "../api/admin";
+import { resetUserPasskey } from "../api/admin";
 
 
 const fmtDate = (d) => {
@@ -64,6 +65,19 @@ export default function AdminUserManagementPage() {
             const res = await resetUserPassword(userId);
             setResetResult({ username, tempPassword: res.tempPassword });
         } finally { setBusy(null); }
+    };
+
+    const handleResetPasskey = async (userId, username) => {
+        setConfirm(null);
+        setBusy(userId);
+        try {
+            await resetUserPasskey(userId);
+            setPasskeyResetDone(username);
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to reset passkey");
+        } finally {
+            setBusy(null);
+        }
     };
 
     const handleRoleChange = async (userId, currentRole) => {
@@ -303,6 +317,19 @@ export default function AdminUserManagementPage() {
                                                 title="Generate a temporary password">
                                                 🔑 Reset PW
                                             </button>
+                                            {/* Reset Passkey */}
+                                            <button
+                                                disabled={isBusy}
+                                                onClick={() => setConfirm({
+                                                    type: "resetPasskey", userId: u.id, username: u.username,
+                                                })}
+                                                className="text-xs px-3 py-1.5 rounded-xl font-semibold
+                                                           transition-colors bg-amber-900/20 text-amber-400
+                                                           hover:bg-amber-900/40 border border-amber-500/30
+                                                           disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Reset passkey — user will be forced to set a new one">
+                                                🔑 Reset Key
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -334,6 +361,14 @@ export default function AdminUserManagementPage() {
                 <ConfirmModal
                     message={`Reset @${confirm.username}'s password? A temporary password will be generated for you to share with them.`}
                     onConfirm={() => handleResetPassword(confirm.userId, confirm.username)}
+                    onCancel={() => setConfirm(null)}
+                />
+            )}
+
+            {confirm?.type === "resetPasskey" && (
+                <ConfirmModal
+                    message={`Reset passkey for @${confirm.username}? They will be forced to set a new passkey on next login.`}
+                    onConfirm={() => handleResetPasskey(confirm.userId, confirm.username)}
                     onCancel={() => setConfirm(null)}
                 />
             )}
@@ -372,6 +407,31 @@ export default function AdminUserManagementPage() {
                             onClick={() => setResetResult(null)}
                             className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700
                            text-white font-semibold rounded-xl text-sm transition-colors">
+                            Done
+                        </button>
+                    </div>
+                </div>
+            )}
+            {passkeyResetDone && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50
+                    flex items-center justify-center p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl
+                        p-6 w-full max-w-sm shadow-2xl text-center">
+                        <p className="text-3xl mb-3">🔑</p>
+                        <h3 className="text-white font-bold mb-2">Passkey Reset</h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                            Passkey for{" "}
+                            <span className="text-white font-semibold">
+                    @{passkeyResetDone}
+                </span>{" "}
+                            has been cleared. They will be prompted to set a new passkey
+                            on their next login.
+                        </p>
+                        <button
+                            onClick={() => setPasskeyResetDone(null)}
+                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700
+                           text-white font-semibold rounded-xl text-sm
+                           transition-colors">
                             Done
                         </button>
                     </div>

@@ -8,6 +8,7 @@ import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
 import { trackStockView } from "./RecentStocksMarquee";
 import ChangePasswordModal from "./ChangePasswordModal";
+import RevealPasswordModal from "./RevealPasswordModal";
 
 import logo from "../assets/logo.png";
 
@@ -119,6 +120,7 @@ export default function Layout({ children, portfolioSummary }) {
 
     const [userMenuOpen,       setUserMenuOpen]       = useState(false);
     const [showChangePw,       setShowChangePw]       = useState(false);
+    const [showRevealPw, setShowRevealPw] = useState(false);
     const userMenuRef = useRef(null);
 
     const handleLogout = () => { logout(); navigate("/login"); };
@@ -286,11 +288,16 @@ export default function Layout({ children, portfolioSummary }) {
 
                         {userMenuOpen && (
                             <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800 border
-                        border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                    border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+
                                 {/* User info header */}
                                 <div className="px-4 py-3 border-b border-slate-700/50">
-                                    <p className="text-white font-semibold text-sm">{user?.fullName || user?.username}</p>
-                                    <p className="text-slate-500 text-xs mt-0.5">{user?.email || user?.username}</p>
+                                    <p className="text-white font-semibold text-sm">
+                                        {user?.fullName || user?.username}
+                                    </p>
+                                    <p className="text-slate-500 text-xs mt-0.5">
+                                        {user?.email || user?.username}
+                                    </p>
                                     <span className={
                                         "inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-bold border " +
                                         (user?.role === "CREATOR"
@@ -299,34 +306,45 @@ export default function Layout({ children, portfolioSummary }) {
                                                 ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
                                                 : "bg-blue-500/20 text-blue-400 border-blue-500/30")
                                     }>
-                    {user?.role === "CREATOR" ? "👑 CREATOR" : user?.role}
-                </span>
+                {user?.role === "CREATOR" ? "👑 CREATOR" : user?.role}
+            </span>
                                 </div>
 
-                                {/* Change password */}
+                                {/* Change Password */}
                                 <button
                                     onClick={() => { setUserMenuOpen(false); setShowChangePw(true); }}
                                     className="w-full flex items-center gap-3 px-4 py-3 text-sm
-                           text-slate-300 hover:text-white hover:bg-slate-700/60
-                           transition-colors text-left">
-                                    <span>🔑</span> Change Password
+                       text-slate-300 hover:text-white hover:bg-slate-700/60
+                       transition-colors text-left">
+                                    <span>🔒</span> Change Password
+                                </button>
+
+                                {/* View / Recover Password */}
+                                <button
+                                    onClick={() => { setUserMenuOpen(false); setShowRevealPw(true); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                       text-amber-400 hover:text-amber-300 hover:bg-amber-900/20
+                       transition-colors text-left border-t border-slate-700/30">
+                                    <span>🔓</span> View / Recover Password
                                 </button>
 
                                 {/* Logout */}
                                 <button
                                     onClick={() => { setUserMenuOpen(false); handleLogout(); }}
                                     className="w-full flex items-center gap-3 px-4 py-3 text-sm
-                           text-red-400 hover:text-red-300 hover:bg-red-900/20
-                           transition-colors text-left border-t border-slate-700/50">
+                       text-red-400 hover:text-red-300 hover:bg-red-900/20
+                       transition-colors text-left border-t border-slate-700/50">
                                     <span>🚪</span> Logout
                                 </button>
                             </div>
                         )}
                     </div>
 
-                    {/* Change password modal */}
                     {showChangePw && (
                         <ChangePasswordModal onClose={() => setShowChangePw(false)} />
+                    )}
+                    {showRevealPw && (
+                        <RevealPasswordModal onClose={() => setShowRevealPw(false)} />
                     )}
                 </div>
             </header>
