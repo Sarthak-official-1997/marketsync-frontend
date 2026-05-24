@@ -23,15 +23,15 @@ const CONFIDENCE_STYLE = {
 };
 
 export default function AiTradeImportModal({ onClose, onImported }) {
-    const [step,        setStep]        = useState("upload");
+    const [step,         setStep]         = useState("upload");
     // upload → analyzing → review → confirming → done
-    const [dragOver,    setDragOver]    = useState(false);
-    const [imageFile,   setImageFile]   = useState(null);
-    const [imagePreview,setImagePreview]= useState(null);
-    const [extraction,  setExtraction]  = useState(null);
+    const [dragOver,     setDragOver]     = useState(false);
+    const [imageFile,    setImageFile]    = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const [extraction,   setExtraction]   = useState(null);
     const [editableTrades, setEditableTrades] = useState([]);
-    const [error,       setError]       = useState("");
-    const [confirming,  setConfirming]  = useState(false);
+    const [error,        setError]        = useState("");
+    const [confirming,   setConfirming]   = useState(false);
     const fileInputRef = useRef(null);
     const toast = useToast();
 
@@ -74,21 +74,43 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 return;
             }
 
-            // Build editable copies of each trade
-            setEditableTrades(result.trades.map((t, i) => ({
-                ...t,
-                _id:      i,
-                _include: true,          // User can deselect trades
-                _date:    t.date || "",  // null date = empty string for date picker
-            })));
+            // Enrich trades — look up missing symbols from our stock DB
+            const enriched = await Promise.all(
+                result.trades.map(async (t, i) => {
+                    let symbol = t.stockSymbol || "";
 
-            setStep("review");
+                    // If AI couldn't determine symbol, search by company name
+                    if (!symbol && t.stockName) {
+                        try {
+                            const res = await searchStocks(t.stockName);
+                            const stocks = res.data?.content || [];
+                            if (stocks.length > 0) {
+                                symbol = stocks[0].symbol;
+                            }
+                        } catch (e) {
+                            // silently ignore — user can fill manually
+                        }
+                    }
+
+                    return {
+                        ...t,
+                        stockSymbol: symbol,
+                        _id:         i,
+                        _include:    true,
+                        _date:       t.date || "",
+                    };
+                })
+            );
+
+            setEditableTrades(enriched);
+            setStep("review"); // ← single call, duplicate removed
 
         } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                "AI analysis failed. Please try again."
-            );
+            const msg = err.response?.data?.message
+                || err.response?.data?.error
+                || err.message
+                || "AI analysis failed. Please try again.";
+            setError(msg);
             setStep("upload");
         }
     };
@@ -116,7 +138,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
             return;
         }
 
-        // Validate all selected trades have required fields
         for (const t of selected) {
             if (!t.stockSymbol) {
                 setError(`Please enter a stock symbol for "${t.stockName}"`);
@@ -144,11 +165,9 @@ export default function AiTradeImportModal({ onClose, onImported }) {
 
         for (const trade of selected) {
             try {
-                // Step 1: look up stockId by symbol — API needs ID not symbol string
                 const searchRes = await searchStocks(trade.stockSymbol);
                 const stocks    = searchRes.data?.content || [];
 
-                // Prefer exact symbol + exchange match, fall back to first result
                 const match = stocks.find(s =>
                     s.symbol === trade.stockSymbol &&
                     s.exchange === (trade.exchange || "NSE")
@@ -162,7 +181,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     continue;
                 }
 
-                // Step 2: create transaction using correct field names
                 await addTransaction({
                     stockId:         match.id,
                     type:            trade.transactionType,
@@ -313,10 +331,14 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 onClick={analyzeImage}
                                 disabled={!imageFile}
                                 className="w-full mt-4 py-3 bg-purple-600 hover:bg-purple-700
-                                           disabled:opacity-40 disabled:cursor-not-allowed
-                                           text-white font-bold rounded-xl transition-colors">
+                                    disabled:opacity-40 disabled:cursor-not-allowed
+                                    text-white font-bold rounded-xl transition-colors">
                                 ✨ Analyze with AI
                             </button>
+
+                            <p className="text-center text-slate-600 text-xs mt-2">
+                                Each analysis costs ~$0.04 · Free tier: 10 analyses/month included
+                            </p>
                         </div>
                     )}
 
@@ -361,7 +383,11 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </p>
                             <div className="flex gap-3 justify-center">
                                 <button
-                                    onClick={() => { setStep("upload"); setImageFile(null); setImagePreview(null); }}
+                                    onClick={() => {
+                                        setStep("upload");
+                                        setImageFile(null);
+                                        setImagePreview(null);
+                                    }}
                                     className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700
                                                text-white font-medium rounded-xl text-sm transition-colors">
                                     Try another image
@@ -448,7 +474,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 <input
                                                     type="text"
                                                     value={trade.stockSymbol || ""}
-                                                    onChange={e => updateTrade(trade._id, "stockSymbol",
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "stockSymbol",
                                                         e.target.value.toUpperCase())}
                                                     placeholder="e.g. RELIANCE"
                                                     className="w-full bg-slate-700 border border-slate-600
@@ -463,7 +490,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 </label>
                                                 <select
                                                     value={trade.transactionType}
-                                                    onChange={e => updateTrade(trade._id, "transactionType", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "transactionType", e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500">
@@ -479,7 +507,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 <input
                                                     type="number"
                                                     value={trade.quantity || ""}
-                                                    onChange={e => updateTrade(trade._id, "quantity", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "quantity", e.target.value)}
                                                     placeholder="0"
                                                     min="1"
                                                     className="w-full bg-slate-700 border border-slate-600
@@ -495,7 +524,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 <input
                                                     type="number"
                                                     value={trade.price || ""}
-                                                    onChange={e => updateTrade(trade._id, "price", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "price", e.target.value)}
                                                     placeholder="0.00"
                                                     step="0.01"
                                                     className="w-full bg-slate-700 border border-slate-600
@@ -516,7 +546,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 <input
                                                     type="date"
                                                     value={trade._date || ""}
-                                                    onChange={e => updateTrade(trade._id, "_date", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "_date", e.target.value)}
                                                     max={new Date().toISOString().split("T")[0]}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
@@ -530,7 +561,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 </label>
                                                 <select
                                                     value={trade.exchange || "NSE"}
-                                                    onChange={e => updateTrade(trade._id, "exchange", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id,
+                                                        "exchange", e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500">
@@ -539,18 +571,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 </select>
                                             </div>
                                         </div>
-
-                                        {/* AI extraction note */}
-                                        {trade.extractionNote && (
-                                            <div className="mt-3 flex items-start gap-2
-                                                            bg-amber-900/20 border border-amber-700/30
-                                                            rounded-lg px-3 py-2">
-                                                <span className="text-amber-400 text-sm flex-shrink-0">⚠️</span>
-                                                <p className="text-amber-300 text-xs">
-                                                    {trade.extractionNote}
-                                                </p>
-                                            </div>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -586,7 +606,11 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     <div className="flex items-center justify-between px-6 py-4
                                     border-t border-slate-700 flex-shrink-0">
                         <button
-                            onClick={() => { setStep("upload"); setImageFile(null); setImagePreview(null); }}
+                            onClick={() => {
+                                setStep("upload");
+                                setImageFile(null);
+                                setImagePreview(null);
+                            }}
                             className="text-sm text-slate-400 hover:text-white transition-colors">
                             ← Try different image
                         </button>
@@ -597,7 +621,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </span>
                             <button
                                 onClick={confirmImport}
-                                disabled={confirming || editableTrades.filter(t => t._include).length === 0}
+                                disabled={confirming ||
+                                editableTrades.filter(t => t._include).length === 0}
                                 className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700
                                            disabled:opacity-40 disabled:cursor-not-allowed
                                            text-white font-bold rounded-xl text-sm transition-colors">
