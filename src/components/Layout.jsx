@@ -6,12 +6,12 @@ import IndexTicker  from "./IndexTicker";
 import { searchStocks, searchMfSchemes, addToWatchlist } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
-import { trackStockView } from "./RecentStocksMarquee";
 import ChangePasswordModal from "./ChangePasswordModal";
 import RevealPasswordModal from "./RevealPasswordModal";
 import { getRecentStocks } from "./RecentStocksMarquee";
 import { getStockPrice }   from "../api/portfolio";
-import { getRecentStocks, trackStockView, getRecentMf, trackMfView } from "./RecentStocksMarquee";
+import { getRecentStocks, trackStockView,
+    getRecentMf, trackMfView } from "./RecentStocksMarquee";
 
 import logo from "../assets/logo.png";
 
