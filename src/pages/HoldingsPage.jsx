@@ -11,6 +11,8 @@ import StockQuickMenu from "../components/StockQuickMenu";
 import StockDetailModal from "../components/StockDetailModal";
 import {useToast} from "../context/ToastContext";
 import {useNavigate} from "react-router-dom";
+
+import StockLogo from "../components/StockLogo";
 import {
     Treemap, ResponsiveContainer, Tooltip,
     AreaChart, Area, XAxis, YAxis, ReferenceLine,
