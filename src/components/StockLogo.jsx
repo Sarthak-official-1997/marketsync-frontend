@@ -144,7 +144,7 @@ export default function StockLogo({ symbol = "", name = "", size = 40, className
     if (domain && !failed) {
         return (
             <img
-                src={`https://logo.clearbit.com/${domain}?size=${size * 2}`}
+                src={`https://logo.uplead.com/${domain}`}
                 alt={symbol}
                 onError={() => setFailed(true)}
                 style={{

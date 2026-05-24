@@ -4,6 +4,7 @@ import {
     searchStocks, getStockPrice,
 } from "../api/portfolio";
 import StockTransactionPanel from "../components/StockTransactionPanel";
+import StockLogo from "../components/StockLogo";
 import {useToast} from "../context/ToastContext";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
