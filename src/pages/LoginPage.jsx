@@ -4,6 +4,7 @@ import { useAuth }             from "../context/AuthContext";
 import { loginApi }            from "../api/portfolio";
 import { forgotPasswordWithPasskey } from "../api/user";
 import AppLogo from "../components/AppLogo";
+import FolyoBrand from "../components/FolyoBrand";
 
 const SESSION_EXPIRED_KEY = "ms_session_expired";
 const PASSKEY_REGEX = /^[0-9]{10}[a-z]{5}[0-9]{4}[a-z]{1}$/;
@@ -225,7 +226,7 @@ function ForgotPasswordPanel({ onCancel }) {
                     — you'll receive a temporary password and be prompted to set
                     a new passkey on next login.
                 </p>
-                <a href="mailto:sarthaksharma1997@gmail.com?subject=MarketSync Password Reset"
+                <a href="mailto:sarthaksharma1997@gmail.com?subject=FOLYO Password Reset"
                    className="inline-flex items-center gap-1.5 text-xs
                               bg-blue-600 hover:bg-blue-700 text-white font-medium
                               px-3 py-2 rounded-lg transition-colors">
@@ -324,14 +325,14 @@ export default function LoginPage() {
                         {/* Big Premium Logo */}
                         <div className="relative mb-8">
                             {/* Glow */}
-                            <div className="absolute inset-0 bg-amber-500/20 blur-3xl rounded-full scale-125" />
+                            <div className="absolute inset-0 bg-amber-500/10 blur-2xl rounded-full scale-110" />
 
                             {/* Logo */}
                             <AppLogo
-                                className="relative w-40 h-40 md:w-48 md:h-48
-                           rounded-[2rem]
-                           border border-amber-500/30
-                           shadow-[0_0_80px_rgba(251,191,36,0.25)]"
+                                className="relative w-24 h-24 md:w-28 md:h-28
+                                      rounded-2xl
+                                      border border-amber-500/30
+                                      shadow-[0_0_60px_rgba(251,191,36,0.2)]"
                             />
                         </div>
 
@@ -340,15 +341,10 @@ export default function LoginPage() {
                         {/*    915 CLUB*/}
                         {/*</h1>*/}
 
-                        {/* Subtitle */}
-                        <p className="text-2xl md:text-3xl text-amber-300 font-bold mt-2">
-                            MarketSync
-                        </p>
-
-                        {/* Description */}
-                        <p className="text-slate-400 text-sm md:text-base mt-4 max-w-md leading-relaxed">
-                            Professional Stock & Mutual Fund Portfolio Tracking Platform
-                        </p>
+                        {/* FOLYO wordmark with 915 superscript */}
+                        <div className="mt-4">
+                            <FolyoBrand size="xl" showTagline={true} />
+                        </div>
                     </div>
                 </div>
 

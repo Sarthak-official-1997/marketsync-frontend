@@ -4,7 +4,7 @@ export default function AppLogo({ className = "w-8 h-8" }) {
     return (
         <img
             src={logo}
-            alt="MarketSync Logo"
+            alt="FOLYO Logo"
             className={`${className} rounded-lg object-cover`}
         />
     );

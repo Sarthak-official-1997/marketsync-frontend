@@ -150,26 +150,32 @@ export default function IndexTicker() {
 
     return (
         <>
-            <div className="flex items-center gap-0.5">
+            {/* Index bar — spread items across full width, bigger text */}
+            <div className="flex items-stretch w-full min-h-[75px]">
                 {indices.map((idx, i) => {
                     const up = parseFloat(idx.changePercent || 0) >= 0;
                     return (
-                        <button key={idx.symbol} onClick={() => setActiveIdx(idx)}
-                                title={`Click to view ${idx.displayName}`}
-                                className={
-                                    "flex flex-col items-center px-3 py-1 rounded-lg " +
-                                    "hover:bg-slate-700/60 transition-colors " +
-                                    (i < indices.length - 1 ? "border-r border-slate-700" : "")
-                                }>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-semibold text-slate-300">
+                        <button
+                            key={idx.symbol}
+                            onClick={() => setActiveIdx(idx)}
+                            title={`Click to view ${idx.displayName}`}
+                            className={
+                                "flex flex-col items-center justify-center flex-1 " +
+                                "px-2 py-2 hover:bg-slate-700/50 transition-colors " +
+                                (i < indices.length - 1
+                                    ? "border-r border-slate-700/60"
+                                    : "")
+                            }
+                        >
+                            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                                <span className="text-xs sm:text-sm font-semibold text-slate-300 whitespace-nowrap">
                                     {idx.displayName}
                                 </span>
-                                <span className="text-xs font-bold text-white">
+                                <span className="text-xs sm:text-sm font-bold text-white whitespace-nowrap">
                                     {fmtVal(idx.value)}
                                 </span>
                             </div>
-                            <span className={"text-xs font-medium " +
+                            <span className={"text-xs sm:text-sm font-semibold whitespace-nowrap " +
                             (up ? "text-green-400" : "text-red-400")}>
                                 {up ? "▲" : "▼"}{" "}
                                 {Math.abs(parseFloat(idx.changePercent || 0)).toFixed(2)}%

@@ -6,8 +6,8 @@ export default function WelcomeModal({ user, onClose }) {
     const steps = [
         {
             icon: "📈",
-            title: `Welcome to 915 CLUB, ${user?.fullName?.split(" ")[0] || user?.username}!`,
-            body: "You now have access to professional-grade stock and mutual fund portfolio tracking — built exclusively for 915 CLUB members.",
+            title: `Welcome to FOLYO, ${user?.fullName?.split(" ")[0] || user?.username}!`,
+            body: "You now have access to FOLYO — portfolio tracking, the way it should be.",
         },
         {
             icon: "🏦",
@@ -52,9 +52,9 @@ export default function WelcomeModal({ user, onClose }) {
                     </div>
                     <div>
                         <p className="text-amber-400 text-xs font-bold uppercase tracking-widest">
-                            915 CLUB
+                            FOLYO
                         </p>
-                        <p className="text-slate-500 text-xs">MarketSync</p>
+                        <p className="text-slate-500 text-xs">915 creation</p>
                     </div>
                     <div className="ml-auto flex gap-1">
                         {steps.map((_, i) => (

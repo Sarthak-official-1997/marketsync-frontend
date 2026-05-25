@@ -257,8 +257,8 @@ export default function StockDetailModal({ stock, onClose }) {
                 >
                     {/* ── TOP BAR ── */}
                     <div className="flex items-center justify-between
-                                    px-7 py-4 border-b border-slate-700/60
-                                    flex-shrink-0">
+                        px-4 sm:px-7 py-3 sm:py-4 border-b border-slate-700/60
+                        flex-shrink-0 gap-2">
                         {/* Left: symbol badge + name */}
                         <div className="flex items-center gap-4">
                             <StockLogo symbol={stock.symbol} name={stock.name} size={48} />
@@ -500,7 +500,7 @@ export default function StockDetailModal({ stock, onClose }) {
 
                         {/* Chart canvas */}
                         <div className="bg-slate-800/40 rounded-2xl border border-slate-700/40
-                                        overflow-hidden" style={{height:"560px"}}>
+                                    overflow-hidden" style={{height: "clamp(220px, 45vh, 560px)"}}>
                             {chartLoading ? (
                                 <div className="h-full flex flex-col items-center justify-center gap-3">
                                     <div className="w-8 h-8 border-2 border-blue-400

@@ -1,20 +1,45 @@
 @import "tailwindcss";
 
+/* ── Scrollbar — immersive thin style across the whole app ── */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(71, 85, 105, 0.5) transparent;
+}
+*::-webkit-scrollbar { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.5);
+    border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
+
+/* scrollbar-hide utility — used in IndexTicker, marquee etc */
+@layer utilities {
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+}
+
 @keyframes slide-in {
     from { opacity: 0; transform: translateX(100%); }
     to   { opacity: 1; transform: translateX(0); }
 }
+.animate-slide-in { animation: slide-in 0.2s ease-out; }
 
-.animate-slide-in {
-    animation: slide-in 0.2s ease-out;
+/* FOLYO AI button pulse glow */
+@keyframes ai-pulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(99,102,241,0.3), 0 0 24px rgba(139,92,246,0.15); }
+    50%       { box-shadow: 0 0 20px rgba(99,102,241,0.6), 0 0 40px rgba(139,92,246,0.3); }
 }
-/* Light mode — invert the entire dark UI */
+.ai-glow { animation: ai-pulse 2.5s ease-in-out infinite; }
+
+/* Light mode */
 html.light-mode {
     filter: invert(1) hue-rotate(180deg);
     background: #0f172a;
 }
-
-/* Re-invert elements that should NOT be inverted */
 html.light-mode img,
 html.light-mode video,
 html.light-mode canvas,

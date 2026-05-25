@@ -32,7 +32,7 @@ export default function ErrorFallback({ error, errorInfo, onReset, title }) {
                                     justify-center text-white font-bold text-sm">
                         M
                     </div>
-                    <span className="text-white font-bold text-lg">915 CLUB MarketSync</span>
+                    <span className="text-white font-bold text-lg">FOLYO</span>
                 </div>
 
                 {/* Main card */}
@@ -159,7 +159,7 @@ export function NotFoundPage() {
                 <div className="flex items-center gap-3 justify-center mb-10">
                     <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center
                                     justify-center text-white font-bold text-sm">M</div>
-                    <span className="text-white font-bold text-lg">915 CLUB MarketSync</span>
+                    <span className="text-white font-bold text-lg">FOLYO</span>
                 </div>
 
                 <p className="text-8xl font-black text-slate-800 mb-4 select-none">404</p>
@@ -194,14 +194,14 @@ export function NetworkErrorPage() {
                 <div className="flex items-center gap-3 justify-center mb-10">
                     <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center
                                     justify-center text-white font-bold text-sm">M</div>
-                    <span className="text-white font-bold text-lg">915 CLUB MarketSync</span>
+                    <span className="text-white font-bold text-lg">FOLYO</span>
                 </div>
                 <div className="text-6xl mb-6">📡</div>
                 <h1 className="text-white text-2xl font-bold mb-3">
                     Can't reach the server
                 </h1>
                 <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-                    The 915 CLUB MarketSync backend isn't responding. Make sure the server
+                    The FOLYO backend isn't responding. Make sure the server
                     is running on port 8080, then try again.
                 </p>
                 <button

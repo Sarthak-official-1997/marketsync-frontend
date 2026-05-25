@@ -135,6 +135,7 @@ function TypingDots() {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 export default function AiChatModal({ onClose }) {
+    const [isMaximized, setIsMaximized] = useState(false);
     const [sessionId,    setSessionId]    = useState(() => newSessionId());
     const [messages,     setMessages]     = useState([]);
     const [input,        setInput]        = useState("");
@@ -230,9 +231,12 @@ export default function AiChatModal({ onClose }) {
         <div className="fixed inset-0 z-[60] flex items-end md:items-center
                         justify-center p-0 md:p-4"
              style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)" }}>
-            <div className="w-full md:max-w-2xl h-[92vh] md:h-[85vh] bg-slate-900
-                            border border-slate-700 rounded-t-3xl md:rounded-2xl
-                            shadow-2xl flex flex-col overflow-hidden">
+            <div className={
+                "bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden transition-all duration-200 " +
+                (isMaximized
+                    ? "w-full h-full rounded-none"
+                    : "w-full md:max-w-2xl h-[92vh] md:h-[85vh] rounded-t-3xl md:rounded-2xl")
+            }>
 
                 {/* ── Header ── */}
                 <div className="flex items-center justify-between px-5 py-4
@@ -245,7 +249,7 @@ export default function AiChatModal({ onClose }) {
                             ✨
                         </div>
                         <div>
-                            <h2 className="text-white font-bold text-sm">MarketSync AI</h2>
+                            <h2 className="text-white font-bold text-sm">FOLYO AI</h2>
                             <p className="text-slate-500 text-xs">
                                 Indian markets · Stocks · Mutual Funds
                             </p>
@@ -327,6 +331,18 @@ export default function AiChatModal({ onClose }) {
                                            rounded-lg text-blue-400 hover:text-blue-300
                                            transition-colors">
                             + New
+                        </button>
+                        {/* Maximize / restore */}
+                        <button
+                            onClick={() => setIsMaximized(v => !v)}
+                            className="p-2 text-slate-400 hover:text-white
+                                       hover:bg-slate-700 rounded-lg transition-colors"
+                            title={isMaximized ? "Restore" : "Maximize"}
+                        >
+                            {isMaximized
+                                ? <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25M9 15H4.5M9 15v4.5M9 15l-5.25 5.25"/></svg>
+                                : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+                            }
                         </button>
                         <button onClick={onClose}
                                 className="text-slate-500 hover:text-white text-xl

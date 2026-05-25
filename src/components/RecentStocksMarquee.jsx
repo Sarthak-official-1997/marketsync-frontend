@@ -1,8 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getStockPrice } from "../api/portfolio";
 
 const STORAGE_KEY = "ms_recently_visited";
 const MAX_RECENT  = 15;
+
+const isMarketHours = () => {
+    const ist  = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const day  = ist.getDay();
+    if (day === 0 || day === 6) return false;
+    const mins = ist.getHours() * 60 + ist.getMinutes();
+    return mins >= 9 * 60 && mins <= 15 * 60 + 30;
+};
 
 export function trackStockView(stock) {
     try {
@@ -60,9 +68,10 @@ export default function RecentStocksMarquee({ onStockClick }) {
     const [stocks,  setStocks]  = useState(getRecentStocks());
     const [paused,  setPaused]  = useState(false);
     const [hovered, setHovered] = useState(null);
-    const fetchedRef = useRef(new Set()); // track which symbols we've fetched
+    const fetchedRef   = useRef(new Set()); // symbols already fetched on mount (one-time)
+    const pollingRef   = useRef(null);      // interval handle for periodic refresh
 
-    // ── Refresh when another part of the app tracks a view ───────────────────
+    // ── Refresh state when another part of the app tracks a view ─────────────
     useEffect(() => {
         const handler = () => setStocks(getRecentStocks());
         window.addEventListener("ms_recent_updated", handler);
@@ -73,19 +82,11 @@ export default function RecentStocksMarquee({ onStockClick }) {
         };
     }, []);
 
-    // ── On mount + whenever stocks change: fill in missing changePercent ──────
-    useEffect(() => {
-        const missing = stocks.filter(
-            s => s.changePercent == null && !fetchedRef.current.has(s.symbol)
-        );
-        if (missing.length === 0) return;
-
-        // Mark as being fetched so we don't re-fetch on next render
-        missing.forEach(s => fetchedRef.current.add(s.symbol));
-
-        // Fetch all missing prices in parallel — max 15, fine to do this
+    // ── Fetch prices for a given list of stocks and update localStorage ───────
+    const fetchPrices = useCallback((stockList) => {
+        if (!stockList || stockList.length === 0) return;
         Promise.allSettled(
-            missing.map(s =>
+            stockList.map(s =>
                 getStockPrice(s.symbol)
                     .then(res => {
                         const p = res?.data || res;
@@ -101,12 +102,41 @@ export default function RecentStocksMarquee({ onStockClick }) {
                             });
                         }
                     })
-                    .catch(() => {
-                        // silently ignore — just won't show % for this stock
-                    })
+                    .catch(() => {})
             )
         );
-    }, [stocks]);
+    }, []);
+
+    // ── On mount: fetch stocks that are missing changePercent ─────────────────
+    useEffect(() => {
+        const missing = stocks.filter(
+            s => s.changePercent == null && !fetchedRef.current.has(s.symbol)
+        );
+        if (missing.length === 0) return;
+        missing.forEach(s => fetchedRef.current.add(s.symbol));
+        fetchPrices(missing);
+    }, [stocks, fetchPrices]);
+
+    // ── Periodic polling: refresh ALL marquee prices ──────────────────────────
+    // Market hours: every 60s. Outside hours: every 5min.
+    // This ensures the marquee stays live without needing manual stock clicks.
+    useEffect(() => {
+        const runPoll = () => {
+            const current = getRecentStocks();
+            if (current.length > 0) fetchPrices(current);
+        };
+
+        const scheduleNext = () => {
+            const interval = isMarketHours() ? 60_000 : 300_000;
+            pollingRef.current = setTimeout(() => {
+                runPoll();
+                scheduleNext(); // reschedule so interval adapts to market hours
+            }, interval);
+        };
+
+        scheduleNext();
+        return () => clearTimeout(pollingRef.current);
+    }, [fetchPrices]);
 
     if (stocks.length === 0) return null;
 
@@ -176,7 +206,6 @@ export default function RecentStocksMarquee({ onStockClick }) {
                                     {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
                                 </span>
                             ) : (
-                                /* Loading shimmer for stocks awaiting price fetch */
                                 <span className="text-[10px] text-slate-600 leading-none">
                                     …
                                 </span>

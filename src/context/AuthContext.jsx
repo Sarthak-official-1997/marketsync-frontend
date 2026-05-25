@@ -32,7 +32,11 @@ export function AuthProvider({ children }) {
         return () => window.removeEventListener("storage", sync);
     }, []);
 
-    const login = (newToken, userInfo, rememberMe = false) => {
+    const login = (token, user, remember) => {
+        // Clear previous user's local data
+        localStorage.removeItem("ms_board_stocks");
+        localStorage.removeItem("ms_recently_visited");
+        localStorage.removeItem("ms_recently_viewed_mf");
         const storage = rememberMe ? localStorage : sessionStorage;
         storage.setItem(TOKEN_KEY, newToken);
         storage.setItem(USER_KEY, JSON.stringify(userInfo));

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { register as registerApi } from "../api/auth";
+import FolyoBrand from "../components/FolyoBrand";
 
 // ✅ FIX: Field is defined OUTSIDE RegisterPage.
 // When it was inside, every keystroke triggered setForm → re-render → new Field function
@@ -62,7 +63,7 @@ export default function RegisterPage() {
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
             <div className="w-full max-w-sm bg-slate-800 rounded-2xl p-8
                             border border-slate-700 shadow-2xl">
-                <h1 className="text-2xl font-bold text-white mb-1">📈 915 CLUB MarketSync</h1>
+                <FolyoBrand size="md" />
                 <p className="text-slate-400 text-sm mb-6">Create your account</p>
 
                 {errors.general && (
