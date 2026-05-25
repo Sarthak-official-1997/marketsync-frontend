@@ -41,6 +41,8 @@ import CombinedPortfolio   from "./pages/CombinedPortfolio";
 
 import { getPortfolioSummary, getMfPortfolioSummary } from "./api/portfolio";
 
+import AdminAiReportPage from "./pages/AdminAiReportPage";
+
 // ── Route guards ──────────────────────────────────────────────────────────────
 
 function AdminRoute({ children }) {
@@ -234,6 +236,15 @@ function AppShell() {
                     <Route path="/watchlist"    element={<Navigate to="/stocks/watchlist"    replace />} />
                     <Route path="/mutual-funds" element={<Navigate to="/mf"                 replace />} />
                     <Route path="/dashboard"    element={<Navigate to="/stocks"             replace />} />
+
+                    {/* ── AI REPORT (CREATOR only) ── */}
+                    <Route path="/admin/ai-report" element={
+                        <CreatorRoute>
+                            <ErrorBoundary fallbackTitle="AI report failed to load">
+                                <AdminAiReportPage />
+                            </ErrorBoundary>
+                        </CreatorRoute>
+                    } />
 
                     {/* 404 */}
                     <Route path="*" element={<NotFoundPage />} />

@@ -11,6 +11,8 @@ import RevealPasswordModal from "./RevealPasswordModal";
 import { getRecentStocks, trackStockView, getRecentMf, trackMfView } from "./RecentStocksMarquee";
 import logo from "../assets/logo.png";
 import MfSchemeDetailModal from "./MfSchemeDetailModal";
+import AiChatModal      from "./AiChatModal";
+import { getAiCostSummary } from "../api/admin";
 
 // ── Board helpers ─────────────────────────────────────────────────────────────
 // The "board" is the market page's personal stock widget.
@@ -124,6 +126,9 @@ export default function Layout({ children, portfolioSummary }) {
     const [showRevealPw, setShowRevealPw] = useState(false);
     const userMenuRef = useRef(null);
 
+    const [showAiChat, setShowAiChat] = useState(false);
+    const [aiCost,     setAiCost]     = useState(null);
+
     const handleLogout = () => { logout(); navigate("/login"); };
 
     const totalValue = portfolioSummary?.totalValue;
@@ -157,6 +162,15 @@ export default function Layout({ children, portfolioSummary }) {
         return () => document.removeEventListener("mousedown", h);
     }, []);
 
+    useEffect(() => {
+        if (!isCreator) return;
+        const fetch = () =>
+            getAiCostSummary().then(setAiCost).catch(() => {});
+        fetch();
+        const t = setInterval(fetch, 30_000);
+        return () => clearInterval(t);
+    }, [isCreator]);
+
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
             {/* ── TOP NAVBAR ── */}
@@ -178,6 +192,36 @@ export default function Layout({ children, portfolioSummary }) {
                 <div className="flex-1 overflow-x-auto scrollbar-hide min-w-0">
                     <IndexTicker />
                 </div>
+                {/* AI Chat button */}
+                <button
+                    onClick={() => setShowAiChat(true)}
+                    className="flex-shrink-0 flex items-center gap-2 px-3 py-2
+                                bg-gradient-to-r from-blue-600/20 to-purple-600/20
+                                hover:from-blue-600/40 hover:to-purple-600/40
+                                border border-blue-500/30 hover:border-blue-400/50
+                                rounded-xl transition-all duration-200
+                                shadow-[0_0_12px_rgba(99,102,241,0.2)]
+                                hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+                            <span className="text-base">✨</span>
+                            <span className="text-blue-300 text-xs font-semibold hidden md:block">AI</span>
+                </button>
+
+                {/* Creator live cost badge */}
+                {isCreator && aiCost && (
+                    <button
+                        onClick={() => navigate("/admin/ai-report")}
+                        className="flex-shrink-0 hidden md:flex flex-col items-end
+                             bg-amber-900/20 border border-amber-500/20
+                             hover:border-amber-500/40 rounded-xl px-3 py-1.5 transition-colors">
+                      <span className="text-amber-400 text-xs font-bold">
+                          Rs.{parseFloat(aiCost.todayCostInr || 0).toFixed(2)} today
+                      </span>
+                                      <span className="text-slate-600 text-[10px]">
+                          Rs.{parseFloat(aiCost.totalCostInr || 0).toFixed(2)} total
+                      </span>
+                    </button>
+                )}
+
 
                 <GlobalSearch onStockSelect={setSelectedStock} onMfSelect={setSelectedMf} />
 
@@ -396,6 +440,9 @@ export default function Layout({ children, portfolioSummary }) {
                                     {isCreator && CREATOR_LINKS.map(l => (
                                         <AdminNavLink key={l.to} {...l} />
                                     ))}
+                                    {isCreator && (
+                                        <AdminNavLink to="/admin/ai-report" icon="🤖" label="AI Report" />
+                                    )}
                                 </div>
                             </>
                         )}
@@ -425,6 +472,8 @@ export default function Layout({ children, portfolioSummary }) {
                     }}
                 />
             )}
+
+            {showAiChat && <AiChatModal onClose={() => setShowAiChat(false)} />}
         </div>
     );
 }

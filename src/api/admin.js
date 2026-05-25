@@ -28,3 +28,12 @@ export const getStockHolders = (symbol) => api.get(`/admin/analytics/stock/${sym
 // ── Client notifications (all users) ──────────────────────────────────────
 export const getPendingNotifications = () => api.get("/notifications/pending").then(r => r.data);
 export const acknowledgeNotification = (recipientId) => api.post(`/notifications/${recipientId}/acknowledge`).then(r => r.data);
+
+// ── AI Chat additons ──────────────────────────────────────
+
+export const getAiCostSummary = () => api.get("/admin/ai/cost-summary").then(r => r.data);
+export const getAiReport = () => api.get("/admin/ai/report").then(r => r.data);
+export const getUserChatSessions = (userId) => api.get(`/admin/ai/users/${userId}/chat`).then(r => r.data);
+export const getUserChatSession = (userId, sessionId) => api.get(`/admin/ai/users/${userId}/chat/${sessionId}`).then(r => r.data);
+export const getAiConfig = () => api.get("/admin/ai/config").then(r => r.data);
+export const updateAiConfig = (key, value) => api.patch(`/admin/ai/config/${key}`, { value: String(value) }).then(r => r.data);

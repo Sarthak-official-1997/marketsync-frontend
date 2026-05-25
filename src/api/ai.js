@@ -20,6 +20,7 @@ export const extractTradesFromImage = async (imageFile) => {
     return response.data;
 };
 
+/** MF transaction extraction from screenshot */
 export const extractMfTradesFromImage = async (imageFile) => {
     const formData = new FormData();
     formData.append("image", imageFile);
@@ -29,3 +30,15 @@ export const extractMfTradesFromImage = async (imageFile) => {
     });
     return response.data;
 };
+
+/** Send a chat message */
+export const sendChatMessage = (sessionId, message) =>
+    api.post("/ai/chat", { sessionId, message });
+
+/** Load messages for a session */
+export const getChatHistory = (sessionId) =>
+    api.get(`/ai/chat/history/${sessionId}`);
+
+/** List all user's chat sessions */
+export const getChatSessions = () =>
+    api.get("/ai/chat/sessions");
