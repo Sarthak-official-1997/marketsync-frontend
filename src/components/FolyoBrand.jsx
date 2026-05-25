@@ -27,7 +27,7 @@ export default function FolyoBrand({ size = "md", showTagline = false, className
                 915 CREATION
             </span>
             {showTagline && (
-                <p className="text-slate-400 text-xs mt-2 tracking-wide text-center italic">
+                <p className="text-slate-400 text-sm mt-3 tracking-wider text-center italic">
                     Portfolio tracking, the way it should be.
                 </p>
             )}
