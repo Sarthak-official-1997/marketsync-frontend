@@ -19,3 +19,13 @@ export const extractTradesFromImage = async (imageFile) => {
 
     return response.data;
 };
+
+export const extractMfTradesFromImage = async (imageFile) => {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    const response = await api.post("/ai/extract-mf-trades", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 30000,
+    });
+    return response.data;
+};

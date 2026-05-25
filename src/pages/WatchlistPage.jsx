@@ -261,6 +261,7 @@ function MfWatchlist({ toast }) {
     const [query,        setQuery]       = useState("");
     const [results,      setResults]     = useState([]);
     const [activeMf,     setActiveMf]    = useState(null);
+    const [detailMf,     setDetailMf]    = useState(null);   // ← this was missing
     const debounceRef = useRef(null);
     const inputRef    = useRef(null);
 

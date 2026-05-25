@@ -641,23 +641,23 @@ export default function TransactionsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleExportCSV}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-700
-                                       hover:bg-slate-600 text-white text-sm font-medium
-                                       rounded-xl border border-slate-600 transition-colors">
-                        📥 Export CSV
-                    </button>
                     <button onClick={() => setShowAiImport(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-purple-600
-                   hover:bg-purple-700 text-white text-sm font-semibold
-                   rounded-xl transition-colors">
+                       hover:bg-purple-700 text-white text-sm font-semibold
+                       rounded-xl transition-colors">
                         ✨ AI Import
                     </button>
                     <button onClick={() => setShowAdd(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600
-                   hover:bg-blue-700 text-white text-sm font-semibold
-                   rounded-xl transition-colors">
+                       hover:bg-blue-700 text-white text-sm font-semibold
+                       rounded-xl transition-colors">
                         + Add Transaction
+                    </button>
+                    <button onClick={handleExportCSV}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-700
+                       hover:bg-slate-600 text-white text-sm font-medium
+                       rounded-xl border border-slate-600 transition-colors">
+                        📥 Export CSV
                     </button>
                 </div>
             </div>

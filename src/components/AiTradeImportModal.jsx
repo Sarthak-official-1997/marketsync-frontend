@@ -337,7 +337,12 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </button>
 
                             <p className="text-center text-slate-600 text-xs mt-2">
-                                Each analysis costs ~$0.04 · Free tier: 10 analyses/month included
+                                First 10 analyses per month are complimentary.
+
+                            </p>
+                            <p className="text-center text-slate-600 text-xs mt-2">
+
+                                Fair usage charges applies thereafter.
                             </p>
                         </div>
                     )}
