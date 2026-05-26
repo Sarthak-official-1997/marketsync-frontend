@@ -33,15 +33,14 @@ export function AuthProvider({ children }) {
     }, []);
 
     const login = (token, user, remember) => {
-        // Clear previous user's local data
         localStorage.removeItem("ms_board_stocks");
         localStorage.removeItem("ms_recently_visited");
         localStorage.removeItem("ms_recently_viewed_mf");
-        const storage = rememberMe ? localStorage : sessionStorage;
-        storage.setItem(TOKEN_KEY, newToken);
-        storage.setItem(USER_KEY, JSON.stringify(userInfo));
-        setToken(newToken);
-        setUser(userInfo);
+        const storage = remember ? localStorage : sessionStorage;
+        storage.setItem(TOKEN_KEY, token);
+        storage.setItem(USER_KEY, JSON.stringify(user));
+        setToken(token);
+        setUser(user);
     };
 
     const logout = () => {
