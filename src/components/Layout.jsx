@@ -15,35 +15,38 @@ import AiChatModal from "./AiChatModal";
 import { getAiCostSummary } from "../api/admin";
 import FolyoBrand from "./FolyoBrand";
 import CommandPalette from "./CommandPalette";
+import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
+import InboxPanel from "./InboxPanel";
+import { getPendingNotifications, getInboxUnread } from "../api/admin";
+
+
+
 
 // ── Board helpers ─────────────────────────────────────────────────────────────
-const BOARD_KEY = `ms_board_stocks`;   // keep export working
-export function addToBoard(stock) {
+
+export async function addToBoard(stock) {
     try {
-        const existing = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]");
-        if (existing.some(s => s.symbol === stock.symbol)) return false;
-        const updated = [...existing, {
-            id: stock.id,
-            symbol: stock.symbol,
-            name: stock.name,
-            exchange: stock.exchange
-        }];
-        localStorage.setItem(BOARD_KEY, JSON.stringify(updated));
+        await addToBoardApi({
+            symbol:   stock.symbol,
+            name:     stock.name     || stock.companyName || stock.symbol,
+            exchange: stock.exchange || "NSE",
+        });
         window.dispatchEvent(new Event("ms_board_updated"));
         return true;
-    } catch { return false; }
+    } catch {
+        return false; // already exists or error
+    }
 }
-export function getBoardStocks() {
-    try { return JSON.parse(localStorage.getItem(BOARD_KEY) || "[]"); }
-    catch { return []; }
-}
-export function removeFromBoard(symbol) {
+
+export async function removeFromBoard(symbol) {
     try {
-        const existing = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]");
-        localStorage.setItem(BOARD_KEY, JSON.stringify(existing.filter(s => s.symbol !== symbol)));
+        await removeFromBoardApi(symbol);
         window.dispatchEvent(new Event("ms_board_updated"));
     } catch {}
 }
+
+// Kept for any sync references — actual data always fetched from API
+export function getBoardStocks() { return []; }
 
 const STOCKS_LINKS = [
     { to: "/stocks",              icon: "📊", label: "Market"       },
@@ -129,6 +132,8 @@ export default function Layout({ children, portfolioSummary }) {
     const [showAiChat, setShowAiChat] = useState(false);
     const [aiCost,     setAiCost]     = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [showInbox,   setShowInbox]   = useState(false);
+    const [inboxUnread, setInboxUnread] = useState(0);
 
     const handleLogout = () => {
         // Clear all user-specific localStorage on logout
@@ -178,6 +183,25 @@ export default function Layout({ children, portfolioSummary }) {
         const t = setInterval(fetch, 30_000);
         return () => clearInterval(t);
     }, [isCreator]);
+
+    // Inbox unread polling — all users get pending count, CREATOR also gets contact messages
+    useEffect(() => {
+        const poll = async () => {
+            try {
+                const pend = await getPendingNotifications().catch(() => []);
+                let count  = (pend || []).length;
+                if (isCreator) {
+                    const data = await getInboxUnread().catch(() => ({}));
+                    count += data?.messages || 0;
+                }
+                setInboxUnread(count);
+            } catch {}
+        };
+        poll();
+        const t = setInterval(poll, 30_000);
+        return () => clearInterval(t);
+    }, [isCreator]);
+
 
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
@@ -299,6 +323,36 @@ export default function Layout({ children, portfolioSummary }) {
                             )}
                         </div>
                     )}
+
+                    {/* ── Inbox bell ── */}
+                    <button
+                        onClick={() => setShowInbox(v => !v)}
+                        className="relative flex items-center gap-1.5 px-3 py-2
+                                   text-slate-400 hover:text-white
+                                   hover:bg-slate-700 rounded-xl transition-colors
+                                   flex-shrink-0 border border-slate-700/60
+                                   hover:border-slate-600"
+                        title="Inbox">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor"
+                             strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round"
+                                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118
+                                     14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0
+                                     10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0
+                                     .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3
+                                     0 11-6 0v-1m6 0H9"/>
+                        </svg>
+                        <span className="text-xs font-medium hidden sm:inline">Inbox</span>
+                        {inboxUnread > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4
+                                             bg-red-500 text-white text-[10px] font-bold
+                                             rounded-full flex items-center justify-center
+                                             px-1 leading-none">
+                                {inboxUnread > 99 ? "99+" : inboxUnread}
+                            </span>
+                        )}
+                    </button>
+
 
                     {/* Theme dropdown */}
                     <div ref={themeRef} className="relative">
@@ -536,6 +590,12 @@ export default function Layout({ children, portfolioSummary }) {
             )}
 
             {showAiChat && <AiChatModal onClose={() => setShowAiChat(false)} />}
+            {showInbox && (
+                <InboxPanel
+                    onClose={() => setShowInbox(false)}
+                    onUnreadChange={() => setInboxUnread(prev => Math.max(0, prev - 1))}
+                />
+            )}
             <CommandPalette
                 open={searchOpen}
                 onClose={() => setSearchOpen(false)}

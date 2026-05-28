@@ -8,7 +8,6 @@ import StockLogo from "../components/StockLogo";
 import {useToast} from "../context/ToastContext";
 import AiTradeImportModal from "../components/AiTradeImportModal";
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
         style: "currency", currency: "INR", maximumFractionDigits: 2,
@@ -19,27 +18,23 @@ const fmtDate = (d) => {
     try {
         const [y, m, day] = d.toString().split("T")[0].split("-");
         return `${day}/${m}/${y}`;
-    } catch {
-        return d;
-    }
+    } catch { return d; }
 };
 
 const fmtShortDate = (d) => {
     if (!d) return "—";
     try {
         const [y, m, day] = d.toString().split("T")[0].split("-");
-        const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return `${day} ${mo[parseInt(m, 10) - 1]} ${y}`;
-    } catch {
-        return d;
-    }
+        const mo = ["Jan","Feb","Mar","Apr","May","Jun",
+            "Jul","Aug","Sep","Oct","Nov","Dec"];
+        return `${day} ${mo[parseInt(m,10)-1]} ${y}`;
+    } catch { return d; }
 };
 
 const today = () => new Date().toISOString().split("T")[0];
 
-const MONTHS = ["January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"];
+const MONTHS = ["January","February","March","April","May","June",
+    "July","August","September","October","November","December"];
 
 // ─── Confirm dialog ───────────────────────────────────────────────────────────
 function ConfirmDialog({dialog, onConfirm, onCancel}) {
@@ -78,30 +73,24 @@ function ConfirmDialog({dialog, onConfirm, onCancel}) {
 
 // ─── Stock Group Card ─────────────────────────────────────────────────────────
 function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
-    const buys = group.transactions.filter(t => t.type === "BUY");
+    const buys  = group.transactions.filter(t => t.type === "BUY");
     const sells = group.transactions.filter(t => t.type === "SELL");
-    const totalBought = buys.reduce((s, t) => s + parseFloat(t.totalAmount || 0), 0);
-    const totalSold = sells.reduce((s, t) => s + parseFloat(t.totalAmount || 0), 0);
-    const latest = group.transactions[0]; // already sorted newest-first
+    const totalBought = buys.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
+    const totalSold   = sells.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
+    const latest = group.transactions[0];
 
     return (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden
                         transition-all duration-200">
-            {/* ── Card header — click to expand ── */}
-            <button
-                onClick={onToggle}
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-700/30
-                           transition-colors text-left"
-            >
-                {/* Stock badge */}
+            <button onClick={onToggle}
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-700/30
+                               transition-colors text-left">
                 <div className="w-12 h-12 bg-blue-600/15 border border-blue-500/30
                                 rounded-xl flex items-center justify-center flex-shrink-0">
                     <span className="text-blue-300 text-xs font-bold leading-tight text-center px-1">
-                        {group.symbol.slice(0, 4)}
+                        {group.symbol.slice(0,4)}
                     </span>
                 </div>
-
-                {/* Stock info */}
                 <StockLogo symbol={group.symbol} name={group.name} size={36} />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -110,26 +99,18 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                             {group.transactions.length} transaction{group.transactions.length !== 1 ? "s" : ""}
                         </span>
                     </div>
-                    <p className="text-slate-400 text-xs mt-0.5 truncate max-w-xs">
-                        {group.name}
-                    </p>
+                    <p className="text-slate-400 text-xs mt-0.5 truncate max-w-xs">{group.name}</p>
                 </div>
-
-                {/* Summary stats */}
                 <div className="hidden md:flex items-center gap-6 flex-shrink-0">
                     {buys.length > 0 && (
                         <div className="text-center">
-                            <p className="text-green-400 font-semibold text-sm">
-                                {buys.length} BUY
-                            </p>
+                            <p className="text-green-400 font-semibold text-sm">{buys.length} BUY</p>
                             <p className="text-slate-500 text-xs">{fmt(totalBought)}</p>
                         </div>
                     )}
                     {sells.length > 0 && (
                         <div className="text-center">
-                            <p className="text-red-400 font-semibold text-sm">
-                                {sells.length} SELL
-                            </p>
+                            <p className="text-red-400 font-semibold text-sm">{sells.length} SELL</p>
                             <p className="text-slate-500 text-xs">{fmt(totalSold)}</p>
                         </div>
                     )}
@@ -140,15 +121,10 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                         </p>
                     </div>
                 </div>
-
-                {/* Chevron */}
                 <div className={"text-slate-500 transition-transform duration-200 flex-shrink-0 " +
-                (expanded ? "rotate-180" : "")}>
-                    ▼
-                </div>
+                (expanded ? "rotate-180" : "")}>▼</div>
             </button>
 
-            {/* ── Expanded transaction list ── */}
             {expanded && (
                 <div className="border-t border-slate-700/60">
                     <table className="w-full text-sm">
@@ -171,8 +147,7 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                                                transition-colors">
                                     <td className="px-5 py-3">
                                         <span className={"text-xs font-bold px-2.5 py-1 rounded-lg " +
-                                        (isBuy
-                                            ? "bg-green-900/40 text-green-400"
+                                        (isBuy ? "bg-green-900/40 text-green-400"
                                             : "bg-red-900/40 text-red-400")}>
                                             {tx.type}
                                         </span>
@@ -197,16 +172,14 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                                     </td>
                                     <td className="px-5 py-3 text-right">
                                         <div className="flex items-center gap-2 justify-end">
-                                            <button
-                                                onClick={() => onOpenPanel(tx)}
-                                                className="text-xs text-blue-400 hover:text-blue-300
-                                                           hover:underline">
+                                            <button onClick={() => onOpenPanel(tx)}
+                                                    className="text-xs text-blue-400 hover:text-blue-300
+                                                               hover:underline">
                                                 + Add
                                             </button>
-                                            <button
-                                                onClick={() => onAskDelete(tx)}
-                                                className="text-xs text-slate-600 hover:text-red-400
-                                                           hover:underline">
+                                            <button onClick={() => onAskDelete(tx)}
+                                                    className="text-xs text-slate-600 hover:text-red-400
+                                                               hover:underline">
                                                 Delete
                                             </button>
                                         </div>
@@ -216,7 +189,6 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                         })}
                         </tbody>
                     </table>
-                    {/* Add transaction shortcut */}
                     <div className="px-5 py-3 border-t border-slate-700/30 bg-slate-900/20">
                         <button
                             onClick={() => onOpenPanel({
@@ -238,10 +210,12 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
 }
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
-function CalendarView({transactions, year, month, onNavigate}) {
-    const [selectedDate, setSelectedDate] = useState(null);
+function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
+    const [selectedDate,  setSelectedDate]  = useState(null);
+    const [showMonthPick, setShowMonthPick] = useState(false);
+    const [showYearPick,  setShowYearPick]  = useState(false);
+    const [showAiImport,  setShowAiImport]  = useState(false);
 
-    // Map of "YYYY-MM-DD" → transactions[]
     const txByDate = useMemo(() => {
         const map = {};
         transactions.forEach(tx => {
@@ -253,17 +227,7 @@ function CalendarView({transactions, year, month, onNavigate}) {
         return map;
     }, [transactions]);
 
-    const prevMonth = () => {
-        if (month === 0) onNavigate(year - 1, 11);
-        else onNavigate(year, month - 1);
-    };
-    const nextMonth = () => {
-        if (month === 11) onNavigate(year + 1, 0);
-        else onNavigate(year, month + 1);
-    };
-
-    // Build calendar grid
-    const firstDay = new Date(year, month, 1).getDay();  // 0=Sun
+    const firstDay    = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells = [
         ...Array(firstDay).fill(null),
@@ -272,143 +236,204 @@ function CalendarView({transactions, year, month, onNavigate}) {
     while (cells.length % 7 !== 0) cells.push(null);
 
     const dateKey = (day) => day
-        ? `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+        ? `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`
         : null;
 
-    const now = new Date();
-    const isToday = (d) =>
-        d && now.getFullYear() === year &&
-        now.getMonth() === month && now.getDate() === d;
+    const now     = new Date();
+    const isToday = (d) => d && now.getFullYear() === year
+        && now.getMonth() === month && now.getDate() === d;
 
     const selectedTxs = selectedDate ? (txByDate[selectedDate] || []) : [];
 
-    // Count transactions in this month for summary
     const monthTxs = transactions.filter(tx => {
         const key = (tx.transactionDate || "").toString().split("T")[0];
-        return key.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`);
+        return key.startsWith(`${year}-${String(month+1).padStart(2,"0")}`);
     });
+
+    const yearRange = Array.from(
+        {length: now.getFullYear() - 2014 + 1},
+        (_, i) => 2015 + i
+    ).reverse();
 
     return (
         <div className="space-y-4">
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
 
-                {/* ── Month navigation ── */}
-                <div className="flex items-center justify-between px-6 py-4
-                                border-b border-slate-700/60 bg-slate-900/30">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3
+                                border-b border-slate-700/60 bg-slate-900/30 gap-2">
                     <button
-                        onClick={prevMonth}
-                        className="w-9 h-9 flex items-center justify-center bg-slate-700
-                                   hover:bg-slate-600 text-white rounded-xl transition-colors
-                                   text-lg font-bold">
+                        onClick={() => {
+                            if (month === 0) onNavigate(year - 1, 11);
+                            else onNavigate(year, month - 1);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center bg-slate-700
+                                   hover:bg-slate-600 text-white rounded-xl transition-colors text-lg">
                         ‹
                     </button>
 
-                    <div className="text-center">
-                        <p className="text-white font-bold text-lg">
-                            {MONTHS[month]} {year}
-                        </p>
+                    {/* Month + Year pickers */}
+                    <div className="flex items-center gap-2 flex-1 justify-center">
+                        {/* Month */}
+                        <div className="relative">
+                            <button
+                                onClick={() => { setShowMonthPick(v => !v); setShowYearPick(false); }}
+                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white
+                                           font-bold text-sm rounded-lg transition-colors
+                                           flex items-center gap-1">
+                                {MONTHS[month]}
+                                <span className="text-slate-400 text-xs">▾</span>
+                            </button>
+                            {showMonthPick && (
+                                <div className="absolute top-full left-0 mt-1 bg-slate-800
+                                                border border-slate-700 rounded-xl shadow-2xl
+                                                z-50 p-2 grid grid-cols-3 gap-1 w-44">
+                                    {MONTHS.map((m, i) => (
+                                        <button key={i}
+                                                onClick={() => { onNavigate(year, i); setShowMonthPick(false); }}
+                                                className={"py-1.5 rounded-lg text-xs font-medium transition-colors " +
+                                                (i === month
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-slate-300 hover:bg-slate-700")}>
+                                            {m.slice(0, 3)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Year */}
+                        <div className="relative">
+                            <button
+                                onClick={() => { setShowYearPick(v => !v); setShowMonthPick(false); }}
+                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white
+                                           font-bold text-sm rounded-lg transition-colors
+                                           flex items-center gap-1">
+                                {year}
+                                <span className="text-slate-400 text-xs">▾</span>
+                            </button>
+                            {showYearPick && (
+                                <div className="absolute top-full left-0 mt-1 bg-slate-800
+                                                border border-slate-700 rounded-xl shadow-2xl
+                                                z-50 max-h-48 overflow-y-auto w-24">
+                                    {yearRange.map(y => (
+                                        <button key={y}
+                                                onClick={() => { onNavigate(y, month); setShowYearPick(false); }}
+                                                className={"w-full py-2 text-sm font-medium transition-colors " +
+                                                (y === year
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-slate-300 hover:bg-slate-700")}>
+                                            {y}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         {monthTxs.length > 0 && (
-                            <p className="text-slate-500 text-xs mt-0.5">
-                                {monthTxs.length} transaction{monthTxs.length !== 1 ? "s" : ""} this month
-                            </p>
+                            <span className="text-slate-500 text-xs hidden sm:block">
+                                {monthTxs.length} tx
+                            </span>
                         )}
                     </div>
 
+                    {/* ✨ AI Import */}
                     <button
-                        onClick={nextMonth}
-                        className="w-9 h-9 flex items-center justify-center bg-slate-700
-                                   hover:bg-slate-600 text-white rounded-xl transition-colors
-                                   text-lg font-bold">
+                        onClick={() => setShowAiImport(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+                                   bg-gradient-to-r from-blue-600 to-purple-600
+                                   hover:from-blue-500 hover:to-purple-500
+                                   text-white rounded-lg transition-all mr-1">
+                        ✨ AI
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            if (month === 11) onNavigate(year + 1, 0);
+                            else onNavigate(year, month + 1);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center bg-slate-700
+                                   hover:bg-slate-600 text-white rounded-xl transition-colors text-lg">
                         ›
                     </button>
                 </div>
 
-                {/* ── Day headers ── */}
+                {/* Day headers */}
                 <div className="grid grid-cols-7 border-b border-slate-700/40">
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-                        <div key={d}
-                             className="py-2.5 text-center text-xs font-semibold
-                                        text-slate-500 uppercase tracking-wide">
+                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+                        <div key={d} className="py-2.5 text-center text-xs font-semibold
+                                                text-slate-500 uppercase tracking-wide">
                             {d}
                         </div>
                     ))}
                 </div>
 
-                {/* ── Calendar grid ── */}
+                {/* Calendar grid */}
                 <div className="grid grid-cols-7">
                     {cells.map((day, i) => {
-                        const key = dateKey(day);
-                        const txs = key ? (txByDate[key] || []) : [];
-                        const hasBuy = txs.some(t => t.type === "BUY");
+                        const key     = dateKey(day);
+                        const txs     = key ? (txByDate[key] || []) : [];
+                        const hasBuy  = txs.some(t => t.type === "BUY");
                         const hasSell = txs.some(t => t.type === "SELL");
-                        const active = selectedDate === key && txs.length > 0;
-                        const isWeekend = i % 7 === 0 || i % 7 === 6;
+                        const active  = selectedDate === key && txs.length > 0;
+                        const isWknd  = i % 7 === 0 || i % 7 === 6;
+                        const isFuture = day && new Date(year, month, day) > now;
 
                         return (
-                            <div
-                                key={i}
-                                onClick={() => {
-                                    if (!day || !key || txs.length === 0) return;
-                                    setSelectedDate(active ? null : key);
-                                }}
-                                className={[
-                                    "relative flex flex-col items-center py-3 border-b border-r",
-                                    "border-slate-700/20 min-h-[72px]",
-                                    !day ? "bg-slate-900/10" : "",
-                                    txs.length > 0 ? "cursor-pointer" : "",
-                                    active ? "bg-blue-600/15" : "",
-                                    txs.length > 0 && !active
-                                        ? "hover:bg-slate-700/30 transition-colors" : "",
-                                    isWeekend && day ? "bg-slate-900/20" : "",
-                                ].join(" ")}
-                            >
+                            <div key={i}
+                                 onClick={() => {
+                                     if (!day) return;
+                                     if (txs.length > 0) {
+                                         setSelectedDate(active ? null : key);
+                                     } else if (!isFuture && onAddOnDate) {
+                                         onAddOnDate(key);
+                                     }
+                                 }}
+                                 className={[
+                                     "relative flex flex-col items-center py-3 border-b border-r",
+                                     "border-slate-700/20 min-h-[72px] group",
+                                     !day ? "bg-slate-900/10" : "",
+                                     day && !isFuture ? "cursor-pointer" : "",
+                                     active ? "bg-blue-600/15" : "",
+                                     txs.length > 0 && !active
+                                         ? "hover:bg-slate-700/30 transition-colors" : "",
+                                     day && txs.length === 0 && !isFuture
+                                         ? "hover:bg-slate-700/20 transition-colors" : "",
+                                     isWknd && day ? "bg-slate-900/20" : "",
+                                 ].filter(Boolean).join(" ")}>
                                 {day && (
                                     <>
-                                        {/* Glowing date circle — color tells you what happened */}
                                         <span className={[
-                                            "text-sm font-bold w-9 h-9 flex items-center justify-center",
-                                            "rounded-full transition-all duration-150",
+                                            "text-sm font-bold w-9 h-9 flex items-center",
+                                            "justify-center rounded-full transition-all duration-150",
                                             isToday(day) && txs.length === 0
                                                 ? "bg-blue-600 text-white ring-2 ring-blue-400/60"
-                                                : isToday(day) && hasBuy && !hasSell
-                                                    ? "bg-blue-600 text-white ring-2 ring-green-400/80 " +
-                                                    "shadow-[0_0_14px_rgba(74,222,128,0.5)]"
-                                                    : isToday(day) && hasSell && !hasBuy
-                                                        ? "bg-blue-600 text-white ring-2 ring-red-400/80 " +
-                                                        "shadow-[0_0_14px_rgba(248,113,113,0.5)]"
-                                                        : isToday(day)
-                                                            ? "bg-blue-600 text-white ring-2 ring-amber-400/80 " +
-                                                            "shadow-[0_0_14px_rgba(251,191,36,0.5)]"
-                                                            : hasBuy && !hasSell
-                                                                // BUY only — green glow
-                                                                ? "bg-green-500/20 text-green-200 " +
-                                                                "ring-1 ring-green-400/60 " +
-                                                                "shadow-[0_0_14px_rgba(74,222,128,0.55)]"
-                                                                : hasSell && !hasBuy
-                                                                    // SELL only — red glow
-                                                                    ? "bg-red-500/20 text-red-200 " +
-                                                                    "ring-1 ring-red-400/60 " +
-                                                                    "shadow-[0_0_14px_rgba(248,113,113,0.55)]"
-                                                                    : hasBuy && hasSell
-                                                                        // Mixed BUY+SELL on same day — amber glow
-                                                                        ? "bg-amber-500/20 text-amber-200 " +
-                                                                        "ring-1 ring-amber-400/60 " +
-                                                                        "shadow-[0_0_14px_rgba(251,191,36,0.55)]"
-                                                                        : "text-slate-500",
+                                                : hasBuy && !hasSell
+                                                    ? "bg-green-500/20 text-green-200 ring-1 ring-green-400/60 shadow-[0_0_14px_rgba(74,222,128,0.55)]"
+                                                    : hasSell && !hasBuy
+                                                        ? "bg-red-500/20 text-red-200 ring-1 ring-red-400/60 shadow-[0_0_14px_rgba(248,113,113,0.55)]"
+                                                        : hasBuy && hasSell
+                                                            ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/60 shadow-[0_0_14px_rgba(251,191,36,0.55)]"
+                                                            : isFuture
+                                                                ? "text-slate-700"
+                                                                : "text-slate-400",
                                         ].join(" ")}>
-            {day}
-        </span>
-
-                                        {/* Count badge for 3+ transactions (subtle, below circle) */}
+                                            {day}
+                                        </span>
                                         {txs.length >= 3 && (
-                                            <span className={
-                                                "text-[9px] font-bold mt-0.5 px-1.5 rounded-full " +
-                                                (hasBuy && !hasSell ? "text-green-500 bg-green-500/10"
-                                                    : hasSell && !hasBuy ? "text-red-500 bg-red-500/10"
-                                                        : "text-amber-500 bg-amber-500/10")
-                                            }>
-                {txs.length}
-            </span>
+                                            <span className={"text-[9px] font-bold mt-0.5 px-1.5 rounded-full " +
+                                            (hasBuy && !hasSell ? "text-green-500 bg-green-500/10"
+                                                : hasSell && !hasBuy ? "text-red-500 bg-red-500/10"
+                                                    : "text-amber-500 bg-amber-500/10")}>
+                                                {txs.length}
+                                            </span>
+                                        )}
+                                        {txs.length === 0 && !isFuture && onAddOnDate && (
+                                            <span className="absolute bottom-1 text-[9px] text-slate-600
+                                                             opacity-0 group-hover:opacity-100
+                                                             transition-opacity font-medium">
+                                                + add
+                                            </span>
                                         )}
                                     </>
                                 )}
@@ -417,139 +442,97 @@ function CalendarView({transactions, year, month, onNavigate}) {
                     })}
                 </div>
 
-                {/* ── Legend ── */}
+                {/* Legend */}
                 <div className="flex items-center gap-4 px-5 py-3 border-t border-slate-700/40
-                bg-slate-900/20">
-                    <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-full bg-green-500/20 ring-1 ring-green-400/60
-                         shadow-[0_0_8px_rgba(74,222,128,0.5)] flex items-center
-                         justify-center text-green-200 text-[10px] font-bold">
-            12
-        </span>
-                        <span className="text-xs text-slate-500">Buy</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-full bg-red-500/20 ring-1 ring-red-400/60
-                         shadow-[0_0_8px_rgba(248,113,113,0.5)] flex items-center
-                         justify-center text-red-200 text-[10px] font-bold">
-            8
-        </span>
-                        <span className="text-xs text-slate-500">Sell</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-full bg-amber-500/20 ring-1 ring-amber-400/60
-                         shadow-[0_0_8px_rgba(251,191,36,0.5)] flex items-center
-                         justify-center text-amber-200 text-[10px] font-bold">
-            5
-        </span>
-                        <span className="text-xs text-slate-500">Both</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center
-                         justify-center text-white text-[10px] font-bold">
-            {new Date().getDate()}
-        </span>
-                        <span className="text-xs text-slate-500">Today</span>
-                    </div>
-                    <span className="text-xs text-slate-600 ml-auto">Click a glowing date to view transactions</span>
+                                bg-slate-900/20 flex-wrap">
+                    {[
+                        {color: "green", label: "Buy"},
+                        {color: "red",   label: "Sell"},
+                        {color: "amber", label: "Mixed"},
+                    ].map(({color, label}) => (
+                        <div key={label} className="flex items-center gap-2">
+                            <span className={`w-4 h-4 rounded-full bg-${color}-500/20
+                                             ring-1 ring-${color}-400/60`} />
+                            <span className="text-xs text-slate-500">{label}</span>
+                        </div>
+                    ))}
+                    <span className="text-slate-700 text-xs ml-auto hidden sm:block">
+                        Click any date to add transaction
+                    </span>
                 </div>
             </div>
 
-            {/* ── Selected date transactions ── */}
+            {/* Selected date transactions */}
             {selectedDate && selectedTxs.length > 0 && (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3.5
-                                    border-b border-slate-700/60 bg-slate-900/20">
-                        <div>
-                            <p className="text-white font-semibold">
-                                {fmtShortDate(selectedDate)}
+                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-white font-semibold text-sm">
+                            {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN",
+                                {weekday: "long", day: "numeric", month: "long", year: "numeric"})}
+                        </p>
+                        {onAddOnDate && (
+                            <button
+                                onClick={() => onAddOnDate(selectedDate)}
+                                className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700
+                                           text-white rounded-lg transition-colors font-medium">
+                                + Add more
+                            </button>
+                        )}
+                    </div>
+                    {selectedTxs.map(tx => (
+                        <div key={tx.id}
+                             className="flex items-center gap-3 py-2.5
+                                        border-b border-slate-700/40 last:border-0">
+                            <span className={"text-xs font-bold px-2 py-0.5 rounded-full " +
+                            (tx.type === "BUY"
+                                ? "bg-green-900/40 text-green-400"
+                                : "bg-red-900/40 text-red-400")}>
+                                {tx.type}
+                            </span>
+                            <p className="text-white text-sm font-medium flex-1">
+                                {tx.stockSymbol || tx.stock?.symbol}
                             </p>
-                            <p className="text-slate-500 text-xs mt-0.5">
-                                {selectedTxs.length} transaction{selectedTxs.length !== 1 ? "s" : ""}
+                            <p className="text-slate-400 text-sm">{tx.quantity} shares</p>
+                            <p className="text-white text-sm font-semibold">
+                                {fmt(tx.pricePerShare)}
                             </p>
                         </div>
-                        <button
-                            onClick={() => setSelectedDate(null)}
-                            className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-700
-                                       rounded-lg transition-colors text-xs">
-                            ✕
-                        </button>
-                    </div>
-                    <table className="w-full text-sm">
-                        <thead>
-                        <tr className="text-slate-500 text-xs uppercase">
-                            <th className="text-left px-5 py-2.5">Stock</th>
-                            <th className="text-left px-5 py-2.5">Type</th>
-                            <th className="text-right px-5 py-2.5">Qty</th>
-                            <th className="text-right px-5 py-2.5">Price</th>
-                            <th className="text-right px-5 py-2.5">Total</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {selectedTxs.map(tx => {
-                            const isBuy = tx.type === "BUY";
-                            return (
-                                <tr key={tx.id}
-                                    className="border-t border-slate-700/30 hover:bg-slate-700/20">
-                                    <td className="px-5 py-3">
-                                        <p className="text-white font-semibold">{tx.stockSymbol}</p>
-                                        <p className="text-slate-500 text-xs">{tx.stockName}</p>
-                                    </td>
-                                    <td className="px-5 py-3">
-                                        <span className={"text-xs font-bold px-2.5 py-1 rounded-lg " +
-                                        (isBuy
-                                            ? "bg-green-900/40 text-green-400"
-                                            : "bg-red-900/40 text-red-400")}>
-                                            {tx.type}
-                                        </span>
-                                    </td>
-                                    <td className="text-right px-5 py-3 text-white">
-                                        {parseFloat(tx.quantity || 0).toLocaleString()}
-                                    </td>
-                                    <td className="text-right px-5 py-3 text-slate-300">
-                                        {fmt(tx.pricePerShare)}
-                                    </td>
-                                    <td className={"text-right px-5 py-3 font-semibold " +
-                                    (isBuy ? "text-white" : "text-orange-300")}>
-                                        {fmt(tx.totalAmount)}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </table>
+                    ))}
                 </div>
+            )}
+
+            {showAiImport && (
+                <AiTradeImportModal
+                    onClose={() => setShowAiImport(false)}
+                    onImported={() => setShowAiImport(false)}
+                />
             )}
         </div>
     );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// MAIN PAGE
-// ────────────────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TransactionsPage() {
-    const [transactions, setTx] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState("stocks");   // "stocks" | "calendar"
-    const [filterType, setFilterType] = useState("ALL");
-    const [showAdd, setShowAdd] = useState(false);
-    const [quickAddStock, setQuickAddStock] = useState(null); // for locked-stock quick-add
-    const [livePrices, setLivePrices]  = useState({});        // symbol → StockPriceDto
-    const [heldQty, setHeldQty]        = useState({});        // symbol → quantity
-    const [activeStock, setActiveStock] = useState(null);
-    const [dialog, setDialog] = useState({open: false});
-    const [calYear, setCalYear] = useState(new Date().getFullYear());
-    const [calMonth, setCalMonth] = useState(new Date().getMonth());
-    const [expandedSymbol, setExpanded] = useState(null);
-    const [showAiImport, setShowAiImport] = useState(false);
+    const [transactions,   setTx]            = useState([]);
+    const [loading,        setLoading]        = useState(true);
+    const [viewMode,       setViewMode]       = useState("stocks");
+    const [filterType,     setFilterType]     = useState("ALL");
+    const [showAdd,        setShowAdd]        = useState(false);
+    const [prefilledDate,  setPrefilledDate]  = useState(null);  // ← date from calendar click
+    const [quickAddStock,  setQuickAddStock]  = useState(null);
+    const [activeStock,    setActiveStock]    = useState(null);
+    const [dialog,         setDialog]         = useState({open: false});
+    const [calYear,        setCalYear]        = useState(new Date().getFullYear());
+    const [calMonth,       setCalMonth]       = useState(new Date().getMonth());
+    const [expandedSymbol, setExpanded]       = useState(null);
+    const [showAiImport,   setShowAiImport]   = useState(false);
     const toast = useToast();
 
     const load = async () => {
         setLoading(true);
         try {
-            const res = await getTransactions(0, 500);
+            const res  = await getTransactions(0, 500);
             const data = res.data?.content || res.data || [];
-            // Sort newest first
             setTx([...data].sort((a, b) => {
                 const da = (a.transactionDate || "").toString();
                 const db = (b.transactionDate || "").toString();
@@ -562,16 +545,12 @@ export default function TransactionsPage() {
         }
     };
 
-    useEffect(() => {
-        load();
-    }, []);
+    useEffect(() => { load(); }, []);
 
-    // ── Stock groups ──────────────────────────────────────────────────────────
     const groups = useMemo(() => {
         const filtered = filterType === "ALL"
             ? transactions
             : transactions.filter(t => t.type === filterType);
-
         const map = new Map();
         filtered.forEach(tx => {
             if (!map.has(tx.stockSymbol)) {
@@ -619,7 +598,7 @@ export default function TransactionsPage() {
             t.stockSymbol || "", t.type || "", t.quantity || "",
             t.pricePerShare || "", t.totalAmount || "", t.transactionDate || "", t.notes || "",
         ]);
-        const csv = [["Stock", "Type", "Qty", "Price", "Total", "Date", "Notes"], ...rows]
+        const csv = [["Stock","Type","Qty","Price","Total","Date","Notes"], ...rows]
             .map(r => r.map(v => `"${v}"`).join(",")).join("\n");
         const a = Object.assign(document.createElement("a"), {
             href: URL.createObjectURL(new Blob([csv], {type: "text/csv"})),
@@ -628,81 +607,77 @@ export default function TransactionsPage() {
         a.click();
     };
 
+    // Called from calendar when user clicks an empty date
+    const handleAddOnDate = (dateStr) => {
+        setPrefilledDate(dateStr);
+        setShowAdd(true);
+    };
+
     return (
         <div className="space-y-4">
 
-            {/* ── Header ── */}
+            {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Transactions</h1>
                     <p className="text-xs text-slate-500 mt-1">
-                        {transactions.length} total transactions
-                        {" · "}{groups.length} stocks
+                        {transactions.length} total · {groups.length} stocks
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={() => setShowAiImport(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-purple-600
-                       hover:bg-purple-700 text-white text-sm font-semibold
-                       rounded-xl transition-colors">
+                                       hover:bg-purple-700 text-white text-sm font-semibold
+                                       rounded-xl transition-colors">
                         ✨ AI Import
                     </button>
-                    <button onClick={() => setShowAdd(true)}
+                    <button onClick={() => { setPrefilledDate(null); setShowAdd(true); }}
                             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600
-                       hover:bg-blue-700 text-white text-sm font-semibold
-                       rounded-xl transition-colors">
+                                       hover:bg-blue-700 text-white text-sm font-semibold
+                                       rounded-xl transition-colors">
                         + Add Transaction
                     </button>
                     <button onClick={handleExportCSV}
                             className="flex items-center gap-1.5 px-4 py-2 bg-slate-700
-                       hover:bg-slate-600 text-white text-sm font-medium
-                       rounded-xl border border-slate-600 transition-colors">
+                                       hover:bg-slate-600 text-white text-sm font-medium
+                                       rounded-xl border border-slate-600 transition-colors">
                         📥 Export CSV
                     </button>
                 </div>
             </div>
 
-            {/* ── Controls bar ── */}
+            {/* Controls bar */}
             <div className="flex items-center gap-3 flex-wrap">
-
-                {/* View mode toggle */}
                 <div className="flex bg-slate-800 border border-slate-700/60 rounded-xl p-1 gap-1">
                     {[
-                        {id: "stocks", icon: "📦", label: "By Stock"},
+                        {id: "stocks",   icon: "📦", label: "By Stock"},
                         {id: "calendar", icon: "📅", label: "Calendar"},
                     ].map(m => (
                         <button key={m.id} onClick={() => setViewMode(m.id)}
-                                className={
-                                    "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs " +
-                                    "font-semibold transition-all " +
-                                    (viewMode === m.id
-                                        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
-                                        : "text-slate-400 hover:text-white")
-                                }>
+                                className={"flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs " +
+                                "font-semibold transition-all " +
+                                (viewMode === m.id
+                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                                    : "text-slate-400 hover:text-white")}>
                             <span>{m.icon}</span>{m.label}
                         </button>
                     ))}
                 </div>
-
-                {/* Type filter — only meaningful in stocks view */}
                 {viewMode === "stocks" && (
                     <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
-                        {["ALL", "BUY", "SELL"].map(t => (
+                        {["ALL","BUY","SELL"].map(t => (
                             <button key={t} onClick={() => setFilterType(t)}
-                                    className={
-                                        "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors " +
-                                        (filterType === t
-                                            ? t === "BUY" ? "bg-green-600 text-white"
-                                                : t === "SELL" ? "bg-red-600 text-white"
-                                                    : "bg-blue-600 text-white"
-                                            : "text-slate-400 hover:text-white")
-                                    }>
+                                    className={"px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors " +
+                                    (filterType === t
+                                        ? t === "BUY" ? "bg-green-600 text-white"
+                                            : t === "SELL" ? "bg-red-600 text-white"
+                                                : "bg-blue-600 text-white"
+                                        : "text-slate-400 hover:text-white")}>
                                 {t}
                             </button>
                         ))}
                     </div>
                 )}
-
                 <p className="text-xs text-slate-600 ml-auto">
                     {viewMode === "stocks"
                         ? `${groups.length} stock${groups.length !== 1 ? "s" : ""}`
@@ -710,23 +685,34 @@ export default function TransactionsPage() {
                 </p>
             </div>
 
-            {/* ── Content ── */}
+            {/* Content */}
             {loading ? (
                 <div className="space-y-3">
-                    {[1, 2, 3].map(i => (
+                    {[1,2,3].map(i => (
                         <div key={i} className="h-20 bg-slate-800 rounded-2xl animate-pulse"/>
                     ))}
                 </div>
             ) : transactions.length === 0 ? (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700/60
-                                p-16 text-center">
+                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-16 text-center">
                     <p className="text-4xl mb-3">📋</p>
                     <p className="text-white font-semibold">No transactions yet</p>
-                    <button onClick={() => setShowAdd(true)}
-                            className="mt-4 px-6 py-2.5 bg-blue-600 hover:bg-blue-700
-                                       text-white text-sm font-semibold rounded-xl transition-colors">
-                        + Add Your First Transaction
-                    </button>
+                    <p className="text-slate-500 text-sm mt-2 mb-4">
+                        Add manually or use ✨ AI Import to scan a screenshot
+                    </p>
+                    <div className="flex items-center gap-3 justify-center">
+                        <button onClick={() => setShowAiImport(true)}
+                                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700
+                                           text-white text-sm font-semibold rounded-xl
+                                           transition-colors">
+                            ✨ AI Import
+                        </button>
+                        <button onClick={() => { setPrefilledDate(null); setShowAdd(true); }}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700
+                                           text-white text-sm font-semibold rounded-xl
+                                           transition-colors">
+                            + Add Manually
+                        </button>
+                    </div>
                 </div>
             ) : viewMode === "stocks" ? (
                 <div className="space-y-3">
@@ -745,14 +731,6 @@ export default function TransactionsPage() {
                             )}
                             onOpenPanel={openPanel}
                             onAskDelete={askDelete}
-                            livePrice={livePrices[group.symbol]}
-                            qtyHeld={heldQty[group.symbol] || 0}
-                            onQuickAdd={g => setQuickAddStock({
-                                id: g.transactions[0]?.stockId,
-                                symbol: g.symbol,
-                                name: g.name,
-                                exchange: "NSE",
-                            })}
                         />
                     ))}
                 </div>
@@ -761,24 +739,22 @@ export default function TransactionsPage() {
                     transactions={transactions}
                     year={calYear}
                     month={calMonth}
-                    onNavigate={(y, m) => {
-                        setCalYear(y);
-                        setCalMonth(m);
-                    }}
+                    onNavigate={(y, m) => { setCalYear(y); setCalMonth(m); }}
+                    onAddOnDate={handleAddOnDate}  // ← wired up
                 />
             )}
 
-            {/* ── Modals ── */}
+            {/* Modals */}
             {showAdd && (
                 <AddTransactionModal
-                    onClose={() => setShowAdd(false)}
-                    onSaved={() => { setShowAdd(false); load(); }}
+                    onClose={() => { setShowAdd(false); setPrefilledDate(null); }}
+                    onSaved={() => { setShowAdd(false); setPrefilledDate(null); load(); }}
                     onSavedAndMore={() => load()}
                     toast={toast}
+                    defaultDate={prefilledDate}  // ← passed to modal
                 />
             )}
 
-            {/* Quick-add: opened from stock group card — stock is locked */}
             {quickAddStock && (
                 <AddTransactionModal
                     onClose={() => setQuickAddStock(null)}
@@ -813,45 +789,46 @@ export default function TransactionsPage() {
     );
 }
 
-// ─── Add Transaction Modal (unchanged) ───────────────────────────────────────
-function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedStock}) {
-    const [query, setQuery] = useState("");
-    const [results, setResults] = useState([]);
-    const [stock, setStock] = useState(null);
-    const [livePrice, setLivePrice] = useState(null);
-    const [priceLoading, setPriceLoad] = useState(false);
-    const [form, setForm] = useState({
-        type: "BUY", quantity: "", price: "", date: today(), notes: "",
+// ─── Add Transaction Modal ────────────────────────────────────────────────────
+function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedStock, defaultDate}) {
+    const [query,        setQuery]       = useState("");
+    const [results,      setResults]     = useState([]);
+    const [stock,        setStock]       = useState(null);
+    const [livePrice,    setLivePrice]   = useState(null);
+    const [priceLoading, setPriceLoad]   = useState(false);
+    const [form,         setForm]        = useState({
+        type: "BUY", quantity: "", price: "",
+        date: defaultDate || today(),  // ← uses prefilled date if provided
+        notes: "",
     });
     const [saving, setSaving] = useState(false);
-    const debRef = useRef(null);
+    const debRef   = useRef(null);
     const inputRef = useRef(null);
 
     useEffect(() => {
         if (lockedStock) {
-            // Auto-select and fetch price for locked stock
             selectStock(lockedStock);
         } else {
             setTimeout(() => inputRef.current?.focus(), 50);
         }
     }, []);
 
+    // Update date if defaultDate changes
+    useEffect(() => {
+        if (defaultDate) setForm(f => ({...f, date: defaultDate}));
+    }, [defaultDate]);
+
     const handleSearch = (q) => {
         setQuery(q);
         setStock(null);
         setLivePrice(null);
         clearTimeout(debRef.current);
-        if (q.length < 2) {
-            setResults([]);
-            return;
-        }
+        if (q.length < 2) { setResults([]); return; }
         debRef.current = setTimeout(async () => {
             try {
                 const res = await searchStocks(q);
                 setResults(res.data?.content || []);
-            } catch {
-                setResults([]);
-            }
+            } catch { setResults([]); }
         }, 300);
     };
 
@@ -862,30 +839,18 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
         setPriceLoad(true);
         try {
             const res = await getStockPrice(s.symbol);
-            const p = res?.currentPrice;
+            const p   = res?.currentPrice;
             if (p) {
                 setLivePrice(p);
                 setForm(f => ({...f, price: p.toString()}));
             }
-        } catch {
-        } finally {
-            setPriceLoad(false);
-        }
+        } catch {} finally { setPriceLoad(false); }
     };
 
     const handleSubmit = async (keepOpen = false) => {
-        if (!stock) {
-            toast.error("Select a stock");
-            return;
-        }
-        if (!form.quantity) {
-            toast.error("Enter quantity");
-            return;
-        }
-        if (!form.price) {
-            toast.error("Enter price");
-            return;
-        }
+        if (!stock)       { toast.error("Select a stock"); return; }
+        if (!form.quantity) { toast.error("Enter quantity"); return; }
+        if (!form.price)    { toast.error("Enter price"); return; }
         setSaving(true);
         try {
             await addTransaction({
@@ -903,9 +868,7 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
             } else onSaved();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to save");
-        } finally {
-            setSaving(false);
-        }
+        } finally { setSaving(false); }
     };
 
     const total = form.quantity && form.price
@@ -920,11 +883,19 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                  onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4
                                 border-b border-slate-700">
-                    <h2 className="text-white font-bold text-lg">Add Transaction</h2>
+                    <div>
+                        <h2 className="text-white font-bold text-lg">Add Transaction</h2>
+                        {defaultDate && (
+                            <p className="text-blue-400 text-xs mt-0.5">
+                                📅 {new Date(defaultDate + "T00:00:00")
+                                .toLocaleDateString("en-IN",
+                                    {day: "numeric", month: "short", year: "numeric"})}
+                            </p>
+                        )}
+                    </div>
                     <button onClick={onClose}
                             className="p-2 text-slate-400 hover:text-white hover:bg-slate-700
-                                       rounded-xl transition-colors">✕
-                    </button>
+                                       rounded-xl transition-colors">✕</button>
                 </div>
                 <div className="p-6 space-y-4">
                     {/* Stock search */}
@@ -937,7 +908,10 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                                    onChange={e => !lockedStock && handleSearch(e.target.value)}
                                    placeholder="Search symbol or company..."
                                    readOnly={!!lockedStock}
-                                   className={"w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 " + (lockedStock ? "opacity-70 cursor-not-allowed" : "")}/>
+                                   className={"w-full bg-slate-800 border border-slate-700 rounded-xl " +
+                                   "px-4 py-2.5 text-white text-sm focus:outline-none " +
+                                   "focus:border-blue-500 " +
+                                   (lockedStock ? "opacity-70 cursor-not-allowed" : "")}/>
                             {results.length > 0 && !stock && (
                                 <div className="absolute z-10 w-full mt-1 bg-slate-800
                                                 border border-slate-700 rounded-xl shadow-xl
@@ -980,13 +954,11 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                         )}
                     </div>
 
-                    {/* BUY / SELL toggle */}
+                    {/* BUY/SELL toggle */}
                     <div className="flex gap-1 bg-slate-800 p-1 rounded-xl w-fit">
-                        {["BUY", "SELL"].map(t => (
-                            <button key={t}
-                                    onClick={() => setForm(f => ({...f, type: t}))}
-                                    className={"px-6 py-2 rounded-lg text-sm font-bold " +
-                                    "transition-colors " +
+                        {["BUY","SELL"].map(t => (
+                            <button key={t} onClick={() => setForm(f => ({...f, type: t}))}
+                                    className={"px-6 py-2 rounded-lg text-sm font-bold transition-colors " +
                                     (form.type === t
                                         ? t === "BUY" ? "bg-green-600 text-white"
                                             : "bg-red-600 text-white"
@@ -998,8 +970,8 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
 
                     {/* Fields */}
                     <div className="grid grid-cols-3 gap-3">
-                        {[["Quantity *", "quantity", "e.g. 10"],
-                            ["Price (₹) *", "price", "e.g. 500"]].map(([l, k, p]) => (
+                        {[["Quantity *","quantity","e.g. 10"],
+                            ["Price (₹) *","price","e.g. 500"]].map(([l, k, p]) => (
                             <div key={k}>
                                 <label className="text-xs text-slate-400 block mb-1">
                                     {l}

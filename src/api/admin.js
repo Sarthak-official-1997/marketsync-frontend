@@ -37,3 +37,8 @@ export const getUserChatSessions = (userId) => api.get(`/admin/ai/users/${userId
 export const getUserChatSession = (userId, sessionId) => api.get(`/admin/ai/users/${userId}/chat/${sessionId}`).then(r => r.data);
 export const getAiConfig = () => api.get("/admin/ai/config").then(r => r.data);
 export const updateAiConfig = (key, value) => api.patch(`/admin/ai/config/${key}`, { value: String(value) }).then(r => r.data);
+
+// ── Contact messages (CREATOR inbox) ──────────────────────────────────────
+export const getContactMessages = ()    => api.get("/contact").then(r => r.data);
+export const markContactRead    = (id)  => api.patch(`/contact/${id}/read`).then(r => r.data);
+export const getInboxUnread     = ()    => api.get("/admin/inbox/unread").then(r => r.data);

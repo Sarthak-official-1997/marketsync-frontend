@@ -10,7 +10,8 @@ import {
     AreaChart, Area, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
-import { addToBoard, getBoardStocks, removeFromBoard } from "./Layout";
+import { addToBoard, removeFromBoard } from "./Layout";
+import { getBoardApi } from "../api/board";
 import { trackStockView } from "./RecentStocksMarquee";
 
 const fmt = (val, currency = "INR") => {
@@ -176,11 +177,13 @@ export default function StockDetailModal({ stock, onClose }) {
 
     useEffect(() => {
         if (!stock?.symbol) return;
-        setOnBoard(getBoardStocks().some(s => s.symbol === stock.symbol));
-        const handler = () =>
-            setOnBoard(getBoardStocks().some(s => s.symbol === stock.symbol));
-        window.addEventListener("ms_board_updated", handler);
-        return () => window.removeEventListener("ms_board_updated", handler);
+        const checkBoard = () =>
+            getBoardApi()
+                .then(res => setOnBoard((res.data || []).some(s => s.symbol === stock.symbol)))
+                .catch(() => {});
+        checkBoard();
+        window.addEventListener("ms_board_updated", checkBoard);
+        return () => window.removeEventListener("ms_board_updated", checkBoard);
     }, [stock?.symbol]);
 
     // Fetch user holdings to know if SELL button should show + hint in form
@@ -331,14 +334,14 @@ export default function StockDetailModal({ stock, onClose }) {
 
                             {/* Add to Board */}
                             <button
-                                onClick={e => {
+                                onClick={async e => {
                                     e.stopPropagation();
                                     if (onBoard) {
-                                        removeFromBoard(stock.symbol);
+                                        await removeFromBoard(stock.symbol);
                                         setOnBoard(false);
                                         toast.success(`${stock.symbol} removed from board`);
                                     } else {
-                                        const added = addToBoard({
+                                        const added = await addToBoard({
                                             id: stock.id, symbol: stock.symbol,
                                             name: stock.name, exchange: stock.exchange,
                                         });

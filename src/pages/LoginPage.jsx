@@ -5,12 +5,13 @@ import { loginApi }            from "../api/portfolio";
 import { forgotPasswordWithPasskey } from "../api/user";
 import AppLogo from "../components/AppLogo";
 import FolyoBrand from "../components/FolyoBrand";
+import ContactAdminModal from "../components/ContactAdminModal";
 
 const SESSION_EXPIRED_KEY = "ms_session_expired";
 const PASSKEY_REGEX = /^[0-9]{10}[a-z]{5}[0-9]{4}[a-z]{1}$/;
 
 
-function ForgotPasswordPanel({ onCancel }) {
+function ForgotPasswordPanel({ onCancel, onContactAdmin }) {
     const [mode,        setMode]        = useState("choose");
     // modes: "choose" | "passkey" | "contact" | "done"
     const [username,    setUsername]    = useState("");
@@ -226,12 +227,13 @@ function ForgotPasswordPanel({ onCancel }) {
                     — you'll receive a temporary password and be prompted to set
                     a new passkey on next login.
                 </p>
-                <a href="mailto:sarthaksharma1997@gmail.com?subject=FOLYO Password Reset"
-                   className="inline-flex items-center gap-1.5 text-xs
-                              bg-blue-600 hover:bg-blue-700 text-white font-medium
-                              px-3 py-2 rounded-lg transition-colors">
-                    📧 Contact Admin
-                </a>
+                <button
+                    onClick={onContactAdmin}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold
+                            bg-blue-600 hover:bg-blue-700 text-white
+                            px-4 py-2.5 rounded-xl transition-colors">
+                    ✉️ Message Sarthak directly
+                </button>
             </div>
         );
     }
@@ -267,6 +269,7 @@ export default function LoginPage() {
     const [error,           setError]           = useState("");
     const [sessionExpired,  setSessionExpired]  = useState(false);
     const [showForgot, setShowForgot] = useState(false);
+    const [showContact, setShowContact] = useState(false);
 
     const auth     = useAuth();
     const navigate = useNavigate();
@@ -315,7 +318,8 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
 
                 {/* Logo Section */}
@@ -457,17 +461,71 @@ export default function LoginPage() {
                     {/* Forgot password */}
                     <div className="mt-4 pt-4 border-t border-slate-800 text-center">
                         <button
-                            onClick={() => setShowForgot(v => !v)}
+                            onClick={() => setShowForgot(true)}
                             className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
                             Forgot your password?
                         </button>
-
-                        {showForgot && (
-                            <ForgotPasswordPanel onCancel={() => setShowForgot(false)} />
-                        )}
                     </div>
                 </div>
             </div>
-        </div>
+            {/* ── Forgot Password — full-screen overlay (PWA-friendly) ── */}
+            {showForgot && (
+                <div
+                    className="fixed inset-0 z-[300] flex flex-col items-center
+                           justify-end sm:justify-center px-4 pb-0 sm:pb-4"
+                    style={{ backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+                    onClick={() => setShowForgot(false)}
+                >
+                    <div
+                        className="w-full max-w-md bg-slate-900 border border-slate-700
+                               rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Drag handle — mobile PWA feel */}
+                        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                            <div className="w-10 h-1 bg-slate-600 rounded-full" />
+                        </div>
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 py-4
+                                    border-b border-slate-700/60">
+                            <h2 className="text-white font-bold text-base">
+                                🔒 Reset Password
+                            </h2>
+                            <button
+                                onClick={() => setShowForgot(false)}
+                                className="w-8 h-8 flex items-center justify-center
+                                       text-slate-400 hover:text-white
+                                       hover:bg-slate-700 rounded-lg transition-colors text-lg">
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="px-5 py-4 overflow-y-auto"
+                             style={{ maxHeight: "80vh" }}>
+                            <ForgotPasswordPanel
+                                onCancel={() => setShowForgot(false)}
+                                onContactAdmin={() => { setShowForgot(false); setShowContact(true); }}
+                            />
+                        </div>
+
+                        {/* Footer motto */}
+                        <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/40">
+                            <p className="text-slate-600 text-xs text-center italic">
+                                Portfolio tracking, the way it should be.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+            </div>
+            {showContact && (
+                <ContactAdminModal
+                    source="LOGIN_PAGE"
+                    onClose={() => setShowContact(false)}
+                />
+            )}
+        </>
     );
 }

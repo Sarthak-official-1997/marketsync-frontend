@@ -22,6 +22,15 @@ const clearAuth = () => {
     sessionStorage.removeItem(USER_KEY);
 };
 
+// In AuthContext.jsx — add this helper
+const getFingerprint = () => {
+    return btoa([
+        navigator.language,
+        screen.width + "x" + screen.height,
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ].join("|")).slice(0, 16);
+};
+
 export function AuthProvider({ children }) {
     const [token, setToken] = useState(readToken);
     const [user,  setUser]  = useState(readUser);
@@ -37,6 +46,8 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("ms_recently_visited");
         localStorage.removeItem("ms_recently_viewed_mf");
         const storage = remember ? localStorage : sessionStorage;
+        // Store fingerprint alongside token
+        storage.setItem("ms_fp", getFingerprint());
         storage.setItem(TOKEN_KEY, token);
         storage.setItem(USER_KEY, JSON.stringify(user));
         setToken(token);

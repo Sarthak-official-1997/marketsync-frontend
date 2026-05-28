@@ -5,9 +5,13 @@ const api = axios.create({
     headers: { "Content-Type": "application/json" },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(config => {
     const token = localStorage.getItem("ms_token") || sessionStorage.getItem("ms_token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    const fp    = localStorage.getItem("ms_fp")    || sessionStorage.getItem("ms_fp");
+    if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+        config.headers["X-Client-FP"]   = fp || "";
+    }
     return config;
 });
 

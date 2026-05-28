@@ -6,7 +6,8 @@ import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
 import { useAuth }       from "../context/AuthContext";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { addToBoard, getBoardStocks, removeFromBoard } from "../components/Layout";
+import { addToBoard, removeFromBoard } from "../components/Layout";
+import { getBoardApi } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
 import RecentStocksMarquee from "../components/RecentStocksMarquee";
 
@@ -292,11 +293,15 @@ export default function StocksMarketPage() {
     const toast  = useToast();
 
     // Board
+    const loadBoard = () =>
+        getBoardApi()
+            .then(res => setPinned(res.data || []))
+            .catch(() => {});
+
     useEffect(() => {
-        setPinned(getBoardStocks());
-        const handleBoardUpdate = () => setPinned(getBoardStocks());
-        window.addEventListener("ms_board_updated", handleBoardUpdate);
-        return () => window.removeEventListener("ms_board_updated", handleBoardUpdate);
+        loadBoard();
+        window.addEventListener("ms_board_updated", loadBoard);
+        return () => window.removeEventListener("ms_board_updated", loadBoard);
     }, []);
 
     // Holdings map
@@ -343,8 +348,8 @@ export default function StocksMarketPage() {
         setChartStock(stock);
     };
 
-    const pinStock = (s) => {
-        const added = addToBoard(s);
+    const pinStock = async (s) => {
+        const added = await addToBoard(s);
         if (!added) { toast.error(`${s.symbol} is already on your board`); return; }
         toast.success(`${s.symbol} added to board`);
         setShowSearch(false); setQuery(""); setResults([]);
@@ -381,7 +386,6 @@ export default function StocksMarketPage() {
         const arr = [...pinned];
         const [moved] = arr.splice(dragIdx, 1);
         arr.splice(i, 0, moved);
-        try { localStorage.setItem("ms_board_stocks", JSON.stringify(arr)); } catch {}
         setPinned(arr);
         setDragIdx(null); setOverIdx(null);
     };

@@ -6,19 +6,19 @@ import {
     getAiConfig, updateAiConfig,
 } from "../api/admin";
 
+import AiChatViewerModal from "../components/AiChatViewerModal";
+
 const fmt = v => `Rs.${parseFloat(v || 0).toLocaleString("en-IN",
     { maximumFractionDigits: 2 })}`;
 
 export default function AdminAiReportPage() {
-    const [report,        setReport]        = useState(null);
-    const [loading,       setLoading]       = useState(true);
-    const [config,        setConfig]        = useState(null);
-    const [configSaving,  setConfigSaving]  = useState(false);
-    const [expanded,      setExpanded]      = useState(null);
-    const [sessions,      setSessions]      = useState({});
-    const [activeSession, setActiveSession] = useState(null);
-    const [messages,      setMessages]      = useState([]);
-    const [msgLoading,    setMsgLoading]    = useState(false);
+    const [report,       setReport]       = useState(null);
+    const [loading,      setLoading]      = useState(true);
+    const [config,       setConfig]       = useState(null);
+    const [configSaving, setConfigSaving] = useState(false);
+    const [expanded,     setExpanded]     = useState(null);
+    const [sessions,     setSessions]     = useState({});
+    const [chatViewer,   setChatViewer]   = useState(null); // { userId, sessionId, username }
     const navigate = useNavigate();
     const toast    = useToast();
 
@@ -51,19 +51,6 @@ export default function AdminAiReportPage() {
                 setSessions(prev => ({ ...prev, [userId]: data }));
             } catch { setSessions(prev => ({ ...prev, [userId]: [] })); }
         }
-    };
-
-    const loadSession = async (userId, sessionId) => {
-        if (activeSession?.sessionId === sessionId) {
-            setActiveSession(null); setMessages([]); return;
-        }
-        setActiveSession({ userId, sessionId });
-        setMsgLoading(true);
-        try {
-            const data = await getUserChatSession(userId, sessionId);
-            setMessages(data);
-        } catch { setMessages([]); }
-        finally  { setMsgLoading(false); }
     };
 
     if (loading) return (
@@ -365,7 +352,7 @@ export default function AdminAiReportPage() {
                 <div className="px-5 py-4 border-b border-slate-700/60">
                     <p className="text-white font-semibold text-sm">Per-User Breakdown</p>
                     <p className="text-slate-500 text-xs mt-0.5">
-                        Click a user to view their chat history
+                        Click a user to expand · Click a session to read full chat
                     </p>
                 </div>
 
@@ -416,81 +403,61 @@ export default function AdminAiReportPage() {
                             </div>
                         </div>
 
-                        {/* Expanded sessions */}
+                        {/* ── Expanded: session list ── */}
                         {expanded === u.userId && (
                             <div className="bg-slate-900/40 border-b border-slate-700/30">
                                 {!sessions[u.userId] ? (
-                                    <p className="text-slate-500 text-xs text-center py-4">
-                                        Loading…
-                                    </p>
+                                    <div className="flex items-center justify-center py-6">
+                                        <div className="w-4 h-4 border-2 border-blue-400
+                                                        border-t-transparent rounded-full
+                                                        animate-spin"/>
+                                    </div>
                                 ) : sessions[u.userId].length === 0 ? (
-                                    <p className="text-slate-500 text-xs text-center py-4">
-                                        No chat sessions
+                                    <p className="text-slate-500 text-xs text-center py-6">
+                                        No chat sessions yet
                                     </p>
                                 ) : sessions[u.userId].map((s, si) => (
-                                    <div key={si}>
-                                        <button
-                                            onClick={() => loadSession(u.userId, s.sessionId)}
-                                            className="w-full text-left px-8 py-3
-                                                       hover:bg-slate-700/40 transition-colors
-                                                       border-b border-slate-700/20 last:border-0
-                                                       flex items-center justify-between">
-                                            <div>
-                                                <p className="text-slate-300 text-xs font-medium">
-                                                    {s.preview || "Session"}
-                                                </p>
-                                                <p className="text-slate-600 text-[10px] mt-0.5">
-                                                    {s.messageCount} messages
-                                                </p>
-                                            </div>
-                                            <span className="text-slate-600 text-[10px]">
-                                                {activeSession?.sessionId === s.sessionId
-                                                    ? "▲ Hide" : "▼ View"}
-                                            </span>
-                                        </button>
-
-                                        {/* Inline transcript */}
-                                        {activeSession?.sessionId === s.sessionId && (
-                                            <div className="px-8 py-3 space-y-2
-                                                            border-b border-slate-700/20
-                                                            bg-slate-900/60 max-h-80
-                                                            overflow-y-auto">
-                                                {msgLoading ? (
-                                                    <p className="text-slate-500 text-xs
-                                                                  text-center py-2">
-                                                        Loading…
-                                                    </p>
-                                                ) : messages.map((m, mi) => (
-                                                    <div key={mi}
-                                                         className={`flex ${
-                                                             m.role === "user"
-                                                                 ? "justify-end"
-                                                                 : "justify-start"
-                                                         }`}>
-                                                        <div className={`max-w-[85%] rounded-xl
-                                                            px-3 py-2 text-xs ${
-                                                            m.role === "user"
-                                                                ? "bg-blue-600/30 text-blue-200 border border-blue-500/20"
-                                                                : "bg-slate-700/60 text-slate-300 border border-slate-600/30"
-                                                        }`}>
-                                                            <span className="font-semibold mr-1">
-                                                                {m.role === "user" ? "User:" : "AI:"}
-                                                            </span>
-                                                            {(m.content || "").length > 300
-                                                                ? m.content.slice(0, 300) + "…"
-                                                                : m.content}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <button
+                                        key={si}
+                                        onClick={() => setChatViewer({
+                                            userId:    u.userId,
+                                            sessionId: s.sessionId,
+                                            username:  u.username,
+                                        })}
+                                        className="w-full flex items-center justify-between
+                                                   px-8 py-3 hover:bg-slate-700/40
+                                                   transition-colors text-left
+                                                   border-b border-slate-700/20 last:border-0">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-slate-300 text-sm font-medium truncate">
+                                                {s.preview || "Chat session"}
+                                            </p>
+                                            <p className="text-slate-600 text-[10px] mt-0.5">
+                                                {s.messageCount} message{s.messageCount !== 1 ? "s" : ""}
+                                            </p>
+                                        </div>
+                                        <span className="text-xs text-blue-400 font-medium
+                                                         flex-shrink-0 ml-4">
+                                            Read chat →
+                                        </span>
+                                    </button>
                                 ))}
                             </div>
                         )}
                     </div>
                 ))}
             </div>
+
+            {/* ── Full-screen chat viewer modal ── */}
+            {chatViewer && (
+                <AiChatViewerModal
+                    userId={chatViewer.userId}
+                    sessionId={chatViewer.sessionId}
+                    username={chatViewer.username}
+                    onClose={() => setChatViewer(null)}
+                />
+            )}
+
         </div>
     );
 }

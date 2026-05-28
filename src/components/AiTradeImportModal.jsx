@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { extractTradesFromImage } from "../api/ai";
+import { extractTradesFromFiles } from "../api/ai";
 import { searchStocks, addTransaction } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 
@@ -22,51 +22,90 @@ const CONFIDENCE_STYLE = {
     LOW:    "bg-red-900/30 text-red-400 border border-red-700/40",
 };
 
+const ACCEPTED_TYPES = {
+    "image/jpeg": "image", "image/png": "image", "image/webp": "image", "image/gif": "image",
+    "application/pdf": "pdf",
+    "text/csv": "csv", "text/plain": "txt",
+    "application/vnd.ms-excel": "excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
+};
+
 export default function AiTradeImportModal({ onClose, onImported }) {
-    const [step,         setStep]         = useState("upload");
-    // upload → analyzing → review → confirming → done
-    const [dragOver,     setDragOver]     = useState(false);
-    const [imageFile,    setImageFile]    = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
-    const [extraction,   setExtraction]   = useState(null);
+    const [step,           setStep]           = useState("upload");
+    const [dragOver,       setDragOver]       = useState(false);
+    const [fileItems,      setFileItems]      = useState([]); // { file, preview, name, ftype, textContent }
+    const [extraction,     setExtraction]     = useState(null);
     const [editableTrades, setEditableTrades] = useState([]);
-    const [error,        setError]        = useState("");
-    const [confirming,   setConfirming]   = useState(false);
+    const [error,          setError]          = useState("");
+    const [confirming,     setConfirming]     = useState(false);
     const fileInputRef = useRef(null);
     const toast = useToast();
 
     // ── File selection ──────────────────────────────────────────────────────
 
-    const handleFile = (file) => {
-        if (!file) return;
-        if (!file.type.startsWith("image/")) {
-            setError("Please upload an image file (JPEG, PNG, WebP)");
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            setError("Image too large — please use an image under 5MB");
-            return;
-        }
+    const handleFiles = async (newFiles) => {
         setError("");
-        setImageFile(file);
-        setImagePreview(URL.createObjectURL(file));
+        const arr = Array.from(newFiles).slice(0, 5 - fileItems.length);
+        const added = [];
+
+        for (const file of arr) {
+            const ftype = ACCEPTED_TYPES[file.type];
+            if (!ftype) {
+                setError("Unsupported file type. Use images, PDF, Excel, CSV, or TXT.");
+                continue;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                setError(`${file.name} is too large (max 10MB)`);
+                continue;
+            }
+
+            let preview     = null;
+            let textContent = null;
+
+            if (ftype === "image") {
+                preview = URL.createObjectURL(file);
+            } else if (ftype === "csv" || ftype === "txt") {
+                textContent = await file.text();
+            } else if (ftype === "excel") {
+                try {
+                    const { read, utils } = await import("xlsx");
+                    const buf = await file.arrayBuffer();
+                    const wb  = read(buf);
+                    const ws  = wb.Sheets[wb.SheetNames[0]];
+                    textContent = utils.sheet_to_csv(ws);
+                } catch {
+                    setError(`Could not parse ${file.name}. Try saving as CSV.`);
+                    continue;
+                }
+            }
+
+            added.push({ file, preview, name: file.name, ftype, textContent });
+        }
+        setFileItems(prev => [...prev, ...added].slice(0, 5));
     };
 
     const handleDrop = (e) => {
         e.preventDefault();
         setDragOver(false);
-        handleFile(e.dataTransfer.files[0]);
+        handleFiles(e.dataTransfer.files);
     };
 
     // ── AI Analysis ──────────────────────────────────────────────────────────
 
-    const analyzeImage = async () => {
-        if (!imageFile) return;
+    const analyzeFiles = async () => {
+        if (fileItems.length === 0) return;
         setStep("analyzing");
         setError("");
 
         try {
-            const result = await extractTradesFromImage(imageFile);
+            const result = await extractTradesFromFiles(
+                fileItems.map(item => ({
+                    file: (item.ftype === "csv" || item.ftype === "txt" || item.ftype === "excel")
+                        ? null : item.file,
+                    textContent: item.textContent || null,
+                })).filter(x => x.file || x.textContent)
+            );
+
             setExtraction(result);
 
             if (result.noTradesFound) {
@@ -79,15 +118,12 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 result.trades.map(async (t, i) => {
                     let symbol = t.stockSymbol || "";
 
-                    // If AI couldn't determine symbol, search by company name
                     if (!symbol && t.stockName) {
                         try {
-                            const res = await searchStocks(t.stockName);
+                            const res    = await searchStocks(t.stockName);
                             const stocks = res.data?.content || [];
-                            if (stocks.length > 0) {
-                                symbol = stocks[0].symbol;
-                            }
-                        } catch (e) {
+                            if (stocks.length > 0) symbol = stocks[0].symbol;
+                        } catch {
                             // silently ignore — user can fill manually
                         }
                     }
@@ -103,7 +139,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
             );
 
             setEditableTrades(enriched);
-            setStep("review"); // ← single call, duplicate removed
+            setStep("review");
 
         } catch (err) {
             const msg = err.response?.data?.message
@@ -177,7 +213,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
 
                 if (!match) {
                     failCount++;
-                    console.error(`Stock not found in system: ${trade.stockSymbol}`);
                     continue;
                 }
 
@@ -190,18 +225,15 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     notes:           `AI import · ${SOURCE_LABELS[extraction?.detectedSource] || "screenshot"}`,
                 });
                 successCount++;
-            } catch (err) {
+            } catch {
                 failCount++;
-                console.error(`Failed to import ${trade.stockSymbol}:`, err);
             }
         }
 
         setConfirming(false);
 
         if (successCount > 0) {
-            toast.success(
-                `${successCount} transaction${successCount > 1 ? "s" : ""} imported successfully`
-            );
+            toast.success(`${successCount} transaction${successCount > 1 ? "s" : ""} imported successfully`);
             onImported?.();
         }
         if (failCount > 0) {
@@ -233,7 +265,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                         <div>
                             <h2 className="text-white font-bold">AI Trade Import</h2>
                             <p className="text-slate-500 text-xs">
-                                Upload any broker screenshot — AI extracts the trades
+                                Upload broker files — AI extracts the trades
                             </p>
                         </div>
                     </div>
@@ -246,7 +278,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 {/* Body */}
                 <div className="overflow-y-auto flex-1">
 
-                    {/* ── Step: Upload ── */}
+                    {/* ── Upload step ── */}
                     {step === "upload" && (
                         <div className="p-6">
 
@@ -257,46 +289,110 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
                                 className={
-                                    "border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer " +
-                                    "transition-all " +
+                                    "border-2 border-dashed rounded-2xl p-6 text-center " +
+                                    "cursor-pointer transition-all " +
                                     (dragOver
                                         ? "border-purple-500 bg-purple-900/20"
-                                        : imageFile
-                                            ? "border-green-500/50 bg-green-900/10"
+                                        : fileItems.length > 0
+                                            ? "border-blue-500/40 bg-blue-900/5"
                                             : "border-slate-600 hover:border-slate-500 hover:bg-slate-800/50")
                                 }>
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/*,.pdf,.xlsx,.xls,.csv,.txt"
+                                    multiple
                                     className="hidden"
-                                    onChange={e => handleFile(e.target.files[0])}
+                                    onChange={e => handleFiles(e.target.files)}
                                 />
 
-                                {imagePreview ? (
+                                {fileItems.length > 0 ? (
                                     <div>
-                                        <img src={imagePreview} alt="Preview"
-                                             className="max-h-48 mx-auto rounded-xl mb-3 object-contain" />
-                                        <p className="text-green-400 text-sm font-medium">
-                                            ✓ {imageFile?.name}
-                                        </p>
-                                        <p className="text-slate-500 text-xs mt-1">
-                                            Click to change image
+                                        {/* File preview grid */}
+                                        <div className="flex flex-wrap gap-3 justify-center mb-3"
+                                             onClick={e => e.stopPropagation()}>
+                                            {fileItems.map((item, i) => (
+                                                <div key={i} className="relative group">
+                                                    {item.ftype === "image" && item.preview ? (
+                                                        <img src={item.preview} alt={item.name}
+                                                             className="w-20 h-20 object-cover
+                                                                        rounded-xl border border-slate-700" />
+                                                    ) : (
+                                                        <div className="w-20 h-20 rounded-xl
+                                                                        border border-slate-700
+                                                                        bg-slate-800 flex flex-col
+                                                                        items-center justify-center gap-1">
+                                                            <span className="text-2xl">
+                                                                {item.ftype === "pdf"   ? "📄"
+                                                                    : item.ftype === "excel" ? "📊"
+                                                                        : item.ftype === "csv"   ? "📋"
+                                                                            : "📝"}
+                                                            </span>
+                                                            <p className="text-slate-400 text-[9px]
+                                                                          uppercase font-bold">
+                                                                {item.ftype}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    <p className="text-[9px] text-slate-500 mt-1
+                                                                  truncate text-center w-20">
+                                                        {item.name}
+                                                    </p>
+                                                    {/* Remove */}
+                                                    <button
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            setFileItems(prev =>
+                                                                prev.filter((_, idx) => idx !== i));
+                                                        }}
+                                                        className="absolute -top-1.5 -right-1.5
+                                                                   w-5 h-5 bg-red-500 hover:bg-red-600
+                                                                   text-white rounded-full text-[10px]
+                                                                   flex items-center justify-center
+                                                                   opacity-0 group-hover:opacity-100
+                                                                   transition-opacity z-10">
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {/* Add more slot */}
+                                            {fileItems.length < 5 && (
+                                                <div
+                                                    className="w-20 h-20 rounded-xl border-2
+                                                               border-dashed border-slate-700
+                                                               flex flex-col items-center
+                                                               justify-center text-slate-500
+                                                               hover:border-slate-500
+                                                               cursor-pointer transition-colors gap-1"
+                                                    onClick={() => fileInputRef.current?.click()}>
+                                                    <span className="text-xl">+</span>
+                                                    <span className="text-[9px]">add more</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-slate-400 text-xs">
+                                            {fileItems.length}/5 files selected
                                         </p>
                                     </div>
                                 ) : (
                                     <div>
-                                        <div className="text-4xl mb-3">📸</div>
+                                        <div className="text-4xl mb-3">📁</div>
                                         <p className="text-white font-semibold mb-1">
-                                            Drop your broker screenshot here
+                                            Drop your broker files here
                                         </p>
-                                        <p className="text-slate-400 text-sm mb-4">
-                                            or click to select a file
+                                        <p className="text-slate-400 text-sm mb-3">
+                                            or click to select — up to 5 files at once
                                         </p>
-                                        <p className="text-slate-600 text-xs">
-                                            Zerodha · Groww · Upstox · Angel One · Dhan
-                                            · ICICI · Kotak · Contract Notes · SMS
-                                        </p>
+                                        <div className="flex flex-wrap gap-1.5 justify-center">
+                                            {["📸 Image", "📄 PDF", "📊 Excel", "📋 CSV", "📝 TXT"].map(t => (
+                                                <span key={t}
+                                                      className="text-xs bg-slate-800 border
+                                                                 border-slate-700 text-slate-400
+                                                                 px-2 py-0.5 rounded-full">
+                                                    {t}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -308,10 +404,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 </p>
                                 {[
                                     "Trade confirmation screens from any broker app",
-                                    "Contract notes (PDF screenshot or photo)",
-                                    "Portfolio page showing your holdings",
-                                    "Broker SMS messages",
-                                    "Handwritten trade records",
+                                    "Contract notes (PDF or screenshot)",
+                                    "Portfolio CSV exports from Zerodha / Groww etc.",
+                                    "Broker SMS messages or text records",
+                                    "Handwritten trade records (photo)",
                                 ].map((tip, i) => (
                                     <div key={i} className="flex items-start gap-2">
                                         <span className="text-purple-400 mt-0.5">✓</span>
@@ -328,31 +424,26 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             )}
 
                             <button
-                                onClick={analyzeImage}
-                                disabled={!imageFile}
+                                onClick={analyzeFiles}
+                                disabled={fileItems.length === 0}
                                 className="w-full mt-4 py-3 bg-purple-600 hover:bg-purple-700
-                                    disabled:opacity-40 disabled:cursor-not-allowed
-                                    text-white font-bold rounded-xl transition-colors">
+                                           disabled:opacity-40 disabled:cursor-not-allowed
+                                           text-white font-bold rounded-xl transition-colors">
                                 ✨ Analyze with AI
                             </button>
 
                             <p className="text-center text-slate-600 text-xs mt-2">
                                 First 10 analyses per month are complimentary.
-
-                            </p>
-                            <p className="text-center text-slate-600 text-xs mt-2">
-
-                                Fair usage charges applies thereafter.
+                                Fair usage charges apply thereafter.
                             </p>
                         </div>
                     )}
 
-                    {/* ── Step: Analyzing ── */}
+                    {/* ── Analyzing step ── */}
                     {step === "analyzing" && (
                         <div className="p-8 text-center">
                             <div className="relative mx-auto w-20 h-20 mb-6">
-                                <div className="w-20 h-20 border-4 border-purple-600/30
-                                                rounded-full" />
+                                <div className="w-20 h-20 border-4 border-purple-600/30 rounded-full" />
                                 <div className="absolute inset-0 w-20 h-20 border-4
                                                 border-purple-600 border-t-transparent
                                                 rounded-full animate-spin" />
@@ -360,42 +451,39 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 justify-center text-2xl">✨</div>
                             </div>
                             <h3 className="text-white font-bold text-lg mb-2">
-                                Analyzing your screenshot
+                                Analyzing {fileItems.length} file{fileItems.length !== 1 ? "s" : ""}
                             </h3>
                             <p className="text-slate-400 text-sm mb-1">
                                 AI is reading your trade details...
                             </p>
                             <p className="text-slate-600 text-xs">
-                                Usually takes 3-6 seconds
+                                Usually takes 3-10 seconds
                             </p>
-                            {imagePreview && (
-                                <img src={imagePreview} alt="Analyzing"
-                                     className="max-h-32 mx-auto rounded-xl mt-6 opacity-40 object-contain" />
-                            )}
+                            {/* Show image thumbnails */}
+                            <div className="flex gap-2 justify-center mt-6">
+                                {fileItems.filter(f => f.ftype === "image").map((f, i) => (
+                                    <img key={i} src={f.preview} alt=""
+                                         className="h-20 rounded-xl opacity-40 object-contain" />
+                                ))}
+                            </div>
                         </div>
                     )}
 
-                    {/* ── Step: Not found ── */}
+                    {/* ── Not found step ── */}
                     {step === "notfound" && (
                         <div className="p-8 text-center">
                             <div className="text-5xl mb-4">🔍</div>
-                            <h3 className="text-white font-bold mb-2">
-                                No trades found
-                            </h3>
+                            <h3 className="text-white font-bold mb-2">No trades found</h3>
                             <p className="text-slate-400 text-sm mb-6">
-                                The AI couldn't extract trade information from this image.
-                                Try a clearer screenshot or a different view.
+                                The AI couldn't extract trade information from these files.
+                                Try a clearer screenshot or a different file.
                             </p>
                             <div className="flex gap-3 justify-center">
                                 <button
-                                    onClick={() => {
-                                        setStep("upload");
-                                        setImageFile(null);
-                                        setImagePreview(null);
-                                    }}
+                                    onClick={() => { setStep("upload"); setFileItems([]); }}
                                     className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700
                                                text-white font-medium rounded-xl text-sm transition-colors">
-                                    Try another image
+                                    Try different files
                                 </button>
                                 <button onClick={onClose}
                                         className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600
@@ -406,11 +494,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                         </div>
                     )}
 
-                    {/* ── Step: Review ── */}
+                    {/* ── Review step ── */}
                     {step === "review" && extraction && (
                         <div className="p-6">
 
-                            {/* Source badge + message */}
                             <div className="flex items-center gap-3 mb-5">
                                 <span className="text-xs px-2.5 py-1 bg-purple-900/40
                                                  text-purple-300 border border-purple-700/40
@@ -420,7 +507,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 <p className="text-slate-300 text-sm">{extraction.message}</p>
                             </div>
 
-                            {/* Trade cards */}
                             <div className="space-y-4">
                                 {editableTrades.map(trade => (
                                     <div key={trade._id}
@@ -431,7 +517,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                  : "border-slate-700/40 opacity-50")
                                          }>
 
-                                        {/* Trade header */}
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center gap-3">
                                                 <input
@@ -469,34 +554,24 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                             </div>
                                         </div>
 
-                                        {/* Editable fields */}
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
                                             <div>
-                                                <label className="text-xs text-slate-500 block mb-1">
-                                                    Symbol *
-                                                </label>
+                                                <label className="text-xs text-slate-500 block mb-1">Symbol *</label>
                                                 <input
                                                     type="text"
                                                     value={trade.stockSymbol || ""}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "stockSymbol",
-                                                        e.target.value.toUpperCase())}
+                                                    onChange={e => updateTrade(trade._id, "stockSymbol", e.target.value.toUpperCase())}
                                                     placeholder="e.g. RELIANCE"
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"
                                                 />
                                             </div>
-
                                             <div>
-                                                <label className="text-xs text-slate-500 block mb-1">
-                                                    Type
-                                                </label>
+                                                <label className="text-xs text-slate-500 block mb-1">Type</label>
                                                 <select
                                                     value={trade.transactionType}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "transactionType", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id, "transactionType", e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500">
@@ -504,70 +579,54 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                     <option value="SELL">SELL</option>
                                                 </select>
                                             </div>
-
                                             <div>
-                                                <label className="text-xs text-slate-500 block mb-1">
-                                                    Quantity *
-                                                </label>
+                                                <label className="text-xs text-slate-500 block mb-1">Quantity *</label>
                                                 <input
                                                     type="number"
                                                     value={trade.quantity || ""}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "quantity", e.target.value)}
-                                                    placeholder="0"
-                                                    min="1"
+                                                    onChange={e => updateTrade(trade._id, "quantity", e.target.value)}
+                                                    placeholder="0" min="1"
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"
                                                 />
                                             </div>
-
                                             <div>
-                                                <label className="text-xs text-slate-500 block mb-1">
-                                                    Price (₹) *
-                                                </label>
+                                                <label className="text-xs text-slate-500 block mb-1">Price (₹) *</label>
                                                 <input
                                                     type="number"
                                                     value={trade.price || ""}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "price", e.target.value)}
-                                                    placeholder="0.00"
-                                                    step="0.01"
+                                                    onChange={e => updateTrade(trade._id, "price", e.target.value)}
+                                                    placeholder="0.00" step="0.01"
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"
                                                 />
                                             </div>
-
-                                            <div className="col-span-2 md:col-span-2">
+                                            <div className="col-span-2">
                                                 <label className="text-xs text-slate-500 block mb-1">
                                                     Date *
                                                     {!trade.date && (
                                                         <span className="text-amber-400 ml-1">
-                                                            (not found in image — select manually)
+                                                            (not found — select manually)
                                                         </span>
                                                     )}
                                                 </label>
                                                 <input
                                                     type="date"
                                                     value={trade._date || ""}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "_date", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id, "_date", e.target.value)}
                                                     max={new Date().toISOString().split("T")[0]}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"
                                                 />
                                             </div>
-
                                             <div className="col-span-2">
-                                                <label className="text-xs text-slate-500 block mb-1">
-                                                    Exchange
-                                                </label>
+                                                <label className="text-xs text-slate-500 block mb-1">Exchange</label>
                                                 <select
                                                     value={trade.exchange || "NSE"}
-                                                    onChange={e => updateTrade(trade._id,
-                                                        "exchange", e.target.value)}
+                                                    onChange={e => updateTrade(trade._id, "exchange", e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500">
@@ -589,7 +648,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                         </div>
                     )}
 
-                    {/* ── Step: Done ── */}
+                    {/* ── Done step ── */}
                     {step === "done" && (
                         <div className="p-8 text-center">
                             <div className="text-5xl mb-4">✅</div>
@@ -606,18 +665,14 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     )}
                 </div>
 
-                {/* Footer — only on review step */}
+                {/* Footer — review step only */}
                 {step === "review" && (
                     <div className="flex items-center justify-between px-6 py-4
                                     border-t border-slate-700 flex-shrink-0">
                         <button
-                            onClick={() => {
-                                setStep("upload");
-                                setImageFile(null);
-                                setImagePreview(null);
-                            }}
+                            onClick={() => { setStep("upload"); setFileItems([]); }}
                             className="text-sm text-slate-400 hover:text-white transition-colors">
-                            ← Try different image
+                            ← Try different files
                         </button>
                         <div className="flex items-center gap-3">
                             <span className="text-slate-500 text-xs">

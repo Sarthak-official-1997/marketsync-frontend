@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { sendChatMessage, getChatSessions, getChatHistory } from "../api/ai";
+import ContactAdminModal from "./ContactAdminModal";
 
 const newSessionId = () =>
     "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -136,6 +137,7 @@ function TypingDots() {
 // ── Main modal ────────────────────────────────────────────────────────────────
 export default function AiChatModal({ onClose }) {
     const [isMaximized, setIsMaximized] = useState(false);
+    const [showContact, setShowContact] = useState(false);
     const [sessionId,    setSessionId]    = useState(() => newSessionId());
     const [messages,     setMessages]     = useState([]);
     const [input,        setInput]        = useState("");
@@ -331,6 +333,26 @@ export default function AiChatModal({ onClose }) {
                                            rounded-lg text-blue-400 hover:text-blue-300
                                            transition-colors">
                             + New
+                        </button>
+                        {/* Contact Sarthak */}
+                        <button
+                            onClick={() => setShowContact(true)}
+                            className="p-2 text-slate-400 hover:text-amber-400
+                                       hover:bg-slate-700 rounded-lg transition-colors"
+                            title="Message Sarthak">
+                            ✉️
+                        </button>
+                        {/* Contact Sarthak — labeled, clearly visible */}
+                        <button
+                            onClick={() => setShowContact(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5
+                                       bg-slate-700 hover:bg-amber-600/30
+                                       border border-slate-600 hover:border-amber-500/50
+                                       text-slate-300 hover:text-amber-300
+                                       rounded-lg transition-all text-xs font-medium"
+                            title="Send a message to Sarthak (Admin)">
+                            ✉️ <span className="hidden sm:inline">Contact Sarthak</span>
+                            <span className="sm:hidden">Contact</span>
                         </button>
                         {/* Maximize / restore */}
                         <button
@@ -561,4 +583,11 @@ export default function AiChatModal({ onClose }) {
             </div>
         </div>
     );
+    {showContact && (
+        <ContactAdminModal
+            source="AI_CHAT"
+            prefillText="I need help with: "
+            onClose={() => setShowContact(false)}
+        />
+    )}
 }
