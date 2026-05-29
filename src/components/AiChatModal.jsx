@@ -337,14 +337,6 @@ export default function AiChatModal({ onClose }) {
                         {/* Contact Sarthak */}
                         <button
                             onClick={() => setShowContact(true)}
-                            className="p-2 text-slate-400 hover:text-amber-400
-                                       hover:bg-slate-700 rounded-lg transition-colors"
-                            title="Message Sarthak">
-                            ✉️
-                        </button>
-                        {/* Contact Sarthak — labeled, clearly visible */}
-                        <button
-                            onClick={() => setShowContact(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5
                                        bg-slate-700 hover:bg-amber-600/30
                                        border border-slate-600 hover:border-amber-500/50

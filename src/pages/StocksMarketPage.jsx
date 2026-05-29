@@ -4,8 +4,8 @@ import { searchStocks, addToWatchlist, getStockPrice,
 import StockDetailModal  from "../components/StockDetailModal";
 import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
+import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth }       from "../context/AuthContext";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { addToBoard, removeFromBoard } from "../components/Layout";
 import { getBoardApi } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
@@ -149,20 +149,92 @@ function GreetingBar({ portfolioSummary }) {
     );
 }
 
-// ── Single Stock Card — Option A compact ─────────────────────────────────────
+// ── MiniChart — Groww-style intraday sparkline ────────────────────────────────
+// Raw SVG: filled area + dashed prev-close reference line. No axes, no labels.
+// points: [{v: number}]  prevClose: number  up: bool
+function MiniChart({ points, prevClose, up }) {
+    const W = 200, H = 36;
+    const color  = up ? "#22c55e" : "#ef4444";
+    const fillId = `mc_${up ? "g" : "r"}`;
+
+    if (!points || points.length < 2) {
+        return <div className="-mx-2.5 my-1.5 h-9 bg-slate-700/30 animate-pulse rounded" />;
+    }
+
+    const vals    = points.map(p => p.v);
+    const allVals = prevClose > 0 ? [...vals, prevClose] : vals;
+    const minV    = Math.min(...allVals);
+    const maxV    = Math.max(...allVals);
+    const range   = maxV - minV || 1;
+    const pad     = H * 0.1;
+    const toY     = v => pad + ((maxV - v) / range) * (H - pad * 2);
+    const toX     = i  => (i / (points.length - 1)) * W;
+
+    const linePts = points
+        .map((p, i) => `${toX(i).toFixed(1)},${toY(p.v).toFixed(1)}`)
+        .join(" ");
+
+    const areaPath =
+        `M ${toX(0).toFixed(1)},${toY(points[0].v).toFixed(1)} ` +
+        points.slice(1).map((p, i) =>
+            `L ${toX(i + 1).toFixed(1)},${toY(p.v).toFixed(1)}`
+        ).join(" ") +
+        ` L ${W},${H} L 0,${H} Z`;
+
+    const refY = prevClose > 0 ? toY(prevClose).toFixed(1) : null;
+
+    return (
+        <div className="-mx-2.5 my-1.5" style={{ height: `${H}px` }}>
+            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}
+                 preserveAspectRatio="none" style={{ display: "block" }}>
+                <defs>
+                    <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor={color} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+                    </linearGradient>
+                </defs>
+                <path d={areaPath} fill={`url(#${fillId})`} />
+                <polyline points={linePts} fill="none" stroke={color}
+                          strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                {refY && (
+                    <line x1="0" y1={refY} x2={W} y2={refY}
+                          stroke="#475569" strokeWidth="0.8" strokeDasharray="3 3" />
+                )}
+            </svg>
+        </div>
+    );
+}
+
+// ── Single Stock Card (smaller — fits inside section grids) ───────────────────
 function StockCard({ stock, price, holding, dragging, over,
                        onDragStart, onDragEnd, onDragOver, onDrop,
                        onRemove, onOpen }) {
 
+    const { hidden: valuesHidden } = usePrivacy();
     const [chart, setChart] = useState([]);
 
     useEffect(() => {
-        getStockChart(stock.symbol, "30m", "1d")
-            .then(res => setChart(
-                (res.data || [])
-                    .map(p => ({ v: parseFloat(p.close || p.price || 0) }))
-                    .filter(p => p.v > 0)
-            ))
+        // Backend wraps points inside { dataPoints: [...] }
+        const parsePoints = (res) =>
+            (res?.dataPoints || [])
+                .filter(p => p.close != null)
+                .map(p => ({ v: parseFloat(p.close) }))
+                .filter(p => p.v > 0);
+
+        // Try today intraday (5m candles, same as StockDetailModal).
+        // If empty — public holiday, pre-market, weekend — fall back to
+        // last 5 trading days so the sparkline always shows something.
+        getStockChart(stock.symbol, stock.exchange || "NSE", "5m", "1d")
+            .then(res => {
+                const points = parsePoints(res.data);
+                if (points.length > 3) {
+                    setChart(points);
+                } else {
+                    return getStockChart(stock.symbol, stock.exchange || "NSE", "1d", "5d")
+                        .then(r => setChart(parsePoints(r.data)))
+                        .catch(() => {});
+                }
+            })
             .catch(() => {});
     }, [stock.symbol]);
 
@@ -182,7 +254,7 @@ function StockCard({ stock, price, holding, dragging, over,
                 "transition-all cursor-grab active:cursor-grabbing " +
                 (dragging ? "opacity-40 scale-95 " : "") +
                 (over
-                    ? "border-blue-500 "
+                    ? "border-blue-500 bg-slate-750 "
                     : "border-slate-700 hover:border-slate-600 ")
             }
         >
@@ -196,11 +268,11 @@ function StockCard({ stock, price, holding, dragging, over,
             >✕</button>
 
             {/* Row 1 — logo + symbol + name */}
-            <button onClick={onOpen} className="text-left w-full block mb-1.5 pr-4">
+            <button onClick={onOpen} className="text-left w-full block pr-4">
                 <div className="flex items-center gap-2">
                     <StockLogo symbol={stock.symbol} name={stock.name} size={26} />
                     <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1 flex-wrap">
+                        <div className="flex items-center gap-1">
                             <span className="text-white font-bold text-xs leading-none">
                                 {stock.symbol}
                             </span>
@@ -211,35 +283,19 @@ function StockCard({ stock, price, holding, dragging, over,
                                 </span>
                             )}
                         </div>
-                        <p className="text-slate-500 text-[10px] mt-0.5 leading-none
-                                      truncate">
+                        <p className="text-slate-500 text-[10px] mt-0.5 leading-none truncate">
                             {stock.name}
                         </p>
                     </div>
                 </div>
             </button>
 
-            {/* Row 2 — sparkline strip: only renders when data exists, zero dead space */}
-            {chart.length > 3 && (
-                <div className="h-6 -mx-1 mb-1.5">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chart}>
-                            <Line
-                                type="monotone"
-                                dataKey="v"
-                                stroke={up ? "#22c55e" : "#ef4444"}
-                                strokeWidth={1.5}
-                                dot={false}
-                                isAnimationActive={false}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            )}
+            {/* Row 2 — Groww-style mini chart: area + prev-close reference line, no axes */}
+            <MiniChart points={chart} prevClose={parseFloat(price?.previousClose || 0)} up={up} />
 
-            {/* Row 3 — price + % chip side by side */}
+            {/* Row 3 — price left, % chip right */}
             {cp > 0 ? (
-                <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1 mt-1">
                     <span className="text-white font-bold text-sm leading-none">
                         ₹{cp.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                     </span>
@@ -252,31 +308,31 @@ function StockCard({ stock, price, holding, dragging, over,
                     </span>
                 </div>
             ) : (
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 mt-1">
                     <div className="h-3 w-14 bg-slate-700 rounded animate-pulse" />
                     <div className="h-3 w-10 bg-slate-700 rounded animate-pulse" />
                 </div>
             )}
 
-            {/* Row 4 — holding info (only when invested) */}
+            {/* Holding badge */}
             {holding && (
-                <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
+                <div className="mt-1.5 pt-1.5 border-t border-slate-700/50 space-y-0.5">
                     <div className="flex justify-between">
                         <span className="text-slate-600 text-[9px]">Invested</span>
-                        <span className="text-slate-400 text-[10px] font-medium">
-                            ₹{parseFloat(holding.totalInvested || 0)
-                            .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                        <span className="text-slate-300 text-[10px] font-semibold">
+                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.totalInvested || 0)
+                                .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </span>
                     </div>
-                    <div className="flex justify-between mt-0.5">
-                        <span className="text-slate-600 text-[9px]">Current</span>
+                    <div className="flex justify-between">
+                        <span className="text-slate-500 text-[9px]">Current</span>
                         <span className={
                             "text-[10px] font-semibold " +
                             (parseFloat(holding.unrealizedPL || 0) >= 0
                                 ? "text-green-400" : "text-red-400")
                         }>
-                            ₹{parseFloat(holding.currentValue || 0)
-                            .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.currentValue || 0)
+                                .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                 </div>
@@ -285,7 +341,6 @@ function StockCard({ stock, price, holding, dragging, over,
     );
 }
 
-
 // ── FadeScrollBox — scrollable area with top+bottom fade mask ─────────────────
 function FadeScrollBox({ children, height }) {
     return (
@@ -293,8 +348,8 @@ function FadeScrollBox({ children, height }) {
             height:          `${height}px`,
             overflowY:       "auto",
             overflowX:       "hidden",
-            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 12%, black 86%, transparent 100%)",
-            maskImage:       "linear-gradient(to bottom, transparent 0%, black 12%, black 86%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
+            maskImage:       "linear-gradient(to bottom, black 70%, transparent 100%)",
             scrollbarWidth:  "thin",
             scrollbarColor:  "#334155 transparent",
         }}>

@@ -18,8 +18,7 @@ import CommandPalette from "./CommandPalette";
 import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
-
-
+import { usePrivacy } from "../context/PrivacyContext";
 
 
 // ── Board helpers ─────────────────────────────────────────────────────────────
@@ -116,6 +115,7 @@ export default function Layout({ children, portfolioSummary }) {
     const [themeOpen, setThemeOpen] = useState(false);
     const themeRef = useRef(null);
     const { user, logout, isAdmin, isCreator } = useAuth();
+    const { hidden: valuesHidden, toggle: togglePrivacy } = usePrivacy();
     const navigate = useNavigate();
 
     const [stocksOpen,  setStocksOpen]  = useState(true);
@@ -136,7 +136,6 @@ export default function Layout({ children, portfolioSummary }) {
     const [inboxUnread, setInboxUnread] = useState(0);
 
     const handleLogout = () => {
-        // Clear all user-specific localStorage on logout
         localStorage.removeItem("ms_board_stocks");
         localStorage.removeItem("ms_recently_visited");
         localStorage.removeItem("ms_recently_viewed_mf");
@@ -184,7 +183,6 @@ export default function Layout({ children, portfolioSummary }) {
         return () => clearInterval(t);
     }, [isCreator]);
 
-    // Inbox unread polling — all users get pending count, CREATOR also gets contact messages
     useEffect(() => {
         const poll = async () => {
             try {
@@ -209,7 +207,7 @@ export default function Layout({ children, portfolioSummary }) {
             {/* ── TOP NAVBAR ── */}
             <header className="flex-shrink-0 h-16 bg-slate-900 border-b
                    border-slate-700/60 flex items-center px-3 sm:px-4
-                   gap-2 sm:gap-3 z-30 relative">
+                   gap-2 sm:gap-3 z-30">
 
                 {/* Hamburger — mobile only */}
                 <button
@@ -224,7 +222,7 @@ export default function Layout({ children, portfolioSummary }) {
                     </svg>
                 </button>
 
-                {/* ── Brand logo — single Link, properly closed ── */}
+                {/* Brand logo */}
                 <Link to="/stocks" className="flex items-center gap-2 flex-shrink-0">
                     <AppLogo className="w-8 h-8" />
                     <div className="hidden sm:block">
@@ -234,7 +232,7 @@ export default function Layout({ children, portfolioSummary }) {
 
                 <div className="h-5 w-px bg-slate-700 flex-shrink-0 hidden sm:block" />
 
-                {/* ✨ FOLYO AI — prominent, always labeled, pulsing glow */}
+                {/* FOLYO AI button */}
                 <button
                     onClick={() => setShowAiChat(true)}
                     className="ai-glow flex-shrink-0 flex items-center gap-1.5
@@ -247,7 +245,7 @@ export default function Layout({ children, portfolioSummary }) {
                     <span className="text-xs font-bold tracking-wide">FOLYO AI</span>
                 </button>
 
-                {/* Creator live cost badge */}
+                {/* Creator live cost badge — md+ */}
                 {isCreator && aiCost && (
                     <button
                         onClick={() => navigate("/admin/ai-report")}
@@ -264,65 +262,70 @@ export default function Layout({ children, portfolioSummary }) {
                     </button>
                 )}
 
-                {/* Search trigger — command palette */}
-                {/* Search trigger — absolutely centered in header */}
+                {/* ── Search — grows to fill middle, pushes right group to edge ── */}
                 <button
                     onClick={() => setSearchOpen(true)}
-                    className="absolute left-1/2 -translate-x-1/2
-                               w-[36%] min-w-[220px] max-w-[480px]
-                               flex items-center gap-3 px-4 py-2
+                    className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2
                                bg-slate-800/70 hover:bg-slate-800
                                border border-slate-700 hover:border-slate-600
                                rounded-xl text-left transition-all duration-150 group">
                     <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
-                    flex-shrink-0 transition-colors"
+                                    flex-shrink-0 transition-colors"
                          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="8"/>
                         <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
                     </svg>
                     <span className="text-slate-500 group-hover:text-slate-400 text-sm
-                     flex-1 transition-colors truncate">
-                                Search stocks & MF...
+                                     flex-1 transition-colors truncate hidden sm:block">
+                        Search stocks &amp; MF...
                     </span>
+                    <span className="text-slate-600 text-xs hidden lg:block flex-shrink-0">⌘K</span>
                 </button>
 
-                {/* Right side items */}
+                {/* ── Right side group — always hugs right edge ── */}
                 <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">
 
-                    {/* Role badge */}
-                    {isCreator && (
-                        <span className="hidden md:inline-flex text-xs bg-amber-500/20
-                                         text-amber-400 border border-amber-500/40
-                                         px-2.5 py-1 rounded-full font-bold">
-                            👑 CREATOR
-                        </span>
-                    )}
-                    {isAdmin && !isCreator && (
-                        <span className="hidden md:inline-flex text-xs bg-amber-500/20
-                                         text-amber-400 border border-amber-500/30
-                                         px-2.5 py-1 rounded-full font-bold">
-                            ADMIN
-                        </span>
-                    )}
-
-                    {/* Portfolio value */}
+                    {/* Portfolio value — md+ */}
                     {totalValue && (
                         <div className="hidden md:flex flex-col items-end bg-slate-800
                                         border border-slate-700 rounded-xl px-3 py-1.5">
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-slate-400">Portfolio</span>
                                 <span className="text-sm font-bold text-white">
-                                    {fmtCrore(totalValue)}
+                                    {valuesHidden ? "••••••" : fmtCrore(totalValue)}
                                 </span>
                             </div>
                             {totalPL && (
                                 <span className={"text-xs font-semibold " +
                                 (isPLPos ? "text-green-400" : "text-red-400")}>
-                                    P&L {isPLPos ? "+" : ""}{fmtCrore(totalPL)}
+                                    {valuesHidden ? "••••" : `P&L ${isPLPos ? "+" : ""}${fmtCrore(totalPL)}`}
                                 </span>
                             )}
                         </div>
                     )}
+
+                    {/* ── Privacy / eye toggle ── */}
+                    <button
+                        onClick={togglePrivacy}
+                        title={valuesHidden ? "Show financial values" : "Hide financial values"}
+                        className={"relative flex items-center justify-center w-9 h-9 rounded-xl " +
+                        "border transition-colors flex-shrink-0 " +
+                        (valuesHidden
+                            ? "bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
+                            : "bg-slate-800 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700")}>
+                        {valuesHidden ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round"
+                                      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round"
+                                      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        )}
+                    </button>
 
                     {/* ── Inbox bell ── */}
                     <button
@@ -342,7 +345,7 @@ export default function Layout({ children, portfolioSummary }) {
                                      .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3
                                      0 11-6 0v-1m6 0H9"/>
                         </svg>
-                        <span className="text-xs font-medium hidden sm:inline">Inbox</span>
+                        <span className="text-xs font-medium hidden md:inline">Inbox</span>
                         {inboxUnread > 0 && (
                             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4
                                              bg-red-500 text-white text-[10px] font-bold
@@ -353,15 +356,14 @@ export default function Layout({ children, portfolioSummary }) {
                         )}
                     </button>
 
-
                     {/* Theme dropdown */}
                     <div ref={themeRef} className="relative">
                         <button onClick={() => setThemeOpen(v => !v)}
-                                className="flex items-center gap-2 px-3 py-2 bg-slate-800
+                                className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-800
                                            hover:bg-slate-700 border border-slate-700
                                            rounded-xl text-sm transition-colors">
                             <span className="text-base leading-none">{theme.emoji}</span>
-                            <span className="text-slate-300 text-xs hidden md:block font-medium">
+                            <span className="text-slate-300 text-xs hidden md:block font-medium max-w-[80px] truncate">
                                 {theme.name}
                             </span>
                             <span className="text-slate-500 text-xs">▾</span>
@@ -425,15 +427,21 @@ export default function Layout({ children, portfolioSummary }) {
                     <div ref={userMenuRef} className="relative">
                         <button
                             onClick={() => setUserMenuOpen(v => !v)}
-                            className="flex items-center gap-2 bg-slate-800 border border-slate-700
-                                       rounded-xl px-3 py-1.5 hover:bg-slate-700 transition-colors">
-                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center
-                                            justify-center text-white text-xs font-bold flex-shrink-0">
-                                {user?.username?.[0]?.toUpperCase() || "U"}
+                            className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
+                                       rounded-xl px-2.5 py-1.5 hover:bg-slate-700 transition-colors">
+                            <div className="relative flex-shrink-0">
+                                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center
+                                                justify-center text-white text-xs font-bold">
+                                    {user?.username?.[0]?.toUpperCase() || "U"}
+                                </div>
+                                {isCreator && (
+                                    <span className="absolute -top-2 left-1/2 -translate-x-1/2
+                                                     text-[11px] leading-none select-none"
+                                          title="Creator">
+                                        👑
+                                    </span>
+                                )}
                             </div>
-                            <span className="text-sm text-white hidden sm:block">
-                                {user?.username}
-                            </span>
                             <span className="text-slate-500 text-xs">▾</span>
                         </button>
 
@@ -494,7 +502,7 @@ export default function Layout({ children, portfolioSummary }) {
                 </div>
             </header>
 
-            {/* ── INDEX BAR   Indices ── */}
+            {/* ── INDEX BAR ── */}
             <div className="flex-shrink-0 bg-slate-900/80 border-b border-slate-700/40 overflow-x-auto scrollbar-hide">
                 <IndexTicker />
             </div>
@@ -605,358 +613,3 @@ export default function Layout({ children, portfolioSummary }) {
         </div>
     );
 }
-
-// // ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
-// function GlobalSearch({ onStockSelect, onMfSelect }) {
-//     const [query,    setQuery]    = useState("");
-//     const [results,  setResults]  = useState({ stocks: [], mf: [] });
-//     const [open,     setOpen]     = useState(false);
-//     const [loading,  setLoading]  = useState(false);
-//     const [tab,      setTab]      = useState("stocks");
-//     const [recent,   setRecent]   = useState([]);
-//     const [recentMf, setRecentMf] = useState([]);
-//     const debounceRef = useRef(null);
-//     const wrapRef     = useRef(null);
-//     const navigate    = useNavigate();
-//     const toast       = useToast();
-//
-//     useEffect(() => {
-//         const h = (e) => {
-//             if (wrapRef.current && !wrapRef.current.contains(e.target))
-//                 setOpen(false);
-//         };
-//         document.addEventListener("mousedown", h);
-//         return () => document.removeEventListener("mousedown", h);
-//     }, []);
-//
-//     useEffect(() => {
-//         const refresh = () => {
-//             setRecent(getRecentStocks().slice(0, 20));
-//             setRecentMf(getRecentMf().slice(0, 20));
-//         };
-//         refresh();
-//         window.addEventListener("ms_recent_updated",    refresh);
-//         window.addEventListener("ms_mf_recent_updated", refresh);
-//         window.addEventListener("storage",              refresh);
-//         return () => {
-//             window.removeEventListener("ms_recent_updated",    refresh);
-//             window.removeEventListener("ms_mf_recent_updated", refresh);
-//             window.removeEventListener("storage",              refresh);
-//         };
-//     }, []);
-//
-//     const handleSearch = (q) => {
-//         setQuery(q);
-//         clearTimeout(debounceRef.current);
-//         if (q.length < 2) {
-//             setResults({ stocks: [], mf: [] });
-//             setOpen(true);
-//             return;
-//         }
-//         setLoading(true);
-//         setOpen(true);
-//         debounceRef.current = setTimeout(async () => {
-//             try {
-//                 const [sRes, mRes] = await Promise.allSettled([
-//                     searchStocks(q), searchMfSchemes(q)
-//                 ]);
-//                 const stocks = sRes.status === "fulfilled"
-//                     ? (sRes.value?.content || sRes.value?.data?.content || []) : [];
-//                 const mf     = mRes.status === "fulfilled"
-//                     ? (mRes.value?.content || mRes.value?.data?.content || []) : [];
-//                 setResults({ stocks, mf });
-//                 setTab(stocks.length > 0 ? "stocks" : "mf");
-//             } catch {}
-//             finally { setLoading(false); }
-//         }, 300);
-//     };
-//
-//     const selectStock = async (item) => {
-//         setOpen(false);
-//         setQuery("");
-//         trackStockView(item);
-//         onStockSelect(item);
-//         try {
-//             const res = await getStockPrice(item.symbol);
-//             const p   = res?.data || res;
-//             if (p?.changePercent != null || p?.currentPrice != null) {
-//                 trackStockView({
-//                     ...item,
-//                     changePercent: p.changePercent ?? p.regularMarketChangePercent ?? null,
-//                     change:        p.change        ?? p.regularMarketChange        ?? null,
-//                 });
-//             }
-//         } catch {}
-//     };
-//
-//     const handleAddWatchlist = async (stock) => {
-//         try {
-//             await addToWatchlist({ stockId: stock.id });
-//             toast.success(`${stock.symbol} added to watchlist`);
-//         } catch (err) {
-//             toast.error(err.response?.data?.message || "Already in watchlist");
-//         }
-//     };
-//
-//     const activeList     = tab === "stocks" ? results.stocks : results.mf;
-//     const isTyping       = query.length >= 2;
-//     const searchSymbols  = new Set(results.stocks.map(s => s.symbol));
-//     const filteredRecent = recent.filter(s => !searchSymbols.has(s.symbol));
-//     const showRecent     = !isTyping && recent.length > 0;
-//     const showResults    = isTyping;
-//
-//     return (
-//         <div ref={wrapRef} className="relative w-full">
-//             <div className="relative">
-//                 <input
-//                     type="text"
-//                     value={query}
-//                     onChange={e => handleSearch(e.target.value)}
-//                     onFocus={() => {
-//                         setOpen(true);
-//                         setTab("stocks");
-//                         setRecent(getRecentStocks().slice(0, 20));
-//                     }}
-//                     placeholder="Search stocks & MF..."
-//                     className="w-full bg-slate-800 border border-slate-700 rounded-xl
-//                                px-4 py-2 text-white text-xs focus:outline-none
-//                                focus:border-blue-500 transition-all duration-200
-//                                placeholder:text-slate-500"
-//                 />
-//                 {loading && (
-//                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
-//                         <div className="w-3 h-3 border-2 border-blue-400
-//                                         border-t-transparent rounded-full animate-spin" />
-//                     </div>
-//                 )}
-//             </div>
-//
-//             {open && (
-//                 <div className="absolute left-0 top-full mt-1 bg-slate-800 border
-//                 border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden"
-//                      style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}>
-//
-//                     {/* Recently viewed */}
-//                     {showRecent && (
-//                         <>
-//                             <div className="flex border-b border-slate-700">
-//                                 {[
-//                                     { id: "stocks", label: `🕐 Stocks (${filteredRecent.length})` },
-//                                     { id: "mf",     label: `📊 MF (${recentMf.length})` },
-//                                 ].map(t => (
-//                                     <button key={t.id} onClick={() => setTab(t.id)}
-//                                             className={"flex-1 py-2.5 text-xs font-semibold " +
-//                                             "transition-colors " +
-//                                             (tab === t.id
-//                                                 ? "text-white border-b-2 border-blue-500 bg-slate-700/40"
-//                                                 : "text-slate-400 hover:text-white")}>
-//                                         {t.label}
-//                                     </button>
-//                                 ))}
-//                             </div>
-//
-//                             {tab === "stocks" && (
-//                                 <div className="max-h-72 overflow-y-auto">
-//                                     {filteredRecent.length === 0 ? (
-//                                         <p className="text-slate-500 text-xs text-center py-6">
-//                                             No recently viewed stocks
-//                                         </p>
-//                                     ) : filteredRecent.map((stock, i) => {
-//                                         const pct   = parseFloat(stock.changePercent ?? 0);
-//                                         const isPos = pct >= 0;
-//                                         return (
-//                                             <div key={i}
-//                                                  className="flex items-center justify-between
-//                                                             px-4 py-2.5 border-b border-slate-700/30
-//                                                             last:border-0 hover:bg-slate-700/40
-//                                                             transition-colors cursor-pointer"
-//                                                  onClick={() => selectStock(stock)}>
-//                                                 <div className="flex-1 min-w-0">
-//                                                     <div className="flex items-center gap-2">
-//                                                         <p className="text-white text-xs font-bold">
-//                                                             {stock.symbol}
-//                                                         </p>
-//                                                         <span className="text-slate-600 text-[10px]">
-//                                                             {stock.exchange}
-//                                                         </span>
-//                                                     </div>
-//                                                     <p className="text-slate-400 text-xs truncate">
-//                                                         {stock.name}
-//                                                     </p>
-//                                                 </div>
-//                                                 {stock.changePercent != null && (
-//                                                     <span className={`text-xs font-semibold ml-3
-//                                                         flex-shrink-0 ${isPos
-//                                                         ? "text-green-400" : "text-red-400"}`}>
-//                                                         {isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%
-//                                                     </span>
-//                                                 )}
-//                                             </div>
-//                                         );
-//                                     })}
-//                                 </div>
-//                             )}
-//
-//                             {tab === "mf" && (
-//                                 <div className="max-h-72 overflow-y-auto">
-//                                     {recentMf.length === 0 ? (
-//                                         <p className="text-slate-500 text-xs text-center py-6">
-//                                             No recently viewed funds
-//                                         </p>
-//                                     ) : recentMf.map((mf, i) => (
-//                                         <div key={i}
-//                                              className="flex items-center justify-between
-//                                                         px-4 py-2.5 border-b border-slate-700/30
-//                                                         last:border-0 hover:bg-slate-700/40
-//                                                         transition-colors cursor-pointer"
-//                                              onClick={() => {
-//                                                  setOpen(false);
-//                                                  setQuery("");
-//                                                  onMfSelect({
-//                                                      schemeCode: mf.schemeCode,
-//                                                      schemeName: mf.schemeName,
-//                                                      fundHouse:  mf.fundHouse,
-//                                                      nav:        mf.nav,
-//                                                  });
-//                                              }}>
-//                                             <div className="flex-1 min-w-0">
-//                                                 <p className="text-white text-xs font-semibold truncate">
-//                                                     {mf.schemeName}
-//                                                 </p>
-//                                                 <p className="text-slate-400 text-xs">
-//                                                     {mf.fundHouse}
-//                                                     {mf.nav ? ` · NAV ₹${mf.nav}` : ""}
-//                                                 </p>
-//                                             </div>
-//                                         </div>
-//                                     ))}
-//                                 </div>
-//                             )}
-//                         </>
-//                     )}
-//
-//                     {/* Search results */}
-//                     {showResults && (
-//                         <>
-//                             <div className="flex border-b border-slate-700">
-//                                 {[
-//                                     { id: "stocks", label: `📈 Stocks (${results.stocks.length})` },
-//                                     { id: "mf",     label: `📊 MF (${results.mf.length})` },
-//                                 ].map(t => (
-//                                     <button key={t.id} onClick={() => setTab(t.id)}
-//                                             className={"flex-1 py-2.5 text-xs font-semibold " +
-//                                             "transition-colors " +
-//                                             (tab === t.id
-//                                                 ? "text-white border-b-2 border-blue-500 bg-slate-700/40"
-//                                                 : "text-slate-400 hover:text-white")}>
-//                                         {t.label}
-//                                     </button>
-//                                 ))}
-//                             </div>
-//                             <div className="max-h-72 overflow-y-auto">
-//                                 {activeList.length === 0 ? (
-//                                     <p className="text-slate-500 text-xs text-center py-6">
-//                                         No {tab === "stocks" ? "stocks" : "funds"} found
-//                                     </p>
-//                                 ) : activeList.map((item, idx) => {
-//                                     const isStock = tab === "stocks";
-//                                     return (
-//                                         <div key={idx}
-//                                              className="flex items-center justify-between px-4
-//                                                         py-2.5 border-b border-slate-700/40
-//                                                         last:border-0 hover:bg-slate-700/40
-//                                                         transition-colors">
-//                                             <button className="text-left flex-1 min-w-0"
-//                                                     onClick={() => {
-//                                                         if (isStock) {
-//                                                             trackStockView(item);
-//                                                             selectStock(item);
-//                                                         } else {
-//                                                             trackMfView(item);
-//                                                             setOpen(false);
-//                                                             setQuery("");
-//                                                             onMfSelect({
-//                                                                 schemeCode: item.schemeCode,
-//                                                                 schemeName: item.schemeName,
-//                                                                 fundHouse:  item.fundHouse,
-//                                                                 nav:        item.nav,
-//                                                             });
-//                                                         }
-//                                                     }}>
-//                                                 {isStock ? (
-//                                                     <>
-//                                                         <p className="text-white text-xs font-bold">
-//                                                             {item.symbol}
-//                                                             <span className="text-slate-500 font-normal ml-1">
-//                                                                 {item.exchange}
-//                                                             </span>
-//                                                         </p>
-//                                                         <p className="text-slate-400 text-xs truncate">
-//                                                             {item.name}
-//                                                         </p>
-//                                                     </>
-//                                                 ) : (
-//                                                     <>
-//                                                         <p className="text-white text-xs font-semibold
-//                                                                       truncate leading-tight">
-//                                                             {item.schemeName}
-//                                                         </p>
-//                                                         <p className="text-slate-400 text-xs">
-//                                                             {item.fundHouse}
-//                                                             {item.nav ? ` · NAV ₹${item.nav}` : ""}
-//                                                         </p>
-//                                                     </>
-//                                                 )}
-//                                             </button>
-//                                             {isStock && (
-//                                                 <div className="flex-shrink-0 ml-2 flex gap-1">
-//                                                     <button
-//                                                         onClick={e => {
-//                                                             e.stopPropagation();
-//                                                             handleAddWatchlist(item);
-//                                                         }}
-//                                                         className="text-xs px-2 py-1 bg-slate-700
-//                                                                    hover:bg-blue-600 text-slate-400
-//                                                                    hover:text-white rounded-lg
-//                                                                    transition-colors">
-//                                                         + Watch
-//                                                     </button>
-//                                                     <button
-//                                                         onClick={e => {
-//                                                             e.stopPropagation();
-//                                                             const added = addToBoard(item);
-//                                                             toast[added ? "success" : "error"](
-//                                                                 added
-//                                                                     ? `${item.symbol} added to board`
-//                                                                     : `${item.symbol} already on board`
-//                                                             );
-//                                                         }}
-//                                                         className="text-xs px-2 py-1 bg-slate-700
-//                                                                    hover:bg-purple-600 text-slate-400
-//                                                                    hover:text-white rounded-lg
-//                                                                    transition-colors"
-//                                                         title="Add to market board">
-//                                                         + Board
-//                                                     </button>
-//                                                 </div>
-//                                             )}
-//                                         </div>
-//                                     );
-//                                 })}
-//                             </div>
-//                             {(results.stocks.length + results.mf.length) > 0 && (
-//                                 <div className="px-4 py-2 border-t border-slate-700/40
-//                                                 bg-slate-800/60">
-//                                     <p className="text-xs text-slate-600 text-center">
-//                                         {results.stocks.length + results.mf.length} results
-//                                         — click to open chart
-//                                     </p>
-//                                 </div>
-//                             )}
-//                         </>
-//                     )}
-//                 </div>
-//             )}
-//         </div>
-//     );
-// }

@@ -35,12 +35,12 @@ const clr = (val) => {
 };
 
 const TIMEFRAMES = [
-    { label: "Intraday", interval: "5m",  range: "1d",  intraday: true  },
-    { label: "15m",      interval: "15m", range: "5d"                   },
-    { label: "1h",       interval: "60m", range: "1mo"                  },
-    { label: "1D",       interval: "1d",  range: "3mo"                  },
-    { label: "1W",       interval: "1wk", range: "2y"                   },
-    { label: "1M",       interval: "1mo", range: "max"                  },
+    { label: "Intraday", desc: "Today · 5-min candles",        interval: "5m",  range: "1d",  intraday: true  },
+    { label: "15m",      desc: "Last 5 days · 15-min candles", interval: "15m", range: "5d"                   },
+    { label: "1h",       desc: "Last month · 1-hr candles",    interval: "60m", range: "1mo"                  },
+    { label: "1D",       desc: "Last 3 months · daily",        interval: "1d",  range: "3mo"                  },
+    { label: "1W",       desc: "Last 2 years · weekly",        interval: "1wk", range: "2y"                   },
+    { label: "1M",       desc: "All time · monthly",           interval: "1mo", range: "max"                  },
 ];
 
 // Fixed 30-min tick marks spanning the full NSE session
@@ -167,6 +167,12 @@ export default function StockDetailModal({ stock, onClose }) {
                     const dataMap = {};
                     raw.forEach(p => { dataMap[p.date] = p.close; });
                     pts = slots.map(time => ({ date: time, close: dataMap[time] ?? null }));
+                } else {
+                    // For multi-day timeframes (15m, 1h, 1D, 1W, 1M):
+                    // Filter out any null/missing points so there are no gaps between
+                    // trading sessions. Recharts activeDot freezes at the last real
+                    // point before a null — removing nulls fixes the stuck dot bug.
+                    pts = raw.filter(p => p.close != null);
                 }
 
                 setChartData(pts);
@@ -481,22 +487,29 @@ export default function StockDetailModal({ stock, onClose }) {
                                 </div>
 
                                 {/* Original Timeframe Selectors */}
-                                <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
-                                    {TIMEFRAMES.map(t => (
-                                        <button
-                                            key={t.label}
-                                            onClick={() => setTf(t)}
-                                            className={
-                                                "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
-                                                (tf.label === t.label
-                                                    ? (t.intraday
-                                                        ? "bg-teal-600 text-white shadow"
-                                                        : "bg-blue-600 text-white shadow")
-                                                    : "text-slate-400 hover:text-white hover:bg-slate-700")
-                                            }>
-                                            {t.label}
-                                        </button>
-                                    ))}
+                                <div className="flex flex-col items-end gap-1">
+                                    <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
+                                        {TIMEFRAMES.map(t => (
+                                            <button
+                                                key={t.label}
+                                                onClick={() => setTf(t)}
+                                                title={t.desc}
+                                                className={
+                                                    "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
+                                                    (tf.label === t.label
+                                                        ? (t.intraday
+                                                            ? "bg-teal-600 text-white shadow"
+                                                            : "bg-blue-600 text-white shadow")
+                                                        : "text-slate-400 hover:text-white hover:bg-slate-700")
+                                                }>
+                                                {t.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* Active timeframe description */}
+                                    <p className="text-xs text-white/70 pr-1 font-medium tracking-wide">
+                                        {tf.desc}
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -10,6 +10,7 @@ import MfTransactionPanel from "../components/MfTransactionPanel";
 import StockQuickMenu from "../components/StockQuickMenu";
 import StockDetailModal from "../components/StockDetailModal";
 import {useToast} from "../context/ToastContext";
+import { usePrivacy } from "../context/PrivacyContext";
 import {useNavigate} from "react-router-dom";
 
 import StockLogo from "../components/StockLogo";
@@ -137,8 +138,8 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
                         Current Value
                     </p>
-                    <p className="text-2xl font-bold text-white mt-1">{fmtCrore(liveValue)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmt(liveValue)}</p>
+                    <p className="text-2xl font-bold text-white mt-1">{fmtCroreV(liveValue)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(liveValue)}</p>
                 </div>
 
                 {/* Total Invested */}
@@ -146,8 +147,8 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
                         Total Invested
                     </p>
-                    <p className="text-2xl font-bold text-slate-300 mt-1">{fmtCrore(totalInvested)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmt(totalInvested)}</p>
+                    <p className="text-2xl font-bold text-slate-300 mt-1">{fmtCroreV(totalInvested)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(totalInvested)}</p>
                 </div>
 
                 {/* Total P&L — FIX: div now properly opened AND closed */}
@@ -157,13 +158,13 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     </p>
                     <div className="flex items-end gap-2 mt-1 flex-wrap">
                         <p className={"text-2xl font-bold " + (isUp ? "text-green-400" : "text-red-400")}>
-                            {isUp ? "+" : ""}{fmtCrore(livePL)}
+                            {isUp ? "+" : ""}{fmtCroreV(livePL)}
                         </p>
                         <span className={"text-base font-bold pb-0.5 " + (isUp ? "text-green-400" : "text-red-400")}>
                             ({isUp ? "+" : ""}{livePLPct.toFixed(2)}%)
                         </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmt(livePL)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(livePL)}</p>
                 </div>
 
                 {/* Today's Change — only shown when live price data is available */}
@@ -478,6 +479,10 @@ export default function HoldingsPage(props) {
     const [chartStock,     setChartStock]     = useState(null);
     const toast    = useToast();
     const navigate = useNavigate();
+    const { hidden: valuesHidden } = usePrivacy();
+    // Masked formatters — return bullets when privacy mode is on
+    const fmtV      = (v) => valuesHidden ? "••••••" : fmt(v);
+    const fmtCroreV = (v) => valuesHidden ? "••••••" : fmtCrore(v);
 
     const loadHoldings = (silent = false) => {
         if (!silent) setLoading(true);

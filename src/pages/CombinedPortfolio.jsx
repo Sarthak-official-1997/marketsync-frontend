@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getHoldings, getMfHoldings } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
+import { usePrivacy } from "../context/PrivacyContext";
 import StockDetailModal from "../components/StockDetailModal";
 
 const fmt = (val) =>
@@ -24,6 +25,8 @@ export default function CombinedPortfolio() {
     const [combined,    setCombined]    = useState(true); // true = merged view
     const [chartStock,  setChartStock]  = useState(null);
     const toast = useToast();
+    const { hidden: valuesHidden } = usePrivacy();
+    const fmtV = (v) => valuesHidden ? "••••••" : fmt(v);
 
     useEffect(() => {
         Promise.all([getHoldings(), getMfHoldings()])
@@ -125,10 +128,10 @@ export default function CombinedPortfolio() {
                     // Combined summary
                     <>
                         {[
-                            ["Total Invested",  fmt(totalInvested), "text-white"],
-                            ["Current Value",   fmt(totalValue),    "text-white"],
+                            ["Total Invested",  fmtV(totalInvested), "text-white"],
+                            ["Current Value",   fmtV(totalValue),    "text-white"],
                             ["Total P&L",
-                                fmt(totalPL) + "\n" + fmtPct(totalPLPct),
+                                (valuesHidden ? "••••••" : fmt(totalPL)) + "\n" + fmtPct(totalPLPct),
                                 pctColor(totalPL)],
                             ["Holdings",
                                 stockRows.length + " stocks + " + mfRows.length + " MF",
@@ -167,9 +170,9 @@ export default function CombinedPortfolio() {
                             </p>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    ["Invested", fmt(stockInvested)],
-                                    ["Value",    fmt(stockValue)],
-                                    ["P&L",      fmt(stockPL)],
+                                    ["Invested", fmtV(stockInvested)],
+                                    ["Value",    fmtV(stockValue)],
+                                    ["P&L",      fmtV(stockPL)],
                                 ].map(([l, v]) => (
                                     <div key={l}>
                                         <p className="text-xs text-slate-500">{l}</p>
@@ -191,9 +194,9 @@ export default function CombinedPortfolio() {
                             </p>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    ["Invested", fmt(mfInvested)],
-                                    ["Value",    fmt(mfValue)],
-                                    ["P&L",      fmt(mfPL)],
+                                    ["Invested", fmtV(mfInvested)],
+                                    ["Value",    fmtV(mfValue)],
+                                    ["P&L",      fmtV(mfPL)],
                                 ].map(([l, v]) => (
                                     <div key={l}>
                                         <p className="text-xs text-slate-500">{l}</p>
@@ -281,15 +284,15 @@ export default function CombinedPortfolio() {
                                     )}
                                 </td>
                                 <td className="text-right px-5 py-3 text-slate-300">
-                                    {fmt(row.invested)}
+                                    {fmtV(row.invested)}
                                 </td>
                                 <td className="text-right px-5 py-3 text-white
                                                    font-semibold">
-                                    {fmt(row.value)}
+                                    {fmtV(row.value)}
                                 </td>
                                 <td className={"text-right px-5 py-3 font-semibold " +
                                 pctColor(row.pl)}>
-                                    {fmt(row.pl)}
+                                    {fmtV(row.pl)}
                                 </td>
                                 <td className={"text-right px-5 py-3 font-medium " +
                                 pctColor(row.plPct)}>
