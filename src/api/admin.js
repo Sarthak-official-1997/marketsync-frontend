@@ -42,3 +42,8 @@ export const updateAiConfig = (key, value) => api.patch(`/admin/ai/config/${key}
 export const getContactMessages = ()    => api.get("/contact").then(r => r.data);
 export const markContactRead    = (id)  => api.patch(`/contact/${id}/read`).then(r => r.data);
 export const getInboxUnread     = ()    => api.get("/admin/inbox/unread").then(r => r.data);
+
+
+// -----AI related ------------------
+export const getUserAiTokenLimit  = (userId) => api.get(`/admin/ai/config/extract.max_tokens.user.${userId}`).then(r => r.data);
+export const setUserAiTokenLimit  = (userId, tokens) => updateAiConfig(`extract.max_tokens.user.${userId}`, tokens);
