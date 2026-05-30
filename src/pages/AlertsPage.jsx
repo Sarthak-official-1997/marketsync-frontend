@@ -19,7 +19,7 @@ const fmtDate = (d) => {
 const fmtPrice = (v) =>
     v != null ? `₹${parseFloat(v).toLocaleString("en-IN",{maximumFractionDigits:2})}` : "—";
 
-// ── Single alert card ─────────────────────────────────────────────────────────
+// -- Single alert card --------------------------------------------------------─
 function AlertCard({ alert, livePrice, onToggle, onDelete }) {
     const [deleting, setDeleting] = useState(false);
     const [toggling, setToggling] = useState(false);
@@ -148,7 +148,7 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
     );
 }
 
-// ── Search bar for setting new alert ─────────────────────────────────────────
+// -- Search bar for setting new alert ----------------------------------------─
 function StockSearchForAlert({ onSelect }) {
     const [query,   setQuery]   = useState("");
     const [results, setResults] = useState([]);
@@ -206,7 +206,7 @@ function StockSearchForAlert({ onSelect }) {
     );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// -- Main page ----------------------------------------------------------------─
 export default function AlertsPage() {
     const [alerts,     setAlerts]     = useState([]);
     const [loading,    setLoading]    = useState(true);

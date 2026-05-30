@@ -36,7 +36,7 @@ const today = () => new Date().toISOString().split("T")[0];
 const MONTHS = ["January","February","March","April","May","June",
     "July","August","September","October","November","December"];
 
-// ─── Confirm dialog ───────────────────────────────────────────────────────────
+// --─ Confirm dialog ----------------------------------------------------------─
 function ConfirmDialog({dialog, onConfirm, onCancel}) {
     if (!dialog.open) return null;
     return (
@@ -71,7 +71,7 @@ function ConfirmDialog({dialog, onConfirm, onCancel}) {
     );
 }
 
-// ─── Stock Group Card ─────────────────────────────────────────────────────────
+// --─ Stock Group Card --------------------------------------------------------─
 function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
     const buys  = group.transactions.filter(t => t.type === "BUY");
     const sells = group.transactions.filter(t => t.type === "SELL");
@@ -209,7 +209,7 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
     );
 }
 
-// ─── Calendar View ────────────────────────────────────────────────────────────
+// --─ Calendar View ------------------------------------------------------------
 function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
     const [selectedDate,  setSelectedDate]  = useState(null);
     const [showMonthPick, setShowMonthPick] = useState(false);
@@ -511,7 +511,7 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
     );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --─ Main Page ----------------------------------------------------------------
 export default function TransactionsPage() {
     const [transactions,   setTx]            = useState([]);
     const [loading,        setLoading]        = useState(true);
@@ -789,7 +789,7 @@ export default function TransactionsPage() {
     );
 }
 
-// ─── Add Transaction Modal ────────────────────────────────────────────────────
+// --─ Add Transaction Modal ----------------------------------------------------
 function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedStock, defaultDate}) {
     const [query,        setQuery]       = useState("");
     const [results,      setResults]     = useState([]);

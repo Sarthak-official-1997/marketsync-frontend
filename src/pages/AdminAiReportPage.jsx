@@ -11,7 +11,7 @@ import AiChatViewerModal from "../components/AiChatViewerModal";
 const fmt = v => `Rs.${parseFloat(v || 0).toLocaleString("en-IN",
     { maximumFractionDigits: 2 })}`;
 
-// ── Token limit slider config ─────────────────────────────────────────────────
+// -- Token limit slider config ------------------------------------------------─
 // Default (global) is 26000 tokens. Per-user overrides are stored as:
 //   extract.max_tokens.user.{userId}  → string number
 // 0 = use global default
@@ -42,7 +42,7 @@ function tokenBarColor(v) {
     return "#ef4444";
 }
 
-// ── Median calculation ────────────────────────────────────────────────────────
+// -- Median calculation --------------------------------------------------------
 function median(arr) {
     if (!arr.length) return 0;
     const s = [...arr].sort((a, b) => a - b);
@@ -50,7 +50,7 @@ function median(arr) {
     return s.length % 2 !== 0 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
-// ── Token Usage Graph component ───────────────────────────────────────────────
+// -- Token Usage Graph component ----------------------------------------------─
 // Shows a horizontal distribution of per-user token usage buckets
 // with median line and the current slider value overlaid
 function TokenUsageGraph({ usages, sliderValue, medianValue }) {
@@ -154,7 +154,7 @@ function TokenUsageGraph({ usages, sliderValue, medianValue }) {
     );
 }
 
-// ── Per-user token limit row ──────────────────────────────────────────────────
+// -- Per-user token limit row --------------------------------------------------
 function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, medianTokens }) {
     const configKey    = `extract.max_tokens.user.${u.userId}`;
     const savedValue   = parseInt(config[configKey] || "0");
@@ -190,7 +190,7 @@ function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, me
     return (
         <div className="px-5 py-4 bg-slate-900/30 border-b border-slate-700/20 last:border-0">
 
-            {/* ── User header ── */}
+            {/* -- User header -- */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 bg-purple-600/20 border border-purple-500/30
@@ -219,7 +219,7 @@ function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, me
                 </div>
             </div>
 
-            {/* ── Custom slider track ── */}
+            {/* -- Custom slider track -- */}
             <div className="relative mb-1">
 
                 {/* Track background */}
@@ -266,7 +266,7 @@ function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, me
                 />
             </div>
 
-            {/* ── Tick marks ── */}
+            {/* -- Tick marks -- */}
             <div className="relative h-5 mt-1">
                 {TOKEN_MARKERS.map(m => {
                     const tickPct        = ((m - TOKEN_SLIDER_MIN) /
@@ -301,13 +301,13 @@ function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, me
                 })}
             </div>
 
-            {/* ── Range endpoints label ── */}
+            {/* -- Range endpoints label -- */}
             <div className="flex justify-between text-[9px] text-slate-700 mt-1 px-0.5">
                 <span>{tokenLabel(TOKEN_SLIDER_MIN)}</span>
                 <span>{tokenLabel(TOKEN_SLIDER_MAX)}</span>
             </div>
 
-            {/* ── Warning ── */}
+            {/* -- Warning -- */}
             {isAboveMedian && localValue > 30000 && (
                 <p className="text-amber-400/70 text-[10px] mt-2">
                     ⚠ This is {Math.round(localValue / medianTokens)}× the median usage —
@@ -315,7 +315,7 @@ function UserTokenLimitRow({ u, config, configSaving, onSaveLimit, allUsages, me
                 </p>
             )}
 
-            {/* ── Reset link ── */}
+            {/* -- Reset link -- */}
             {!isDefault && (
                 <button
                     onClick={() => {
@@ -409,7 +409,7 @@ export default function AdminAiReportPage() {
     const maxReqs    = Math.max(...dailyDates.map(
         d => dailyMap[d].chat + dailyMap[d].image), 1);
 
-    // ── Token stats from per-user data ────────────────────────────────────────
+    // -- Token stats from per-user data ----------------------------------------
     // We use imageExtractions as a proxy for "heavy users" of the extract feature.
     // If the backend provides avgInputTokens per user, use that; otherwise estimate.
     // For the distribution graph we use u.avgInputTokens if available, else
@@ -452,7 +452,7 @@ export default function AdminAiReportPage() {
                 </button>
             </div>
 
-            {/* ── AI Controls Panel ── */}
+            {/* -- AI Controls Panel -- */}
             {config && (
                 <div className="bg-slate-800 border border-slate-700/60 rounded-2xl p-5">
                     <div className="flex items-center gap-3 mb-5">
@@ -617,7 +617,7 @@ export default function AdminAiReportPage() {
                 </div>
             )}
 
-            {/* ── Per-User Token Limit Panel ── */}
+            {/* -- Per-User Token Limit Panel -- */}
             {config && perUserUsage.length > 0 && (
                 <div className="bg-slate-800 border border-purple-500/20 rounded-2xl overflow-hidden">
 

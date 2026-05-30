@@ -348,7 +348,7 @@ export default function ContactThreadModal({ rootId, onClose, onReplied }) {
                 </div>
             </div>
         </div>
-            {/* ── Image lightbox ── */}
+            {/* -- Image lightbox -- */}
             {lightbox && (
                 <div
                     className="fixed inset-0 z-[300] flex items-center justify-center

@@ -43,7 +43,7 @@ import { getPortfolioSummary, getMfPortfolioSummary } from "./api/portfolio";
 
 import AdminAiReportPage from "./pages/AdminAiReportPage";
 
-// ── Route guards ──────────────────────────────────────────────────────────────
+// -- Route guards --------------------------------------------------------------
 
 function AdminRoute({ children }) {
     const { user } = useAuth();
@@ -59,7 +59,7 @@ function CreatorRoute({ children }) {
     return children;
 }
 
-// ── App shell ─────────────────────────────────────────────────────────────────
+// -- App shell ----------------------------------------------------------------─
 
 function AppShell() {
     const [portfolioSummary, setPortfolioSummary] = useState(null);
@@ -119,7 +119,7 @@ function AppShell() {
                 <Routes>
                     <Route path="/" element={<Navigate to="/stocks" replace />} />
 
-                    {/* ── ADMIN ── */}
+                    {/* -- ADMIN -- */}
                     <Route path="/admin" element={
                         <AdminRoute>
                             <ErrorBoundary fallbackTitle="Admin dashboard failed to load">
@@ -156,7 +156,7 @@ function AppShell() {
                         </CreatorRoute>
                     } />
 
-                    {/* ── STOCKS ── */}
+                    {/* -- STOCKS -- */}
                     <Route path="/stocks" element={
                         <ErrorBoundary fallbackTitle="Stock market failed to load">
                             <StocksMarketPage />
@@ -183,7 +183,7 @@ function AppShell() {
                         </ErrorBoundary>
                     } />
 
-                    {/* ── MUTUAL FUNDS ── */}
+                    {/* -- MUTUAL FUNDS -- */}
                     <Route path="/mf" element={
                         <ErrorBoundary fallbackTitle="MF market failed to load">
                             <MfMarketPage />
@@ -205,14 +205,14 @@ function AppShell() {
                         </ErrorBoundary>
                     } />
 
-                    {/* ── COMBINED ── */}
+                    {/* -- COMBINED -- */}
                     <Route path="/portfolio" element={
                         <ErrorBoundary fallbackTitle="Combined portfolio failed to load">
                             <CombinedPortfolio />
                         </ErrorBoundary>
                     } />
 
-                    {/* ── NOTIFICATIONS (CREATOR only) ── */}
+                    {/* -- NOTIFICATIONS (CREATOR only) -- */}
                     <Route path="/admin/notifications" element={
                         <CreatorRoute>
                             <ErrorBoundary fallbackTitle="Notifications failed to load">
@@ -221,7 +221,7 @@ function AppShell() {
                         </CreatorRoute>
                     } />
 
-                    {/* ── CLIENT VIEW / IMPERSONATION (CREATOR only) ── */}
+                    {/* -- CLIENT VIEW / IMPERSONATION (CREATOR only) -- */}
                     <Route path="/admin/clients/:clientId/view" element={
                         <CreatorRoute>
                             <ErrorBoundary fallbackTitle="Client view failed to load">
@@ -237,7 +237,7 @@ function AppShell() {
                     <Route path="/mutual-funds" element={<Navigate to="/mf"                 replace />} />
                     <Route path="/dashboard"    element={<Navigate to="/stocks"             replace />} />
 
-                    {/* ── AI REPORT (CREATOR only) ── */}
+                    {/* -- AI REPORT (CREATOR only) -- */}
                     <Route path="/admin/ai-report" element={
                         <CreatorRoute>
                             <ErrorBoundary fallbackTitle="AI report failed to load">

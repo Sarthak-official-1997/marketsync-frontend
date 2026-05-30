@@ -127,7 +127,7 @@ export default function CommandPalette({ open, onClose, onStockSelect, onMfSelec
                 style={{ maxHeight: "72vh" }}
                 onClick={e => e.stopPropagation()}
             >
-                {/* ── Search input ── */}
+                {/* -- Search input -- */}
                 <div className="flex items-center gap-3 px-5 py-4
                                 border-b border-slate-700/60">
                     {loading ? (
@@ -160,7 +160,7 @@ export default function CommandPalette({ open, onClose, onStockSelect, onMfSelec
                     </button>
                 </div>
 
-                {/* ── Tab bar ── */}
+                {/* -- Tab bar -- */}
                 {(showRecent || showResults) && (
                     <div className="flex border-b border-slate-700/60 flex-shrink-0">
                         {[
@@ -182,7 +182,7 @@ export default function CommandPalette({ open, onClose, onStockSelect, onMfSelec
                     </div>
                 )}
 
-                {/* ── Results ── */}
+                {/* -- Results -- */}
                 <div className="overflow-y-auto flex-1">
 
                     {/* Empty query — no recent */}
@@ -352,7 +352,7 @@ export default function CommandPalette({ open, onClose, onStockSelect, onMfSelec
                     )}
                 </div>
 
-                {/* ── Footer hint ── */}
+                {/* -- Footer hint -- */}
                 <div className="flex items-center justify-between px-5 py-2.5
                                 border-t border-slate-800 bg-slate-950/40 flex-shrink-0">
                     <p className="text-slate-600 text-xs">

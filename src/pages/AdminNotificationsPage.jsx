@@ -11,7 +11,7 @@ const fmtDate = (d) => {
     } catch { return d; }
 };
 
-// ── Read Status Modal ─────────────────────────────────────────────────────────
+// -- Read Status Modal --------------------------------------------------------─
 function ReadStatusModal({ notifId, onClose }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -95,7 +95,7 @@ function ReadStatusModal({ notifId, onClose }) {
     );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// -- Main page ----------------------------------------------------------------─
 export default function AdminNotificationsPage() {
     const [clients, setClients]     = useState([]);
     const [sent,    setSent]        = useState([]);
@@ -176,7 +176,7 @@ export default function AdminNotificationsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-                {/* ── Compose panel ── */}
+                {/* -- Compose panel -- */}
                 <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-slate-700/60">
                         <p className="text-white font-semibold">Compose Message</p>
@@ -243,7 +243,7 @@ export default function AdminNotificationsPage() {
                             )}
                         </div>
 
-                        {/* ── Reminder Schedule ── */}
+                        {/* -- Reminder Schedule -- */}
                         <div className="space-y-3">
                             <div className="flex items-center justify-between bg-slate-900/60 rounded-xl px-4 py-3">
                                 <div>
@@ -328,7 +328,7 @@ export default function AdminNotificationsPage() {
                     </div>
                 </div>
 
-                {/* ── Sent history ── */}
+                {/* -- Sent history -- */}
                 <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-slate-700/60">
                         <p className="text-white font-semibold">Sent Messages ({sent.length})</p>

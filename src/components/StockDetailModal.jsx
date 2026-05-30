@@ -86,6 +86,7 @@ export default function StockDetailModal({ stock, onClose }) {
     const [showReturns,  setShowReturns] = useState(false);
     const [addingWatch,  setAddingWatch] = useState(false);
     const [onBoard, setOnBoard] = useState(false);
+    const [activeIdx,    setActiveIdx]   = useState(null);
 
     // PIECE 2: Declared missing reactive state variables for Watchlist functionality
     const [inWatchlist, setInWatchlist]         = useState(false);
@@ -118,7 +119,7 @@ export default function StockDetailModal({ stock, onClose }) {
                     setInWatchlist(r.data.inWatchlist);
                     setWatchlistItemId(r.data.watchlistItemId || null);
                 }
-                // ── Always re-save to recently viewed with fresh % data ──
+                // -- Always re-save to recently viewed with fresh % data --
                 // Works regardless of how the modal was opened (marquee, watchlist,
                 // board, search — all go through here)
                 trackStockView({
@@ -240,7 +241,7 @@ export default function StockDetailModal({ stock, onClose }) {
         ]
         : ["auto", "auto"];
 
-    // ── RENDER ─────────────────────────────────────────────────────────────────
+    // -- RENDER ----------------------------------------------------------------─
     // FIX: wrap everything in <> so txPanel and alertModal can be siblings of
     // the main modal div within the same return statement.
     return (
@@ -264,7 +265,7 @@ export default function StockDetailModal({ stock, onClose }) {
                     }}
                     onClick={e => e.stopPropagation()}
                 >
-                    {/* ── TOP BAR ── */}
+                    {/* -- TOP BAR -- */}
                     <div className="flex items-center justify-between
                         px-4 sm:px-7 py-3 sm:py-4 border-b border-slate-700/60
                         flex-shrink-0 gap-2">
@@ -428,7 +429,7 @@ export default function StockDetailModal({ stock, onClose }) {
                         </div>
                     </div>
 
-                    {/* ── STATS STRIP ── */}
+                    {/* -- STATS STRIP -- */}
                     {quote && !quoteLoading && (
                         <div className="grid grid-cols-6 gap-px bg-slate-800/40
                                         flex-shrink-0 border-b border-slate-700/40">
@@ -448,7 +449,7 @@ export default function StockDetailModal({ stock, onClose }) {
                         </div>
                     )}
 
-                    {/* ── CHART SECTION ── */}
+                    {/* -- CHART SECTION -- */}
                     <div className="flex flex-col flex-shrink-0 px-6 pt-4 pb-2">
 
                         {/* Chart controls */}
@@ -527,7 +528,12 @@ export default function StockDetailModal({ stock, onClose }) {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart
                                         data={chartData}
-                                        margin={{ top: 16, right: 24, bottom: 8, left: 0 }}>
+                                        margin={{ top: 16, right: 24, bottom: 8, left: 0 }}
+                                        onMouseMove={e => {
+                                            if (e && e.activeTooltipIndex != null)
+                                                setActiveIdx(e.activeTooltipIndex);
+                                        }}
+                                        onMouseLeave={() => setActiveIdx(null)}>
                                         <defs>
                                             <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="0%"   stopColor={lineColor} stopOpacity={0.35}/>
@@ -572,6 +578,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                         />
                                         <Tooltip
                                             content={<CustomTooltip currency={quote?.currency || "INR"} />}
+                                            cursor={false}
                                         />
                                         {firstPrice && (
                                             <ReferenceLine
@@ -588,15 +595,44 @@ export default function StockDetailModal({ stock, onClose }) {
                                             strokeWidth={2.5}
                                             fill="url(#priceGrad)"
                                             dot={false}
-                                            // connectNulls=false: line stops at last real price,
-                                            // leaving the future area blank (not interpolated)
                                             connectNulls={false}
-                                            activeDot={{
-                                                r: 6,
-                                                fill: lineColor,
-                                                stroke: "#0f172a",
-                                                strokeWidth: 2,
+                                            isAnimationActive={false}
+                                            activeDot={false}
+                                        />
+                                        {/* Snapped crosshair: line and dot both snap to nearest data point.
+                                            cursor=false on Tooltip disables Recharts free-moving line.
+                                            activeIdx from onMouseMove gives the exact data-point index.
+                                            Both the ReferenceLine and the dot use the same date/value. */}
+                                        {activeIdx != null && chartData[activeIdx]?.close != null && (
+                                            <ReferenceLine
+                                                x={chartData[activeIdx].date}
+                                                stroke="rgba(255,255,255,0.25)"
+                                                strokeWidth={1.5}
+                                            />
+                                        )}
+                                        <Area
+                                            type="monotone"
+                                            dataKey="close"
+                                            stroke="none"
+                                            fill="none"
+                                            dot={(props) => {
+                                                if (props.index !== activeIdx) return null;
+                                                if (props.payload?.close == null) return null;
+                                                return (
+                                                    <circle
+                                                        key={props.index}
+                                                        cx={props.cx}
+                                                        cy={props.cy}
+                                                        r={6}
+                                                        fill={lineColor}
+                                                        stroke="#0f172a"
+                                                        strokeWidth={2}
+                                                    />
+                                                );
                                             }}
+                                            activeDot={false}
+                                            connectNulls={false}
+                                            isAnimationActive={false}
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -611,7 +647,7 @@ export default function StockDetailModal({ stock, onClose }) {
                         </div>
                     </div>
 
-                    {/* ── HISTORICAL RETURNS (collapsible) ── */}
+                    {/* -- HISTORICAL RETURNS (collapsible) -- */}
                     <div className="px-6 pb-5 flex-shrink-0">
                         <button
                             onClick={() => setShowReturns(v => !v)}

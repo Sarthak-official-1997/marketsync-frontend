@@ -23,7 +23,7 @@ const TV_URL = {
     "^INDIAVIX":  "https://www.tradingview.com/chart/?symbol=NSE%3AINDIAVIX",
 };
 
-// ── Index Modal — clean info + redirect, no broken embed ─────────────
+// -- Index Modal — clean info + redirect, no broken embed ------------─
 function IndexModal({ idx, onClose }) {
     const up     = parseFloat(idx.changePercent || 0) >= 0;
     const tvUrl  = TV_URL[idx.symbol] || "https://www.tradingview.com";

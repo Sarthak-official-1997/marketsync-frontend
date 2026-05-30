@@ -36,7 +36,7 @@ export function getRecentStocks() {
     catch { return []; }
 }
 
-// ── MF recently viewed ────────────────────────────────────────────────────────
+// -- MF recently viewed --------------------------------------------------------
 const MF_RECENT_KEY = "ms_recently_viewed_mf";
 const MAX_MF_RECENT = 20;
 
@@ -63,7 +63,7 @@ export function getRecentMf() {
     catch { return []; }
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// -- Component ----------------------------------------------------------------─
 export default function RecentStocksMarquee({ onStockClick }) {
     const [stocks,  setStocks]  = useState(getRecentStocks());
     const [paused,  setPaused]  = useState(false);
@@ -71,7 +71,7 @@ export default function RecentStocksMarquee({ onStockClick }) {
     const fetchedRef   = useRef(new Set()); // symbols already fetched on mount (one-time)
     const pollingRef   = useRef(null);      // interval handle for periodic refresh
 
-    // ── Refresh state when another part of the app tracks a view ─────────────
+    // -- Refresh state when another part of the app tracks a view ------------─
     useEffect(() => {
         const handler = () => setStocks(getRecentStocks());
         window.addEventListener("ms_recent_updated", handler);
@@ -82,7 +82,7 @@ export default function RecentStocksMarquee({ onStockClick }) {
         };
     }, []);
 
-    // ── Fetch prices for a given list of stocks and update localStorage ───────
+    // -- Fetch prices for a given list of stocks and update localStorage ------─
     const fetchPrices = useCallback((stockList) => {
         if (!stockList || stockList.length === 0) return;
         Promise.allSettled(
@@ -107,7 +107,7 @@ export default function RecentStocksMarquee({ onStockClick }) {
         );
     }, []);
 
-    // ── On mount: fetch stocks that are missing changePercent ─────────────────
+    // -- On mount: fetch stocks that are missing changePercent ----------------─
     useEffect(() => {
         const missing = stocks.filter(
             s => s.changePercent == null && !fetchedRef.current.has(s.symbol)
@@ -117,7 +117,7 @@ export default function RecentStocksMarquee({ onStockClick }) {
         fetchPrices(missing);
     }, [stocks, fetchPrices]);
 
-    // ── Periodic polling: refresh ALL marquee prices ──────────────────────────
+    // -- Periodic polling: refresh ALL marquee prices --------------------------
     // Market hours: every 60s. Outside hours: every 5min.
     // This ensures the marquee stays live without needing manual stock clicks.
     useEffect(() => {

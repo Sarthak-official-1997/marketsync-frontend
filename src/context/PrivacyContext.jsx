@@ -1,14 +1,12 @@
 import { createContext, useContext, useState, useCallback } from "react";
 
 const PrivacyContext = createContext(null);
-
 const STORAGE_KEY = "ms_privacy_hidden";
 
 export function PrivacyProvider({ children }) {
     const [hidden, setHidden] = useState(
         () => localStorage.getItem(STORAGE_KEY) === "true"
     );
-
     const toggle = useCallback(() => {
         setHidden(prev => {
             const next = !prev;
@@ -16,7 +14,6 @@ export function PrivacyProvider({ children }) {
             return next;
         });
     }, []);
-
     return (
         <PrivacyContext.Provider value={{ hidden, toggle }}>
             {children}

@@ -21,7 +21,9 @@ import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
 
-// ── Board helpers ─────────────────────────────────────────────────────────────
+
+
+// -- Board helpers ------------------------------------------------------------─
 
 export async function addToBoard(stock) {
     try {
@@ -136,6 +138,7 @@ export default function Layout({ children, portfolioSummary }) {
     const [inboxUnread, setInboxUnread] = useState(0);
 
     const handleLogout = () => {
+        // Clear all user-specific localStorage on logout
         localStorage.removeItem("ms_board_stocks");
         localStorage.removeItem("ms_recently_visited");
         localStorage.removeItem("ms_recently_viewed_mf");
@@ -183,6 +186,7 @@ export default function Layout({ children, portfolioSummary }) {
         return () => clearInterval(t);
     }, [isCreator]);
 
+    // Inbox unread polling — all users get pending count, CREATOR also gets contact messages
     useEffect(() => {
         const poll = async () => {
             try {
@@ -204,7 +208,7 @@ export default function Layout({ children, portfolioSummary }) {
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
 
-            {/* ── TOP NAVBAR ── */}
+            {/* -- TOP NAVBAR -- */}
             <header className="flex-shrink-0 h-16 bg-slate-900 border-b
                    border-slate-700/60 flex items-center px-3 sm:px-4
                    gap-2 sm:gap-3 z-30">
@@ -222,7 +226,7 @@ export default function Layout({ children, portfolioSummary }) {
                     </svg>
                 </button>
 
-                {/* Brand logo */}
+                {/* -- Brand logo — single Link, properly closed -- */}
                 <Link to="/stocks" className="flex items-center gap-2 flex-shrink-0">
                     <AppLogo className="w-8 h-8" />
                     <div className="hidden sm:block">
@@ -232,7 +236,7 @@ export default function Layout({ children, portfolioSummary }) {
 
                 <div className="h-5 w-px bg-slate-700 flex-shrink-0 hidden sm:block" />
 
-                {/* FOLYO AI button */}
+                {/* ✨ FOLYO AI — prominent, always labeled, pulsing glow */}
                 <button
                     onClick={() => setShowAiChat(true)}
                     className="ai-glow flex-shrink-0 flex items-center gap-1.5
@@ -245,7 +249,7 @@ export default function Layout({ children, portfolioSummary }) {
                     <span className="text-xs font-bold tracking-wide">FOLYO AI</span>
                 </button>
 
-                {/* Creator live cost badge — md+ */}
+                {/* Creator live cost badge */}
                 {isCreator && aiCost && (
                     <button
                         onClick={() => navigate("/admin/ai-report")}
@@ -262,7 +266,8 @@ export default function Layout({ children, portfolioSummary }) {
                     </button>
                 )}
 
-                {/* ── Search — grows to fill middle, pushes right group to edge ── */}
+                {/* Search trigger — command palette */}
+                {/* Search trigger — absolutely centered in header */}
                 <button
                     onClick={() => setSearchOpen(true)}
                     className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2
@@ -270,22 +275,23 @@ export default function Layout({ children, portfolioSummary }) {
                                border border-slate-700 hover:border-slate-600
                                rounded-xl text-left transition-all duration-150 group">
                     <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
-                                    flex-shrink-0 transition-colors"
+                    flex-shrink-0 transition-colors"
                          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="8"/>
                         <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
                     </svg>
                     <span className="text-slate-500 group-hover:text-slate-400 text-sm
-                                     flex-1 transition-colors truncate hidden sm:block">
-                        Search stocks &amp; MF...
+                     flex-1 transition-colors truncate">
+                                Search stocks & MF...
                     </span>
-                    <span className="text-slate-600 text-xs hidden lg:block flex-shrink-0">⌘K</span>
                 </button>
 
-                {/* ── Right side group — always hugs right edge ── */}
+                {/* Right side items */}
                 <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">
 
-                    {/* Portfolio value — md+ */}
+
+
+                    {/* Portfolio value */}
                     {totalValue && (
                         <div className="hidden md:flex flex-col items-end bg-slate-800
                                         border border-slate-700 rounded-xl px-3 py-1.5">
@@ -304,7 +310,7 @@ export default function Layout({ children, portfolioSummary }) {
                         </div>
                     )}
 
-                    {/* ── Privacy / eye toggle ── */}
+                    {/* Privacy eye toggle */}
                     <button
                         onClick={togglePrivacy}
                         title={valuesHidden ? "Show financial values" : "Hide financial values"}
@@ -327,7 +333,7 @@ export default function Layout({ children, portfolioSummary }) {
                         )}
                     </button>
 
-                    {/* ── Inbox bell ── */}
+                    {/* -- Inbox bell -- */}
                     <button
                         onClick={() => setShowInbox(v => !v)}
                         className="relative flex items-center gap-1.5 px-3 py-2
@@ -345,7 +351,7 @@ export default function Layout({ children, portfolioSummary }) {
                                      .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3
                                      0 11-6 0v-1m6 0H9"/>
                         </svg>
-                        <span className="text-xs font-medium hidden md:inline">Inbox</span>
+                        <span className="text-xs font-medium hidden sm:inline">Inbox</span>
                         {inboxUnread > 0 && (
                             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4
                                              bg-red-500 text-white text-[10px] font-bold
@@ -356,10 +362,11 @@ export default function Layout({ children, portfolioSummary }) {
                         )}
                     </button>
 
+
                     {/* Theme dropdown */}
                     <div ref={themeRef} className="relative">
                         <button onClick={() => setThemeOpen(v => !v)}
-                                className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-800
+                                className="flex items-center gap-2 px-3 py-2 bg-slate-800
                                            hover:bg-slate-700 border border-slate-700
                                            rounded-xl text-sm transition-colors">
                             <span className="text-base leading-none">{theme.emoji}</span>
@@ -502,12 +509,12 @@ export default function Layout({ children, portfolioSummary }) {
                 </div>
             </header>
 
-            {/* ── INDEX BAR ── */}
+            {/* -- INDEX BAR   Indices -- */}
             <div className="flex-shrink-0 bg-slate-900/80 border-b border-slate-700/40 overflow-x-auto scrollbar-hide">
                 <IndexTicker />
             </div>
 
-            {/* ── CONTENT AREA ── */}
+            {/* -- CONTENT AREA -- */}
             <div className="flex-1 flex overflow-hidden">
 
                 {/* Mobile backdrop */}
@@ -518,7 +525,7 @@ export default function Layout({ children, portfolioSummary }) {
                     />
                 )}
 
-                {/* ── SIDEBAR ── */}
+                {/* -- SIDEBAR -- */}
                 <aside className={
                     "flex-col bg-slate-900 border-r border-slate-700/60 overflow-y-auto z-40 " +
                     "transition-transform duration-200 " +
@@ -580,7 +587,7 @@ export default function Layout({ children, portfolioSummary }) {
                     </div>
                 </aside>
 
-                {/* ── MAIN CONTENT ── */}
+                {/* -- MAIN CONTENT -- */}
                 <main className="flex-1 overflow-y-auto bg-slate-950">
                     <div className="p-3 sm:p-4 md:p-6">{children}</div>
                 </main>

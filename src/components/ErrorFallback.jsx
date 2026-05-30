@@ -149,7 +149,7 @@ export default function ErrorFallback({ error, errorInfo, onReset, title }) {
     );
 }
 
-// ── Standalone page variants ──────────────────────────────────────────────────
+// -- Standalone page variants --------------------------------------------------
 
 export function NotFoundPage() {
     return (

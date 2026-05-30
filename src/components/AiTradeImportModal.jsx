@@ -32,7 +32,7 @@ const ACCEPTED_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
 };
 
-// ── Token estimation ──────────────────────────────────────────────────────────
+// -- Token estimation ----------------------------------------------------------
 // Rough pre-call estimate. Text: 1 token ≈ 4 chars. Images: min 258 tokens.
 // +500 for the system prompt.
 function estimatePromptTokens(items) {
@@ -69,7 +69,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
     const fileInputRef = useRef(null);
     const toast = useToast();
 
-    // ── File selection ──────────────────────────────────────────────────────
+    // -- File selection ------------------------------------------------------
 
     const handleFiles = async (newFiles) => {
         setError("");
@@ -118,7 +118,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
         handleFiles(e.dataTransfer.files);
     };
 
-    // ── Token warning helpers ─────────────────────────────────────────────────
+    // -- Token warning helpers ------------------------------------------------─
 
     const showWarning = (level, estimated) =>
         new Promise(resolve => setTokenWarning({ level, estimated, resolve }));
@@ -135,7 +135,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
         setTokenWarning(null);
     };
 
-    // ── AI Analysis ──────────────────────────────────────────────────────────
+    // -- AI Analysis ----------------------------------------------------------
 
     const analyzeFiles = async () => {
         if (fileItems.length === 0) return;
@@ -279,7 +279,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
         setStep("done");
     };
 
-    // ── Render ───────────────────────────────────────────────────────────────
+    // -- Render --------------------------------------------------------------─
 
     return (
         <>
@@ -315,7 +315,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     {/* Body */}
                     <div className="overflow-y-auto flex-1">
 
-                        {/* ── Step: Upload ── */}
+                        {/* -- Step: Upload -- */}
                         {step === "upload" && (
                             <div className="p-6">
 
@@ -416,7 +416,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Step: Analyzing ── */}
+                        {/* -- Step: Analyzing -- */}
                         {step === "analyzing" && (
                             <div className="p-8 text-center">
                                 <div className="relative mx-auto w-20 h-20 mb-6">
@@ -444,7 +444,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Step: Not found ── */}
+                        {/* -- Step: Not found -- */}
                         {step === "notfound" && (
                             <div className="p-8 text-center">
                                 <div className="text-5xl mb-4">🔍</div>
@@ -475,7 +475,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Step: Review ── */}
+                        {/* -- Step: Review -- */}
                         {step === "review" && extraction && (
                             <div className="p-6">
 
@@ -658,7 +658,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Step: Done ── */}
+                        {/* -- Step: Done -- */}
                         {step === "done" && (
                             <div className="p-8 text-center">
                                 <div className="text-5xl mb-4">✅</div>

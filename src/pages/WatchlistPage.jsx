@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
     getWatchlist, addToWatchlist, removeFromWatchlist, searchStocks,
     getMfWatchlist, addToMfWatchlist, removeFromMfWatchlist, searchMfSchemes,
+    getStockChart,
 } from "../api/portfolio";
 import StockTransactionPanel from "../components/StockTransactionPanel";
 import StockQuickMenu   from "../components/StockQuickMenu";
@@ -9,6 +10,8 @@ import StockDetailModal from "../components/StockDetailModal";
 import MfTransactionPanel    from "../components/MfTransactionPanel";
 import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import { useToast } from "../context/ToastContext";
+import { getBoardApi } from "../api/board";
+import { usePrivacy } from "../context/PrivacyContext";
 import DayChangeBadge from "../components/DayChangeBadge";
 import StockLogo      from "../components/StockLogo";
 import { trackStockView } from "../components/RecentStocksMarquee";
@@ -23,6 +26,73 @@ const fmtDate = (d) => {
     try { const [y,m,day] = d.toString().split("T")[0].split("-"); return `${day}/${m}/${y}`; }
     catch { return d; }
 };
+
+
+// Groww-style mini sparkline for watchlist rows
+function WatchlistSparkline({ symbol, exchange, previousClose, changePercent }) {
+    const [points, setPoints] = useState([]);
+    const up = parseFloat(changePercent || 0) >= 0;
+    const color = up ? "#22c55e" : "#ef4444";
+    const W = 120, H = 40;
+
+    useEffect(() => {
+        const parse = (res) =>
+            (res?.dataPoints || [])
+                .filter(p => p.close != null)
+                .map(p => ({ v: parseFloat(p.close) }))
+                .filter(p => p.v > 0);
+
+        getStockChart(symbol, exchange || "NSE", "5m", "1d")
+            .then(res => {
+                const pts = parse(res.data);
+                if (pts.length > 3) { setPoints(pts); return; }
+                return getStockChart(symbol, exchange || "NSE", "1d", "5d")
+                    .then(r => setPoints(parse(r.data)))
+                    .catch(() => {});
+            })
+            .catch(() => {});
+    }, [symbol]);
+
+    if (points.length < 2) {
+        return <div style={{ width: W, height: H }} className="animate-pulse bg-slate-700/30 rounded" />;
+    }
+
+    const vals    = points.map(p => p.v);
+    const allVals = previousClose > 0 ? [...vals, previousClose] : vals;
+    const minV    = Math.min(...allVals);
+    const maxV    = Math.max(...allVals);
+    const range   = maxV - minV || 1;
+    const pad     = H * 0.1;
+    const toY     = v => pad + ((maxV - v) / range) * (H - pad * 2);
+    const toX     = i => (i / (points.length - 1)) * W;
+
+    const linePts = points.map((p, i) => `${toX(i).toFixed(1)},${toY(p.v).toFixed(1)}`).join(" ");
+    const areaPath =
+        `M ${toX(0).toFixed(1)},${toY(points[0].v).toFixed(1)} ` +
+        points.slice(1).map((p, i) => `L ${toX(i+1).toFixed(1)},${toY(p.v).toFixed(1)}`).join(" ") +
+        ` L ${W},${H} L 0,${H} Z`;
+    const refY = previousClose > 0 ? toY(previousClose).toFixed(1) : null;
+    const fillId = `wl_${symbol}_${up ? "g" : "r"}`;
+
+    return (
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}
+             preserveAspectRatio="none" style={{ display: "block" }}>
+            <defs>
+                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor={color} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+                </linearGradient>
+            </defs>
+            <path d={areaPath} fill={`url(#${fillId})`} />
+            <polyline points={linePts} fill="none" stroke={color}
+                      strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+            {refY && (
+                <line x1="0" y1={refY} x2={W} y2={refY}
+                      stroke="#475569" strokeWidth="0.8" strokeDasharray="3 3" />
+            )}
+        </svg>
+    );
+}
 
 export default function WatchlistPage(props) {
     const [superTab, setSuperTab] = useState(props.defaultTab || "stocks");
@@ -49,7 +119,9 @@ export default function WatchlistPage(props) {
 }
 
 function StocksWatchlist({ toast }) {
+    const { hidden: valuesHidden } = usePrivacy();
     const [watchlist,    setWatchlist]   = useState(null);
+    const [boardSymbols, setBoardSymbols] = useState(new Set());
     const [loading,      setLoading]     = useState(true);
     const [searchOpen,   setSearchOpen]  = useState(false);
     const [query,        setQuery]       = useState("");
@@ -58,11 +130,20 @@ function StocksWatchlist({ toast }) {
     const [quickMenuStock, setQuickMenuStock] = useState(null);
     const [chartStock,     setChartStock]     = useState(null);
     const [detailMf, setDetailMf] = useState(null);
+    const [dragIdx,  setDragIdx]  = useState(null);
+    const [overIdx,  setOverIdx]  = useState(null);
+    const [localOrder, setLocalOrder] = useState(null);
     const debounceRef = useRef(null);
     const inputRef    = useRef(null);
 
     const load = () => {
-        getWatchlist().then(res => setWatchlist(res.data)).catch(() => toast.error("Failed to load watchlist")).finally(() => setLoading(false));
+        getWatchlist()
+            .then(res => setWatchlist(res.data))
+            .catch(() => toast.error("Failed to load watchlist"))
+            .finally(() => setLoading(false));
+        getBoardApi()
+            .then(res => setBoardSymbols(new Set((res.data || []).map(s => s.symbol))))
+            .catch(() => {});
     };
     useEffect(() => { load(); }, []);
     useEffect(() => {
@@ -91,7 +172,35 @@ function StocksWatchlist({ toast }) {
         catch { toast.error("Failed to remove"); }
     };
 
-    const items = watchlist?.items || [];
+    // Priority sort: 1) held stocks, 2) board stocks, 3) rest
+    // User drag reorder overrides this once they touch it
+    const sortedItems = (() => {
+        const raw = watchlist?.items || [];
+        if (!raw.length) return raw;
+        const held  = raw.filter(i => i.quantityHeld > 0);
+        const board = raw.filter(i => !i.quantityHeld && boardSymbols.has(i.stock.symbol));
+        const rest  = raw.filter(i => !i.quantityHeld && !boardSymbols.has(i.stock.symbol));
+        return [...held, ...board, ...rest];
+    })();
+
+    const items = localOrder || sortedItems;
+
+    // Sync localOrder when watchlist loads/reloads (use priority-sorted order)
+    useEffect(() => {
+        if (watchlist?.items) setLocalOrder(sortedItems);
+    }, [watchlist, boardSymbols]);
+
+    const handleDragStart = (i) => setDragIdx(i);
+    const handleDragEnd   = ()  => { setDragIdx(null); setOverIdx(null); };
+    const handleDragOver  = (i) => setOverIdx(i);
+    const handleDrop      = (i) => {
+        if (dragIdx === null || dragIdx === i) return;
+        const arr = [...items];
+        const [moved] = arr.splice(dragIdx, 1);
+        arr.splice(i, 0, moved);
+        setLocalOrder(arr);
+        setDragIdx(null); setOverIdx(null);
+    };
 
     return (
         <div className="space-y-3">
@@ -147,26 +256,66 @@ function StocksWatchlist({ toast }) {
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
-                        <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                            <th className="text-left px-5 py-3">Stock</th>
-                            <th className="text-right px-5 py-3">Price</th>
-                            <th className="text-right px-5 py-3">Change</th>
-                            <th className="text-left px-5 py-3">Exchange</th>
-                            <th className="text-left px-5 py-3">Added On</th>
-                            <th className="text-right px-5 py-3">Since Added</th>
-                            <th className="px-5 py-3"></th>
+                        <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wide">
+                            <th className="w-8 px-2 py-3"></th>
+                            <th className="text-left px-4 py-3">Stock</th>
+                            <th className="text-right px-4 py-3">Price &amp; Change</th>
+                            <th className="px-4 py-3 text-center">Chart</th>
+                            <th className="text-right px-4 py-3">Since Added</th>
+                            <th className="text-center px-4 py-3">Added On</th>
+                            <th className="text-center px-4 py-3">Exchange</th>
+                            <th className="px-4 py-3"></th>
                         </tr>
                         </thead>
                         <tbody>
-                        {items.map(item => {
-                            const chg = parseFloat(item.currentPrice?.changePercent || 0);
-                            const color = chg >= 0 ? "text-green-400" : "text-red-400";
+                        {items.map((item, idx) => {
+                            const chg    = parseFloat(item.currentPrice?.changePercent || 0);
+                            const chgAbs = parseFloat(item.currentPrice?.change || 0);
+                            const up     = chg >= 0;
+                            const isDragging = dragIdx === idx;
+                            const isOver     = overIdx === idx && dragIdx !== null && dragIdx !== idx;
                             return (
-                                <tr key={item.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                    <td className="px-5 py-3">
+                                <tr key={item.id}
+                                    draggable
+                                    onDragStart={() => handleDragStart(idx)}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={e => { e.preventDefault(); handleDragOver(idx); }}
+                                    onDrop={() => handleDrop(idx)}
+                                    className={"border-b border-slate-700/50 transition-all select-none " +
+                                    (isDragging ? "opacity-40 bg-slate-700/50 " :
+                                        isOver     ? "bg-blue-900/20 border-t-2 border-t-blue-500 " :
+                                            "hover:bg-slate-700/30 ")}>
+                                    {/* Drag handle */}
+                                    <td className="px-2 py-3 text-center">
+                                        <div className="flex flex-col gap-0.5 items-center opacity-30
+                                                        hover:opacity-70 cursor-grab active:cursor-grabbing">
+                                            <div className="flex gap-0.5">
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                            </div>
+                                            <div className="flex gap-0.5">
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                            </div>
+                                            <div className="flex gap-0.5">
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    {/* Stock name + logo */}
+                                    <td className="px-4 py-3">
                                         <button onClick={() => setQuickMenuStock(item.stock)}
                                                 className="text-left group flex items-center gap-2.5">
-                                            <StockLogo symbol={item.stock.symbol} name={item.stock.name} size={34} />
+                                            <div className="relative flex-shrink-0">
+                                                <StockLogo symbol={item.stock.symbol} name={item.stock.name} size={34} />
+                                                {/* Board indicator dot */}
+                                                {boardSymbols.has(item.stock.symbol) && (
+                                                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5
+                                                                    bg-blue-500 rounded-full border border-slate-800"
+                                                         title="On your board" />
+                                                )}
+                                            </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-bold text-white group-hover:text-blue-400
@@ -175,7 +324,7 @@ function StocksWatchlist({ toast }) {
                                                         <span className="text-xs bg-blue-900/30 text-blue-400
                                                                          border border-blue-500/20 px-1.5 py-0.5
                                                                          rounded-lg font-medium">
-                                                            {Math.round(parseFloat(item.quantityHeld))} held
+                                                            {valuesHidden ? "***" : Math.round(parseFloat(item.quantityHeld))} held
                                                         </span>
                                                     )}
                                                 </div>
@@ -185,38 +334,68 @@ function StocksWatchlist({ toast }) {
                                             </div>
                                         </button>
                                     </td>
-                                    <td className="text-right px-5 py-3 text-white font-semibold">
-                                        {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
+                                    {/* Price + Change merged */}
+                                    <td className="text-right px-4 py-3">
+                                        <p className="text-white font-bold text-sm leading-none">
+                                            {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
+                                        </p>
+                                        {item.currentPrice && (
+                                            <div className="flex items-center justify-end gap-1 mt-1">
+                                                <span className={"text-[11px] font-bold px-1.5 py-0.5 rounded " +
+                                                (up ? "bg-green-500/15 text-green-400"
+                                                    : "bg-red-500/15 text-red-400")}>
+                                                    {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
+                                                </span>
+                                                <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
+                                                    ({up ? "+" : ""}{chgAbs.toFixed(2)})
+                                                </span>
+                                            </div>
+                                        )}
                                     </td>
-                                    <td className="text-right px-5 py-3">
-                                        <DayChangeBadge
-                                            change={item.currentPrice?.change}
-                                            changePercent={item.currentPrice?.changePercent}
-                                            showPrice={true}
-                                        />
+                                    {/* Sparkline chart */}
+                                    <td className="px-4 py-2 text-center">
+                                        <div className="inline-block">
+                                            <WatchlistSparkline
+                                                symbol={item.stock.symbol}
+                                                exchange={item.stock.exchange}
+                                                previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
+                                                changePercent={item.currentPrice?.changePercent}
+                                            />
+                                        </div>
                                     </td>
-                                    <td className="px-5 py-3 text-slate-400 text-xs">{item.stock.exchange}</td>
-                                    <td className="px-5 py-3 text-slate-500 text-xs">
-                                        {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
-                                    </td>
-                                    {/* Gain since watchlisted */}
-                                    <td className="px-5 py-3 text-right">
+                                    {/* Since added % */}
+                                    <td className="px-4 py-3 text-right">
                                         {item.gainPctSinceAdded != null ? (
                                             <div>
                                                 <p className={"text-xs font-bold " +
-                                                (parseFloat(item.gainPctSinceAdded) >= 0 ? "text-green-400" : "text-red-400")}>
-                                                    {parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : ""}
-                                                    {parseFloat(item.gainPctSinceAdded).toFixed(2)}%
+                                                (parseFloat(item.gainPctSinceAdded) >= 0
+                                                    ? "text-green-400" : "text-red-400")}>
+                                                    {valuesHidden ? "••••" : (
+                                                        (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
+                                                        parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
+                                                    )}
                                                 </p>
-                                                <p className="text-slate-600 text-xs">if bought</p>
+                                                <p className="text-slate-600 text-[10px]">since added</p>
                                             </div>
                                         ) : (
                                             <span className="text-slate-700 text-xs">—</span>
                                         )}
                                     </td>
-                                    <td className="px-5 py-3 text-right">
+                                    {/* Added on date */}
+                                    <td className="px-4 py-3 text-center text-slate-500 text-xs">
+                                        {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
+                                    </td>
+                                    {/* Exchange */}
+                                    <td className="px-4 py-3 text-center">
+                                        <span className="text-[10px] text-slate-500 bg-slate-700/50
+                                                         px-1.5 py-0.5 rounded font-medium">
+                                            {item.stock.exchange}
+                                        </span>
+                                    </td>
+                                    {/* Remove */}
+                                    <td className="px-4 py-3 text-right">
                                         <button onClick={() => handleRemove(item)}
-                                                className="text-slate-500 hover:text-red-400 transition-colors text-xs hover:underline">
+                                                className="text-slate-600 hover:text-red-400 transition-colors text-xs hover:underline">
                                             Remove
                                         </button>
                                     </td>

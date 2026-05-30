@@ -105,8 +105,8 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
 
     useEffect(() => { loadAll(); }, [isCreator]);
 
-    // ── FIX: Outside click — NO setTimeout (was causing stale handler during 50ms gap)
-    // ── FIX: Guard threadId/showContact — child modals render outside panelRef DOM
+    // -- FIX: Outside click — NO setTimeout (was causing stale handler during 50ms gap)
+    // -- FIX: Guard threadId/showContact — child modals render outside panelRef DOM
     //         so panelRef.contains(target) returns false even when clicking inside them.
     useEffect(() => {
         const h = (e) => {
@@ -162,10 +162,10 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
 
     return (
         <>
-            {/* ── FIX: md:hidden instead of md:bg-transparent
+            {/* -- FIX: md:hidden instead of md:bg-transparent
                 md:bg-transparent still blocks all clicks on desktop (sidebar, nav etc).
                 md:hidden removes the div entirely on desktop so the app stays interactive.
-                Mobile keeps the full backdrop as expected. ── */}
+                Mobile keeps the full backdrop as expected. -- */}
             {!threadId && !showContact && (
                 <div className="fixed inset-0 z-[150] bg-black/50 md:hidden"
                      onClick={onClose} />
@@ -357,7 +357,7 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
     );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// -- Sub-components ------------------------------------------------------------
 
 function NotifRow({ notif, onAck }) {
     return (

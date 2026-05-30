@@ -5,7 +5,7 @@ import {
     ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
 
-// ── Helpers ───────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------─
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -64,7 +64,7 @@ const CustomTooltip = ({ active, payload, label }) => {
     );
 };
 
-// ── Component ─────────────────────────────────────────────────────────
+// -- Component --------------------------------------------------------─
 
 export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
     const [range,         setRange]         = useState("1Y");
@@ -160,7 +160,7 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                 }}
                 onClick={e => e.stopPropagation()}
             >
-                {/* ── HEADER ── */}
+                {/* -- HEADER -- */}
                 <div className="flex items-center justify-between
                                 px-7 py-4 border-b border-slate-700/60
                                 flex-shrink-0">
@@ -227,7 +227,7 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                     </div>
                 </div>
 
-                {/* ── SCHEME INFO STRIP ── */}
+                {/* -- SCHEME INFO STRIP -- */}
                 {scheme.schemeCode && (
                     <div className="grid grid-cols-4 gap-px bg-slate-800/40
                                     border-b border-slate-700/40 flex-shrink-0">
@@ -248,7 +248,7 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                     </div>
                 )}
 
-                {/* ── CHART SECTION — fills all remaining space ── */}
+                {/* -- CHART SECTION — fills all remaining space -- */}
                 <div className="flex-1 flex flex-col min-h-0 px-6 pt-4 pb-2">
 
                     {/* Chart controls */}
@@ -395,7 +395,7 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                     </div>
                 </div>
 
-                {/* ── BOTTOM SECTION — returns + holdings collapsible ── */}
+                {/* -- BOTTOM SECTION — returns + holdings collapsible -- */}
                 <div className="px-6 pb-5 flex-shrink-0 space-y-2">
 
                     {/* Returns — collapsible with quick summary pills */}

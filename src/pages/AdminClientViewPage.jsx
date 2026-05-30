@@ -91,7 +91,7 @@ export default function AdminClientViewPage() {
     return (
         <div className="space-y-4">
 
-            {/* ── Sticky Preview Banner ── */}
+            {/* -- Sticky Preview Banner -- */}
             <div className="bg-amber-500/15 border border-amber-500/30 rounded-2xl
                             px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -120,7 +120,7 @@ export default function AdminClientViewPage() {
                 </div>
             </div>
 
-            {/* ── Portfolio summary (client's view) ── */}
+            {/* -- Portfolio summary (client's view) -- */}
             <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
                 <div className="flex divide-x divide-slate-700/60">
                     {[
@@ -190,7 +190,7 @@ export default function AdminClientViewPage() {
                 </div>
             </div>
 
-            {/* ── Holdings table (read-only) ── */}
+            {/* -- Holdings table (read-only) -- */}
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-700/60 flex items-center justify-between">
                     <p className="text-white font-semibold">

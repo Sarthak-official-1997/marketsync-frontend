@@ -155,7 +155,7 @@ export default function ContactAdminModal({ onClose, source = "IN_APP", prefillT
                 </div>
 
                 {done ? (
-                    /* ── Success state ── */
+                    /* -- Success state -- */
                     <div className="flex flex-col items-center justify-center
                                     py-16 px-6 gap-4">
                         <span className="text-5xl">✅</span>
@@ -174,7 +174,7 @@ export default function ContactAdminModal({ onClose, source = "IN_APP", prefillT
                         </button>
                     </div>
                 ) : (
-                    /* ── Form ── */
+                    /* -- Form -- */
                     <div className="flex flex-col gap-4 px-5 py-4 overflow-y-auto flex-1">
 
                         {/* Name + Email — only on login page (no auth) */}

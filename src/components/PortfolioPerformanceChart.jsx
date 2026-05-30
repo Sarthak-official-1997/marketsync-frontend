@@ -1,4 +1,4 @@
-// ─── REPLACE the PortfolioPerformanceCard function in HoldingsPage.jsx ────────
+// --─ REPLACE the PortfolioPerformanceCard function in HoldingsPage.jsx --------
 //
 // Drop-in replacement. All other code in HoldingsPage.jsx stays the same.
 // Also add this import at the top of HoldingsPage.jsx (if not already there):
@@ -24,7 +24,7 @@ function PortfolioPerformanceCard({ holdings }) {
     const [chartLoading, setChartLoading] = useState(true);
     const [chartError,   setChartError]   = useState(null);
 
-    // ── Live stats — no API call needed ──────────────────────────────────────
+    // -- Live stats — no API call needed --------------------------------------
     const liveValue = useMemo(() =>
             holdings.reduce((s, h) =>
                 s + (h.currentPrice != null
@@ -89,7 +89,7 @@ function PortfolioPerformanceCard({ holdings }) {
         return () => { cancelled = true; };
     }, [range, holdingsKey]);
 
-    // ── X-axis label formatter ────────────────────────────────────────────────
+    // -- X-axis label formatter ------------------------------------------------
     function formatXLabel(d, r) {
         if (r === "1d") return d;   // already "HH:mm"
         // ISO date "2025-04-17" → "17 Apr"
@@ -101,7 +101,7 @@ function PortfolioPerformanceCard({ holdings }) {
         } catch { return d; }
     }
 
-    // ── Y-axis domain — anchored, not over-zoomed ─────────────────────────────
+    // -- Y-axis domain — anchored, not over-zoomed ----------------------------─
     const domain = useMemo(() => {
         if (chartData.length < 2) return ["auto", "auto"];
         const vals = chartData.map(d => d.value);
@@ -115,7 +115,7 @@ function PortfolioPerformanceCard({ holdings }) {
     const hasChart  = chartData.length >= 2;
     const lineColor = isUp ? "#3b82f6" : "#ef4444";
 
-    // ── Period change (first → last point in chart data) ─────────────────────
+    // -- Period change (first → last point in chart data) --------------------─
     const periodDelta = hasChart
         ? chartData[chartData.length - 1].value - chartData[0].value : 0;
     const periodUp = periodDelta >= 0;
@@ -123,7 +123,7 @@ function PortfolioPerformanceCard({ holdings }) {
     return (
         <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
 
-            {/* ── Stats ── */}
+            {/* -- Stats -- */}
             <div className="grid grid-cols-3 divide-x divide-slate-700/60">
                 <div className="px-6 py-4">
                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
@@ -152,7 +152,7 @@ function PortfolioPerformanceCard({ holdings }) {
                 </div>
             </div>
 
-            {/* ── Range selector ── */}
+            {/* -- Range selector -- */}
             <div className="flex items-center justify-between px-5 py-2.5
                             border-t border-b border-slate-700/50 bg-slate-900/20">
                 <div className="flex gap-0.5">
@@ -183,7 +183,7 @@ function PortfolioPerformanceCard({ holdings }) {
                 )}
             </div>
 
-            {/* ── Chart area ── */}
+            {/* -- Chart area -- */}
             <div className="border-t border-slate-700/40">
                 {chartLoading ? (
                     <div className="h-36 flex items-center justify-center gap-2.5">
@@ -250,7 +250,7 @@ function PortfolioPerformanceCard({ holdings }) {
                     </div>
 
                 ) : (
-                    // ── Fallback: visual performance bar ─────────────────────
+                    // -- Fallback: visual performance bar --------------------─
                     <div className="px-6 py-4">
                         <div className="relative h-10 bg-slate-900/60 rounded-xl overflow-hidden mb-3">
                             <div className="absolute inset-0 bg-slate-700/30 rounded-xl" />

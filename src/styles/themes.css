@@ -4,7 +4,7 @@
    Default = midnight-slate (no overrides needed)
    ============================================================= */
 
-/* ── CATPPUCCIN MOCHA ─────────────────────────────────────── */
+/* -- CATPPUCCIN MOCHA --------------------------------------─ */
 [data-theme="catppuccin-mocha"] .bg-slate-950  { background-color: #181825; }
 [data-theme="catppuccin-mocha"] .bg-slate-900  { background-color: #1e1e2e; }
 [data-theme="catppuccin-mocha"] .bg-slate-800  { background-color: #313244; }
@@ -31,7 +31,7 @@
 [data-theme="catppuccin-mocha"] .bg-slate-900\/30 { background-color: rgba(30,30,46,0.5); }
 [data-theme="catppuccin-mocha"] .bg-slate-900\/40 { background-color: rgba(30,30,46,0.6); }
 
-/* ── DRACULA ──────────────────────────────────────────────── */
+/* -- DRACULA ------------------------------------------------ */
 [data-theme="dracula"] .bg-slate-950  { background-color: #1e1f29; }
 [data-theme="dracula"] .bg-slate-900  { background-color: #282a36; }
 [data-theme="dracula"] .bg-slate-800  { background-color: #383a4a; }
@@ -56,7 +56,7 @@
 [data-theme="dracula"] .bg-slate-900\/20 { background-color: rgba(40,42,54,0.4); }
 [data-theme="dracula"] .bg-slate-900\/40 { background-color: rgba(40,42,54,0.6); }
 
-/* ── NORD ─────────────────────────────────────────────────── */
+/* -- NORD --------------------------------------------------─ */
 [data-theme="nord"] .bg-slate-950  { background-color: #242933; }
 [data-theme="nord"] .bg-slate-900  { background-color: #2e3440; }
 [data-theme="nord"] .bg-slate-800  { background-color: #3b4252; }
@@ -81,7 +81,7 @@
 [data-theme="nord"] .bg-slate-900\/20 { background-color: rgba(46,52,64,0.4); }
 [data-theme="nord"] .bg-slate-900\/40 { background-color: rgba(46,52,64,0.6); }
 
-/* ── TOKYO NIGHT ──────────────────────────────────────────── */
+/* -- TOKYO NIGHT -------------------------------------------- */
 [data-theme="tokyo-night"] .bg-slate-950  { background-color: #13131e; }
 [data-theme="tokyo-night"] .bg-slate-900  { background-color: #1a1b26; }
 [data-theme="tokyo-night"] .bg-slate-800  { background-color: #24283b; }
@@ -106,7 +106,7 @@
 [data-theme="tokyo-night"] .bg-slate-900\/20 { background-color: rgba(26,27,38,0.4); }
 [data-theme="tokyo-night"] .bg-slate-900\/40 { background-color: rgba(26,27,38,0.6); }
 
-/* ── ROSÉ PINE ────────────────────────────────────────────── */
+/* -- ROSÉ PINE ---------------------------------------------- */
 [data-theme="rose-pine"] .bg-slate-950  { background-color: #111019; }
 [data-theme="rose-pine"] .bg-slate-900  { background-color: #191724; }
 [data-theme="rose-pine"] .bg-slate-800  { background-color: #26233a; }
@@ -131,7 +131,7 @@
 [data-theme="rose-pine"] .bg-slate-900\/20 { background-color: rgba(25,23,36,0.4); }
 [data-theme="rose-pine"] .bg-slate-900\/40 { background-color: rgba(25,23,36,0.6); }
 
-/* ── GRUVBOX ──────────────────────────────────────────────── */
+/* -- GRUVBOX ------------------------------------------------ */
 [data-theme="gruvbox"] .bg-slate-950  { background-color: #1d2021; }
 [data-theme="gruvbox"] .bg-slate-900  { background-color: #282828; }
 [data-theme="gruvbox"] .bg-slate-800  { background-color: #32302f; }
@@ -156,7 +156,7 @@
 [data-theme="gruvbox"] .bg-slate-900\/20 { background-color: rgba(40,40,40,0.4); }
 [data-theme="gruvbox"] .bg-slate-900\/40 { background-color: rgba(40,40,40,0.6); }
 
-/* ── DEEP OCEAN ───────────────────────────────────────────── */
+/* -- DEEP OCEAN --------------------------------------------─ */
 [data-theme="deep-ocean"] .bg-slate-950  { background-color: #010c1e; }
 [data-theme="deep-ocean"] .bg-slate-900  { background-color: #041628; }
 [data-theme="deep-ocean"] .bg-slate-800  { background-color: #0a2240; }
@@ -180,7 +180,7 @@
 [data-theme="deep-ocean"] .bg-slate-900\/20 { background-color: rgba(4,22,40,0.4); }
 [data-theme="deep-ocean"] .bg-slate-900\/40 { background-color: rgba(4,22,40,0.6); }
 
-/* ── ONYX ROSE ────────────────────────────────────────────── */
+/* -- ONYX ROSE ---------------------------------------------- */
 [data-theme="onyx-rose"] .bg-slate-950  { background-color: #100a0c; }
 [data-theme="onyx-rose"] .bg-slate-900  { background-color: #1c1116; }
 [data-theme="onyx-rose"] .bg-slate-800  { background-color: #2c1822; }
@@ -204,7 +204,7 @@
 [data-theme="onyx-rose"] .bg-slate-900\/20 { background-color: rgba(28,17,22,0.4); }
 [data-theme="onyx-rose"] .bg-slate-900\/40 { background-color: rgba(28,17,22,0.6); }
 
-/* ── DAYLIGHT (light) ─────────────────────────────────────── */
+/* -- DAYLIGHT (light) --------------------------------------─ */
 [data-theme="daylight"] .bg-slate-950  { background-color: #f1f5f9; }
 [data-theme="daylight"] .bg-slate-900  { background-color: #e2e8f0; }
 [data-theme="daylight"] .bg-slate-800  { background-color: #ffffff; }
@@ -234,7 +234,7 @@
 [data-theme="daylight"] .bg-slate-900\/40 { background-color: rgba(226,232,240,0.8); }
 [data-theme="daylight"] .bg-slate-900\/60 { background-color: rgba(241,245,249,0.9); }
 
-/* ── CATPPUCCIN LATTE (light) ─────────────────────────────── */
+/* -- CATPPUCCIN LATTE (light) ------------------------------─ */
 [data-theme="catppuccin-latte"] .bg-slate-950  { background-color: #e6e9ef; }
 [data-theme="catppuccin-latte"] .bg-slate-900  { background-color: #eff1f5; }
 [data-theme="catppuccin-latte"] .bg-slate-800  { background-color: #ffffff; }
@@ -262,7 +262,7 @@
 [data-theme="catppuccin-latte"] .bg-slate-900\/20 { background-color: rgba(239,241,245,0.5); }
 [data-theme="catppuccin-latte"] .bg-slate-900\/40 { background-color: rgba(239,241,245,0.8); }
 
-/* ── GOLDEN HOUR (light warm) ─────────────────────────────── */
+/* -- GOLDEN HOUR (light warm) ------------------------------─ */
 [data-theme="golden-hour"] .bg-slate-950  { background-color: #faf5e4; }
 [data-theme="golden-hour"] .bg-slate-900  { background-color: #f5edd8; }
 [data-theme="golden-hour"] .bg-slate-800  { background-color: #fffcf0; }
@@ -290,7 +290,7 @@
 [data-theme="golden-hour"] .bg-slate-900\/20 { background-color: rgba(245,237,216,0.4); }
 [data-theme="golden-hour"] .bg-slate-900\/40 { background-color: rgba(245,237,216,0.8); }
 
-/* ── ARCTIC ICE (light cool) ──────────────────────────────── */
+/* -- ARCTIC ICE (light cool) -------------------------------- */
 [data-theme="arctic-ice"] .bg-slate-950  { background-color: #eff6ff; }
 [data-theme="arctic-ice"] .bg-slate-900  { background-color: #dbeafe; }
 [data-theme="arctic-ice"] .bg-slate-800  { background-color: #ffffff; }
@@ -319,7 +319,7 @@
 [data-theme="arctic-ice"] .bg-slate-900\/20 { background-color: rgba(219,234,254,0.4); }
 [data-theme="arctic-ice"] .bg-slate-900\/40 { background-color: rgba(219,234,254,0.7); }
 
-/* ── SOLARIZED LIGHT ──────────────────────────────────────── */
+/* -- SOLARIZED LIGHT ---------------------------------------- */
 [data-theme="solarized-light"] .bg-slate-950  { background-color: #eee8d5; }
 [data-theme="solarized-light"] .bg-slate-900  { background-color: #fdf6e3; }
 [data-theme="solarized-light"] .bg-slate-800  { background-color: #fdf6e3; }

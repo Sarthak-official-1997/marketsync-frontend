@@ -12,7 +12,7 @@ export default function RevealPasswordModal({ onClose }) {
     const [error,     setError]     = useState("");
     const timerRef = useRef(null);
 
-    // ── Real-time passkey format validation ──────────────────────────────────
+    // -- Real-time passkey format validation ----------------------------------
     const getPasskeyHint = () => {
         if (passkey.length === 0) return null;
         const p1 = passkey.slice(0, 10);
@@ -48,7 +48,7 @@ export default function RevealPasswordModal({ onClose }) {
 
     const hint = getPasskeyHint();
 
-    // ── Countdown once revealed ──────────────────────────────────────────────
+    // -- Countdown once revealed ----------------------------------------------
     useEffect(() => {
         if (!revealed) return;
         setCountdown(20);

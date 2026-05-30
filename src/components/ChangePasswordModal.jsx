@@ -84,7 +84,7 @@ export default function ChangePasswordModal({ onClose }) {
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-4">
 
-                            {/* ── Verification mode toggle ── */}
+                            {/* -- Verification mode toggle -- */}
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-2">
                                     Verify identity using:
@@ -122,7 +122,7 @@ export default function ChangePasswordModal({ onClose }) {
                                 </div>
                             )}
 
-                            {/* ── Current password field OR passkey field ── */}
+                            {/* -- Current password field OR passkey field -- */}
                             {mode === "current" ? (
                                 <div>
                                     <label className="text-xs text-slate-400 font-medium
@@ -176,7 +176,7 @@ export default function ChangePasswordModal({ onClose }) {
                                 </div>
                             )}
 
-                            {/* ── New password ── */}
+                            {/* -- New password -- */}
                             <div>
                                 <label className="text-xs text-slate-400 font-medium
                                                   block mb-1.5">
@@ -194,7 +194,7 @@ export default function ChangePasswordModal({ onClose }) {
                                 />
                             </div>
 
-                            {/* ── Confirm password ── */}
+                            {/* -- Confirm password -- */}
                             <div>
                                 <label className="text-xs text-slate-400 font-medium
                                                   block mb-1.5">

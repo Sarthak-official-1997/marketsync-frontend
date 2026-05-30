@@ -20,7 +20,7 @@ const fmtDate = (d) => {
 
 const today = () => new Date().toISOString().split("T")[0];
 
-// ── Beautiful confirm dialog ──────────────────────────────────────────
+// -- Beautiful confirm dialog ------------------------------------------
 function ConfirmDialog({ dialog, onConfirm, onCancel }) {
     if (!dialog.open) return null;
     return (

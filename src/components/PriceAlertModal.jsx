@@ -24,7 +24,7 @@ export default function PriceAlertModal({ stock, currentPrice, onClose, onCreate
     const [ref,   setRef]   = useState(cp.toFixed(2)); // reference price for %
     const [saving, setSaving] = useState(false);
 
-    // ── Derived ──────────────────────────────────────────────────────────────
+    // -- Derived --------------------------------------------------------------
     const alertType = tab === "target"
         ? (dir === "above" ? "PRICE_ABOVE" : "PRICE_BELOW")
         : (pDir === "up"   ? "PCT_UP"      : "PCT_DOWN");
@@ -47,7 +47,7 @@ export default function PriceAlertModal({ stock, currentPrice, onClose, onCreate
         ? targetNum > 0
         : pctNum > 0 && refNum > 0;
 
-    // ── Preview label ─────────────────────────────────────────────────────────
+    // -- Preview label --------------------------------------------------------─
     const preview = () => {
         const t = computedTarget > 0 ? `₹${computedTarget.toLocaleString("en-IN",{maximumFractionDigits:2})}` : "—";
         const dist = distancePct != null

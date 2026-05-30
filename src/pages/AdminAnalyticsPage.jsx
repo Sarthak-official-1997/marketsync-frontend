@@ -109,7 +109,7 @@ export default function AdminAnalyticsPage() {
                     ))}
                 </div>
 
-                {/* ── Two columns ── */}
+                {/* -- Two columns -- */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
                     {/* Most held stocks */}
@@ -232,7 +232,7 @@ export default function AdminAnalyticsPage() {
                     </div>
                 </div>
 
-                {/* ── Capital flow chart ── */}
+                {/* -- Capital flow chart -- */}
                 <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-slate-700/60">
                         <p className="text-white font-semibold">Capital Flow — Last 14 Days</p>
@@ -279,7 +279,7 @@ export default function AdminAnalyticsPage() {
                 </div>
             </div>
 
-            {/* ── Stock Holders Modal ── */}
+            {/* -- Stock Holders Modal -- */}
             {holdersModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden">

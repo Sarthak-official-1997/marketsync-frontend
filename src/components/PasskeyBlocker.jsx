@@ -26,7 +26,7 @@ export default function PasskeyBlocker({ children }) {
 
     if (!needsPasskey) return children;
 
-    // ── CLIENT: hard block — blurred app, cannot dismiss ──────────────────
+    // -- CLIENT: hard block — blurred app, cannot dismiss ------------------
     if (user?.role === "CLIENT") {
         return (
             <>
@@ -42,7 +42,7 @@ export default function PasskeyBlocker({ children }) {
         );
     }
 
-    // ── CREATOR / ADMIN: sticky banner — no dismiss, app still usable ─────
+    // -- CREATOR / ADMIN: sticky banner — no dismiss, app still usable ----─
     return (
         <>
             {/* Persistent banner — no close button, no dismiss */}

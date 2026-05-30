@@ -80,7 +80,7 @@ export default function AdminDashboardPage() {
 
     return (
         <div className="space-y-6">
-            {/* ── Header ── */}
+            {/* -- Header -- */}
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-3">
@@ -102,7 +102,7 @@ export default function AdminDashboardPage() {
                 </button>
             </div>
 
-            {/* ── AUM row ── */}
+            {/* -- AUM row -- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard
                     label="Total AUM"
@@ -133,7 +133,7 @@ export default function AdminDashboardPage() {
                 />
             </div>
 
-            {/* ── Activity row ── */}
+            {/* -- Activity row -- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard
                     label="Transactions Today"
@@ -164,7 +164,7 @@ export default function AdminDashboardPage() {
                 />
             </div>
 
-            {/* ── Bottom two columns ── */}
+            {/* -- Bottom two columns -- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 {/* Top clients */}
@@ -272,7 +272,7 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
 
-            {/* ── Best performer note ── */}
+            {/* -- Best performer note -- */}
             {data.topPerformingClientName && (
                 <div className="bg-green-900/20 border border-green-500/20 rounded-2xl
                                 px-5 py-4 flex items-center gap-3">

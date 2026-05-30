@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ── Scrollbar — immersive thin style across the whole app ── */
+/* -- Scrollbar — immersive thin style across the whole app -- */
 * {
     scrollbar-width: thin;
     scrollbar-color: rgba(71, 85, 105, 0.5) transparent;

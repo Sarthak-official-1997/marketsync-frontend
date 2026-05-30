@@ -19,7 +19,7 @@ import {
     AreaChart, Area, XAxis, YAxis, ReferenceLine,
 } from "recharts";
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
+// --─ Formatters --------------------------------------------------------------─
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -49,9 +49,12 @@ const fmtAxisDate = (isoDate) => {
 
 const Dash = () => <span className="text-slate-600 select-none">—</span>;
 
-// ─── Portfolio Performance Card ───────────────────────────────────────────────
+// --─ Portfolio Performance Card ----------------------------------------------─
 
 function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, todayUp, hasTodayData}) {
+    const { hidden: valuesHidden } = usePrivacy();
+    const fmtV      = (v) => valuesHidden ? "••••••" : fmt(v);
+    const fmtCroreV = (v) => valuesHidden ? "••••••" : fmtCrore(v);
     const [chartData, setChartData] = useState([]);
     const [chartLoading, setChartLoading] = useState(true);
     const [chartError, setChartError] = useState(false);
@@ -124,13 +127,13 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
     return (
         <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
 
-            {/* ── Stats row ─────────────────────────────────────────────────────
+            {/* -- Stats row ----------------------------------------------------─
                 FIX 1: Changed from grid-cols-3 to flex so Today's Change card
                         fits naturally without wrapping when hasTodayData is true.
                 FIX 2: Removed stray bare `<` that was between Total Invested
                         and Total P&L divs — it caused a JSX parse error.
                 FIX 3: Total P&L <div> now properly closed before Today's Change.
-            ── */}
+            -- */}
             <div className="flex divide-x divide-slate-700/60">
 
                 {/* Current Value */}
@@ -138,8 +141,8 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
                         Current Value
                     </p>
-                    <p className="text-2xl font-bold text-white mt-1">{fmtCroreV(liveValue)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(liveValue)}</p>
+                    <p className="text-2xl font-bold text-white mt-1">{fmtCrore(liveValue)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmt(liveValue)}</p>
                 </div>
 
                 {/* Total Invested */}
@@ -147,8 +150,8 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
                         Total Invested
                     </p>
-                    <p className="text-2xl font-bold text-slate-300 mt-1">{fmtCroreV(totalInvested)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(totalInvested)}</p>
+                    <p className="text-2xl font-bold text-slate-300 mt-1">{fmtCrore(totalInvested)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmt(totalInvested)}</p>
                 </div>
 
                 {/* Total P&L — FIX: div now properly opened AND closed */}
@@ -158,13 +161,13 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                     </p>
                     <div className="flex items-end gap-2 mt-1 flex-wrap">
                         <p className={"text-2xl font-bold " + (isUp ? "text-green-400" : "text-red-400")}>
-                            {isUp ? "+" : ""}{fmtCroreV(livePL)}
+                            {isUp ? "+" : ""}{fmtCrore(livePL)}
                         </p>
                         <span className={"text-base font-bold pb-0.5 " + (isUp ? "text-green-400" : "text-red-400")}>
                             ({isUp ? "+" : ""}{livePLPct.toFixed(2)}%)
                         </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(livePL)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmt(livePL)}</p>
                 </div>
 
                 {/* Today's Change — only shown when live price data is available */}
@@ -187,7 +190,7 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
 
             </div>{/* end stats row */}
 
-            {/* ── Chart / Fallback ── */}
+            {/* -- Chart / Fallback -- */}
             <div className="border-t border-slate-700/60">
                 {chartLoading ? (
                     <div className="h-32 flex items-center justify-center gap-2.5">
@@ -298,7 +301,7 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
     );
 }
 
-// ─── View Toggle ──────────────────────────────────────────────────────────────
+// --─ View Toggle --------------------------------------------------------------
 
 function ViewToggle({value, onChange}) {
     const opts = [
@@ -331,7 +334,7 @@ function ViewToggle({value, onChange}) {
     );
 }
 
-// ─── Treemap ──────────────────────────────────────────────────────────────────
+// --─ Treemap ------------------------------------------------------------------
 
 function TreemapCell({x, y, width, height, name, plPct}) {
     const p  = parseFloat(plPct || 0);
@@ -463,7 +466,7 @@ function StockAllocationMap({holdings, onStockClick}) {
     );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// --─ Main page ----------------------------------------------------------------
 
 export default function HoldingsPage(props) {
     const [holdings,       setHoldings]       = useState([]);
@@ -480,7 +483,6 @@ export default function HoldingsPage(props) {
     const toast    = useToast();
     const navigate = useNavigate();
     const { hidden: valuesHidden } = usePrivacy();
-    // Masked formatters — return bullets when privacy mode is on
     const fmtV      = (v) => valuesHidden ? "••••••" : fmt(v);
     const fmtCroreV = (v) => valuesHidden ? "••••••" : fmtCrore(v);
 
@@ -547,7 +549,7 @@ export default function HoldingsPage(props) {
                 </div>
             </div>
 
-            {/* ── STOCKS TAB ── */}
+            {/* -- STOCKS TAB -- */}
             {view === "stocks" && (
                 <div className="space-y-4">
                     {holdings.length > 0 && (
@@ -593,7 +595,7 @@ export default function HoldingsPage(props) {
                 />
             )}
 
-            {/* ── Overlays ── */}
+            {/* -- Overlays -- */}
             {quickMenuStock && (
                 <StockQuickMenu
                     stock={quickMenuStock}
@@ -623,7 +625,7 @@ export default function HoldingsPage(props) {
     );
 }
 
-// ─── Stocks table ─────────────────────────────────────────────────────────────
+// --─ Stocks table ------------------------------------------------------------─
 
 function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
     if (holdings.length === 0) {
@@ -736,7 +738,7 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
     );
 }
 
-// ─── MF Holdings table ────────────────────────────────────────────────────────
+// --─ MF Holdings table --------------------------------------------------------
 
 function MfHoldingsTable({mfHoldings, onOpenPanel}) {
     if (mfHoldings.length === 0) {
@@ -806,7 +808,7 @@ function MfHoldingsTable({mfHoldings, onOpenPanel}) {
     );
 }
 
-// ─── Combined table ───────────────────────────────────────────────────────────
+// --─ Combined table ----------------------------------------------------------─
 
 function CombinedHoldingsTable({holdings, mfHoldings, onStockClick, onOpenMfPanel}) {
     const rows = [

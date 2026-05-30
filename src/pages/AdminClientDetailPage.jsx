@@ -112,7 +112,7 @@ export default function AdminClientDetailPage() {
 
     return (
         <div className="space-y-5">
-            {/* ── Header ── */}
+            {/* -- Header -- */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate("/admin/clients")}
@@ -142,7 +142,7 @@ export default function AdminClientDetailPage() {
                 </span>
             </div>
 
-            {/* ── Client stats ── */}
+            {/* -- Client stats -- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                     ["Portfolio Value", fmtCrore(client.portfolioValue), "text-white"],
@@ -165,7 +165,7 @@ export default function AdminClientDetailPage() {
                 ))}
             </div>
 
-            {/* ── Portfolio chart ── */}
+            {/* -- Portfolio chart -- */}
             <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3
                                 border-b border-slate-700/60">
@@ -237,7 +237,7 @@ export default function AdminClientDetailPage() {
                 </div>
             </div>
 
-            {/* ── Holdings table ── */}
+            {/* -- Holdings table -- */}
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-700/60">
                     <p className="text-white font-semibold">

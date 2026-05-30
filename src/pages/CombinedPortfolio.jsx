@@ -128,10 +128,10 @@ export default function CombinedPortfolio() {
                     // Combined summary
                     <>
                         {[
-                            ["Total Invested",  fmtV(totalInvested), "text-white"],
-                            ["Current Value",   fmtV(totalValue),    "text-white"],
+                            ["Total Invested",  fmt(totalInvested), "text-white"],
+                            ["Current Value",   fmt(totalValue),    "text-white"],
                             ["Total P&L",
-                                (valuesHidden ? "••••••" : fmt(totalPL)) + "\n" + fmtPct(totalPLPct),
+                                fmt(totalPL) + "\n" + fmtPct(totalPLPct),
                                 pctColor(totalPL)],
                             ["Holdings",
                                 stockRows.length + " stocks + " + mfRows.length + " MF",
@@ -170,9 +170,9 @@ export default function CombinedPortfolio() {
                             </p>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    ["Invested", fmtV(stockInvested)],
-                                    ["Value",    fmtV(stockValue)],
-                                    ["P&L",      fmtV(stockPL)],
+                                    ["Invested", fmt(stockInvested)],
+                                    ["Value",    fmt(stockValue)],
+                                    ["P&L",      fmt(stockPL)],
                                 ].map(([l, v]) => (
                                     <div key={l}>
                                         <p className="text-xs text-slate-500">{l}</p>
@@ -194,9 +194,9 @@ export default function CombinedPortfolio() {
                             </p>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
-                                    ["Invested", fmtV(mfInvested)],
-                                    ["Value",    fmtV(mfValue)],
-                                    ["P&L",      fmtV(mfPL)],
+                                    ["Invested", fmt(mfInvested)],
+                                    ["Value",    fmt(mfValue)],
+                                    ["P&L",      fmt(mfPL)],
                                 ].map(([l, v]) => (
                                     <div key={l}>
                                         <p className="text-xs text-slate-500">{l}</p>
@@ -284,15 +284,15 @@ export default function CombinedPortfolio() {
                                     )}
                                 </td>
                                 <td className="text-right px-5 py-3 text-slate-300">
-                                    {fmtV(row.invested)}
+                                    {fmt(row.invested)}
                                 </td>
                                 <td className="text-right px-5 py-3 text-white
                                                    font-semibold">
-                                    {fmtV(row.value)}
+                                    {fmt(row.value)}
                                 </td>
                                 <td className={"text-right px-5 py-3 font-semibold " +
                                 pctColor(row.pl)}>
-                                    {fmtV(row.pl)}
+                                    {fmt(row.pl)}
                                 </td>
                                 <td className={"text-right px-5 py-3 font-medium " +
                                 pctColor(row.plPct)}>

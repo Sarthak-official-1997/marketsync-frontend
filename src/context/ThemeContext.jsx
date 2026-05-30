@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 
 export const THEMES = [
-    // ── Dark themes ────────────────────────────────────────────────────────────
+    // -- Dark themes ------------------------------------------------------------
     {
         id:      "midnight-slate",
         name:    "Midnight Slate",
@@ -74,7 +74,7 @@ export const THEMES = [
         desc:    "Dark charcoal with rose",
         preview: ["#100a0c", "#1c1116", "#2c1822", "#f43f5e"],
     },
-    // ── Light themes ───────────────────────────────────────────────────────────
+    // -- Light themes ----------------------------------------------------------─
     {
         id:      "daylight",
         name:    "Daylight",

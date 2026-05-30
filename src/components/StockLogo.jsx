@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 
-// ── NSE symbol → Clearbit-compatible domain ───────────────────────────────────
+// -- NSE symbol → Clearbit-compatible domain ----------------------------------─
 // Add more as needed. Clearbit covers most listed .com domains automatically.
 const NSE_DOMAINS = {
     RELIANCE:   "ril.com",          TCS:        "tcs.com",
@@ -71,7 +71,7 @@ const NSE_DOMAINS = {
     VIJAYA:     "vijayadiagnostic.com",
 };
 
-// ── Deterministic gradient from symbol ───────────────────────────────────────
+// -- Deterministic gradient from symbol --------------------------------------─
 const GRADIENTS = [
     ["#3b82f6", "#1e40af"],   // blue
     ["#10b981", "#065f46"],   // emerald
@@ -104,7 +104,7 @@ function abbrev(sym = "", name = "") {
     return sym.slice(0, 4);
 }
 
-// ── Gradient badge fallback ───────────────────────────────────────────────────
+// -- Gradient badge fallback --------------------------------------------------─
 function LogoBadge({ symbol, name, size }) {
     const [from, to] = getGradient(symbol);
     const text       = abbrev(symbol, name);
@@ -136,7 +136,7 @@ function LogoBadge({ symbol, name, size }) {
     );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// -- Main component ------------------------------------------------------------
 export default function StockLogo({ symbol = "", name = "", size = 40, className = "" }) {
     const domain  = NSE_DOMAINS[symbol.toUpperCase()];
     const [failed, setFailed] = useState(false);

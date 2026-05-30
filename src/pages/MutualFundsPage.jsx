@@ -23,7 +23,7 @@ const fmtPct    = (val) => {
 const isBuyType = (t) =>
     ["PURCHASE", "SIP", "SWITCH_IN", "DIVIDEND_REINVESTMENT"].includes(t);
 
-// ── Transaction type config ───────────────────────────────────────────────────
+// -- Transaction type config --------------------------------------------------─
 const TX_TYPE_CARDS = [
     { value: "PURCHASE",              label: "Purchase",   icon: "💰",
         desc: "Lump sum investment",    color: "green"  },
@@ -87,7 +87,7 @@ export default function MutualFundsPage() {
     return (
         <div className="space-y-4">
 
-            {/* ── Page header with action buttons ── */}
+            {/* -- Page header with action buttons -- */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Mutual Funds</h1>

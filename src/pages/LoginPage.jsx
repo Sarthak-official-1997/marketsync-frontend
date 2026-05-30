@@ -46,7 +46,7 @@ function ForgotPasswordPanel({ onCancel, onContactAdmin }) {
         }
     };
 
-    // ── Choose mode ───────────────────────────────────────────────────────
+    // -- Choose mode ------------------------------------------------------─
     if (mode === "choose") {
         return (
             <div className="mt-3 bg-slate-800 border border-slate-700
@@ -88,7 +88,7 @@ function ForgotPasswordPanel({ onCancel, onContactAdmin }) {
         );
     }
 
-    // ── Passkey reset form ────────────────────────────────────────────────
+    // -- Passkey reset form ------------------------------------------------
     if (mode === "passkey") {
         return (
             <div className="mt-3 bg-slate-800 border border-slate-700
@@ -204,7 +204,7 @@ function ForgotPasswordPanel({ onCancel, onContactAdmin }) {
         );
     }
 
-    // ── Contact admin ─────────────────────────────────────────────────────
+    // -- Contact admin ----------------------------------------------------─
     if (mode === "contact") {
         return (
             <div className="mt-3 bg-slate-800 border border-slate-700
@@ -238,7 +238,7 @@ function ForgotPasswordPanel({ onCancel, onContactAdmin }) {
         );
     }
 
-    // ── Done ──────────────────────────────────────────────────────────────
+    // -- Done --------------------------------------------------------------
     if (mode === "done") {
         return (
             <div className="mt-3 bg-green-900/30 border border-green-700/50
@@ -468,7 +468,7 @@ export default function LoginPage() {
                     </div>
                 </div>
             </div>
-            {/* ── Forgot Password — full-screen overlay (PWA-friendly) ── */}
+            {/* -- Forgot Password — full-screen overlay (PWA-friendly) -- */}
             {showForgot && (
                 <div
                     className="fixed inset-0 z-[300] flex flex-col items-center

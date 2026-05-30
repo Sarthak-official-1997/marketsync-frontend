@@ -45,7 +45,7 @@ const ACCEPTED_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
 };
 
-// ── Token estimation ──────────────────────────────────────────────────────────
+// -- Token estimation ----------------------------------------------------------
 function estimatePromptTokens(items) {
     let total = 500;
     for (const item of items) {
@@ -79,7 +79,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
     const fileInputRef = useRef(null);
     const toast = useToast();
 
-    // ── File selection ──────────────────────────────────────────────────────
+    // -- File selection ------------------------------------------------------
 
     const handleFiles = async (newFiles) => {
         setError("");
@@ -131,7 +131,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
     const removeFile = (idx) =>
         setFileItems(prev => prev.filter((_, i) => i !== idx));
 
-    // ── Token warning helpers ─────────────────────────────────────────────────
+    // -- Token warning helpers ------------------------------------------------─
 
     const showWarning = (level, estimated) =>
         new Promise(resolve => setTokenWarning({ level, estimated, resolve }));
@@ -148,7 +148,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
         setTokenWarning(null);
     };
 
-    // ── AI Analysis ──────────────────────────────────────────────────────────
+    // -- AI Analysis ----------------------------------------------------------
 
     const analyzeFiles = async () => {
         if (fileItems.length === 0) return;
@@ -222,7 +222,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
         }
     };
 
-    // ── Trade editing ────────────────────────────────────────────────────────
+    // -- Trade editing --------------------------------------------------------
 
     const updateTrade = (id, field, value) =>
         setEditableTrades(prev =>
@@ -252,7 +252,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
         } : t));
     };
 
-    // ── Confirm ──────────────────────────────────────────────────────────────
+    // -- Confirm --------------------------------------------------------------
 
     const confirmImport = async () => {
         const selected = editableTrades.filter(t => t._include);
@@ -300,7 +300,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
         setStep("done");
     };
 
-    // ── Render ───────────────────────────────────────────────────────────────
+    // -- Render --------------------------------------------------------------─
 
     return (
         <>
@@ -334,7 +334,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
 
                     <div className="overflow-y-auto flex-1">
 
-                        {/* ── Upload ── */}
+                        {/* -- Upload -- */}
                         {step === "upload" && (
                             <div className="p-6">
                                 <div
@@ -452,7 +452,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Analyzing ── */}
+                        {/* -- Analyzing -- */}
                         {step === "analyzing" && (
                             <div className="p-8 text-center">
                                 <div className="relative mx-auto w-20 h-20 mb-6">
@@ -473,7 +473,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Not found ── */}
+                        {/* -- Not found -- */}
                         {step === "notfound" && (
                             <div className="p-8 text-center">
                                 <div className="text-5xl mb-4">🔍</div>
@@ -497,7 +497,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Review ── */}
+                        {/* -- Review -- */}
                         {step === "review" && extraction && (
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-5">
@@ -682,7 +682,7 @@ export default function AiMfImportModal({ onClose, onImported }) {
                             </div>
                         )}
 
-                        {/* ── Done ── */}
+                        {/* -- Done -- */}
                         {step === "done" && (
                             <div className="p-8 text-center">
                                 <div className="text-5xl mb-4">✅</div>

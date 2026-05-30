@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { searchStocks, addToWatchlist, getStockPrice,
-    getStockChart, getHoldings, getPortfolioSummary } from "../api/portfolio";
+    getStockChart, getHoldings, getPortfolioSummary, getIndexChart, getIndices } from "../api/portfolio";
 import StockDetailModal  from "../components/StockDetailModal";
 import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
@@ -11,7 +11,18 @@ import { getBoardApi } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
 import RecentStocksMarquee from "../components/RecentStocksMarquee";
 
-// ── Recently visited ──────────────────────────────────────────────────────────
+
+// -- Available indices for board sections ------------------------------------
+const AVAILABLE_INDICES = [
+    { symbol: "^NSEI",      name: "NIFTY 50",       short: "NIFTY"    },
+    { symbol: "^BSESN",     name: "SENSEX",          short: "SENSEX"   },
+    { symbol: "^NSEBANK",   name: "BANK NIFTY",      short: "BANKNIFTY"},
+    { symbol: "^NSEMDCP50", name: "MIDCAP SELECT",   short: "MIDCAP"   },
+    { symbol: "^INDIAVIX",  name: "India VIX",       short: "VIX"      },
+    { symbol: "^CNXIT",     name: "NIFTY IT",        short: "NIFTYIT"  },
+];
+
+// -- Recently visited ----------------------------------------------------------
 const RECENTLY_VISITED_KEY = "ms_recently_visited";
 
 const getRecentlyVisited = () => {
@@ -30,7 +41,7 @@ export const addToRecentlyVisited = (stock) => {
     } catch {}
 };
 
-// ── Board sections persistence ────────────────────────────────────────────────
+// -- Board sections persistence ------------------------------------------------
 const SECTIONS_KEY = "ms_board_sections_v2";
 
 function loadSections() {
@@ -50,13 +61,12 @@ function makeDefaultSections(pinned) {
         id:      "sec_default",
         title:   "My Board",
         symbols: pinned.map(s => s.symbol),
-        width:   3,
-        height:  240,
-        order:   0,
+        x: 0, y: 0, w: 560, h: 320,
+        cardScale: 1,
     }];
 }
 
-// ── Market status helper ──────────────────────────────────────────────────────
+// -- Market status helper ------------------------------------------------------
 function getMarketStatus() {
     const now  = new Date();
     const ist  = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
@@ -85,9 +95,10 @@ const fmt = (v) => {
     }).format(n);
 };
 
-// ── Greeting + Market Status Bar ──────────────────────────────────────────────
+// -- Greeting + Market Status Bar ----------------------------------------------
 function GreetingBar({ portfolioSummary }) {
     const { user } = useAuth();
+    const { hidden: valuesHidden } = usePrivacy();
     const [status, setStatus] = useState(getMarketStatus());
     const [now,    setNow]    = useState(new Date());
 
@@ -130,7 +141,7 @@ function GreetingBar({ portfolioSummary }) {
                     <div className="text-right">
                         <p className="text-slate-400 text-xs">Portfolio Value</p>
                         <p className="text-white font-bold text-base leading-tight">
-                            {fmt(totalValue)}
+                            {valuesHidden ? "••••••" : fmt(totalValue)}
                         </p>
                     </div>
                     {dayPL !== 0 && (
@@ -139,7 +150,7 @@ function GreetingBar({ portfolioSummary }) {
                                 ? "bg-green-900/20 border-green-500/30 text-green-400"
                                 : "bg-red-900/20 border-red-500/30 text-red-400"
                         }`}>
-                            {dayPLPos ? "▲ +" : "▼ "}{fmt(Math.abs(dayPL))}
+                            {valuesHidden ? "••••" : (dayPLPos ? "▲ +" : "▼ ") + fmt(Math.abs(dayPL))}
                             <span className="text-xs font-normal ml-1 opacity-70">today</span>
                         </div>
                     )}
@@ -149,7 +160,7 @@ function GreetingBar({ portfolioSummary }) {
     );
 }
 
-// ── MiniChart — Groww-style intraday sparkline ────────────────────────────────
+// -- MiniChart  Groww-style intraday sparkline --------------------------------
 // Raw SVG: filled area + dashed prev-close reference line. No axes, no labels.
 // points: [{v: number}]  prevClose: number  up: bool
 function MiniChart({ points, prevClose, up }) {
@@ -205,12 +216,13 @@ function MiniChart({ points, prevClose, up }) {
     );
 }
 
-// ── Single Stock Card (smaller — fits inside section grids) ───────────────────
+// -- Single Stock Card (smaller  fits inside section grids) -------------------
 function StockCard({ stock, price, holding, dragging, over,
                        onDragStart, onDragEnd, onDragOver, onDrop,
                        onRemove, onOpen }) {
 
     const { hidden: valuesHidden } = usePrivacy();
+
     const [chart, setChart] = useState([]);
 
     useEffect(() => {
@@ -222,7 +234,7 @@ function StockCard({ stock, price, holding, dragging, over,
                 .filter(p => p.v > 0);
 
         // Try today intraday (5m candles, same as StockDetailModal).
-        // If empty — public holiday, pre-market, weekend — fall back to
+        // If empty  public holiday, pre-market, weekend  fall back to
         // last 5 trading days so the sparkline always shows something.
         getStockChart(stock.symbol, stock.exchange || "NSE", "5m", "1d")
             .then(res => {
@@ -267,7 +279,7 @@ function StockCard({ stock, price, holding, dragging, over,
                            transition-all text-[10px] z-10"
             >✕</button>
 
-            {/* Row 1 — logo + symbol + name */}
+            {/* Row 1  logo + symbol + name */}
             <button onClick={onOpen} className="text-left w-full block pr-4">
                 <div className="flex items-center gap-2">
                     <StockLogo symbol={stock.symbol} name={stock.name} size={26} />
@@ -290,10 +302,10 @@ function StockCard({ stock, price, holding, dragging, over,
                 </div>
             </button>
 
-            {/* Row 2 — Groww-style mini chart: area + prev-close reference line, no axes */}
+            {/* Row 2  Groww-style mini chart: area + prev-close reference line, no axes */}
             <MiniChart points={chart} prevClose={parseFloat(price?.previousClose || 0)} up={up} />
 
-            {/* Row 3 — price left, % chip right */}
+            {/* Row 3  price left, % chip right */}
             {cp > 0 ? (
                 <div className="flex items-center justify-between gap-1 mt-1">
                     <span className="text-white font-bold text-sm leading-none">
@@ -320,8 +332,7 @@ function StockCard({ stock, price, holding, dragging, over,
                     <div className="flex justify-between">
                         <span className="text-slate-600 text-[9px]">Invested</span>
                         <span className="text-slate-300 text-[10px] font-semibold">
-                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.totalInvested || 0)
-                                .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.totalInvested || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                     <div className="flex justify-between">
@@ -331,8 +342,7 @@ function StockCard({ stock, price, holding, dragging, over,
                             (parseFloat(holding.unrealizedPL || 0) >= 0
                                 ? "text-green-400" : "text-red-400")
                         }>
-                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.currentValue || 0)
-                                .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            {valuesHidden ? "••••••" : "₹" + parseFloat(holding.currentValue || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                 </div>
@@ -341,24 +351,155 @@ function StockCard({ stock, price, holding, dragging, over,
     );
 }
 
-// ── FadeScrollBox — scrollable area with top+bottom fade mask ─────────────────
-function FadeScrollBox({ children, height }) {
+
+// -- IndexChart — live sparkline for index sections --------------------------
+function IndexChart({ symbol, up }) {
+    const [points, setPoints] = useState([]);
+    const [prevClose, setPrevClose] = useState(0);
+    const W = 260, H = 52;
+    const color = up === undefined
+        ? (points.length >= 2 && points[points.length-1].v > points[0].v ? "#22c55e" : "#ef4444")
+        : (up ? "#22c55e" : "#ef4444");
+
+    const fetchChart = () => {
+        const parse = (res) => (res?.dataPoints || [])
+            .filter(p => p.close != null)
+            .map(p => ({ v: parseFloat(p.close) }))
+            .filter(p => p.v > 0);
+
+        getIndexChart(symbol, "5m", "1d")
+            .then(res => {
+                const pts = parse(res.data);
+                if (pts.length > 3) {
+                    setPoints(pts);
+                    if (res.data?.previousClose) setPrevClose(parseFloat(res.data.previousClose));
+                } else {
+                    return getIndexChart(symbol, "1d", "5d")
+                        .then(r => setPoints(parse(r.data)));
+                }
+            })
+            .catch(() => {});
+    };
+
+    useEffect(() => {
+        fetchChart();
+        // Refresh every 60s during market hours
+        const t = setInterval(fetchChart, 60_000);
+        return () => clearInterval(t);
+    }, [symbol]);
+
+    if (points.length < 2) {
+        return <div className="h-[52px] bg-slate-700/20 rounded animate-pulse" />;
+    }
+
+    const vals    = points.map(p => p.v);
+    const allVals = prevClose > 0 ? [...vals, prevClose] : vals;
+    const minV    = Math.min(...allVals);
+    const maxV    = Math.max(...allVals);
+    const range   = maxV - minV || 1;
+    const pad     = H * 0.08;
+    const toY     = v => pad + ((maxV - v) / range) * (H - pad * 2);
+    const toX     = i => (i / (points.length - 1)) * W;
+
+    const linePts = points.map((p, i) =>
+        `${toX(i).toFixed(1)},${toY(p.v).toFixed(1)}`).join(" ");
+    const areaPath =
+        `M ${toX(0).toFixed(1)},${toY(points[0].v).toFixed(1)} ` +
+        points.slice(1).map((p, i) =>
+            `L ${toX(i+1).toFixed(1)},${toY(p.v).toFixed(1)}`).join(" ") +
+        ` L ${W},${H} L 0,${H} Z`;
+    const refY = prevClose > 0 ? toY(prevClose).toFixed(1) : null;
+    const fillId = `ic_${symbol.replace(/[^a-z0-9]/gi, "_")}`;
+
+    return (
+        <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}
+             preserveAspectRatio="none" style={{ display: "block" }}>
+            <defs>
+                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor={color} stopOpacity="0.2" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+                </linearGradient>
+            </defs>
+            <path d={areaPath} fill={`url(#${fillId})`} />
+            <polyline points={linePts} fill="none" stroke={color}
+                      strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+            {refY && (
+                <line x1="0" y1={refY} x2={W} y2={refY}
+                      stroke="#475569" strokeWidth="0.8" strokeDasharray="3 3" />
+            )}
+        </svg>
+    );
+}
+
+// -- IndexCard — single index display card for inside IndexSection -----------
+function IndexCard({ symbol, name, short }) {
+    const [data, setData] = useState(null);
+
+    const fetchData = () => {
+        getIndices()
+            .then(res => {
+                const idx = (res.data || []).find(i => i.symbol === symbol);
+                if (idx) setData(idx);
+            })
+            .catch(() => {});
+    };
+
+    useEffect(() => {
+        fetchData();
+        const t = setInterval(fetchData, 30_000);
+        return () => clearInterval(t);
+    }, [symbol]);
+
+    const chg = parseFloat(data?.changePercent || 0);
+    const up  = chg >= 0;
+    const val = data?.value;
+
+    return (
+        <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-white font-bold text-xs">{short}</p>
+                    <p className="text-slate-500 text-[9px] truncate max-w-[90px]">{name}</p>
+                </div>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                    up ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
+                }`}>
+                    {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
+                </span>
+            </div>
+            <IndexChart symbol={symbol} up={up} />
+            <div className="flex items-center justify-between">
+                <span className="text-white font-bold text-sm">
+                    {val != null
+                        ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(val)
+                        : <span className="h-4 w-16 bg-slate-700 rounded animate-pulse inline-block" />}
+                </span>
+                <span className={`text-xs font-semibold ${up ? "text-green-400" : "text-red-400"}`}>
+                    {up ? "+" : ""}{chg.toFixed(2)}%
+                </span>
+            </div>
+        </div>
+    );
+}
+
+// -- SectionScrollArea  natural height, scrolls only when content overflows ---
+function SectionScrollArea({ children, minH }) {
     return (
         <div style={{
-            height:          `${height}px`,
             overflowY:       "auto",
             overflowX:       "hidden",
-            WebkitMaskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
-            maskImage:       "linear-gradient(to bottom, black 70%, transparent 100%)",
+            minHeight:       `${minH || 160}px`,
             scrollbarWidth:  "thin",
             scrollbarColor:  "#334155 transparent",
+            WebkitMaskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
+            maskImage:       "linear-gradient(to bottom, black 80%, transparent 100%)",
         }}>
             {children}
         </div>
     );
 }
 
-// ── BoardSection — one named, resizable, draggable section ────────────────────
+// -- BoardSection  one named, resizable, draggable section --------------------
 function BoardSection({
                           section, allPinned, prices, holdingsMap,
                           draggingSection, overSection,
@@ -374,11 +515,26 @@ function BoardSection({
     const [searching,    setSearching]    = useState(false);
     const [dragStockIdx, setDragStockIdx] = useState(null);
     const [overStockIdx, setOverStockIdx] = useState(null);
-    const debRef   = useRef(null);
-    const height   = section.height || 240;
-    const toast    = useToast();
+    const debRef         = useRef(null);
+    const searchPanelRef = useRef(null);
+    const sectionRef     = useRef(null);
+    const toast = useToast();
 
-    // Sync title draft if section title changes externally
+    const x = section.x || 0;
+    const y = section.y || 0;
+    const w = section.w || 420;
+    const h = section.h || 260;
+
+    // Card columns based on section pixel width AND cardScale
+    // cardScale: 0.5=tiny 0.75=small 1=normal 1.25=large 1.5=xl
+    const cardScale  = section.cardScale || 1;
+    // Higher scale = fewer columns (cards take more space)
+    const scaledW    = w / cardScale;
+    const innerCols  = scaledW < 280 ? "grid-cols-1"
+        : scaledW < 460 ? "grid-cols-2"
+            : scaledW < 680 ? "grid-cols-2 sm:grid-cols-3"
+                : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4";
+
     useEffect(() => { setTitleDraft(section.title); }, [section.title]);
 
     const commitTitle = () => {
@@ -388,7 +544,18 @@ function BoardSection({
         onUpdateSection(section.id, { title: t });
     };
 
-    // Stock search within this section
+    const closeSearch = () => { setShowSearch(false); setQuery(""); setResults([]); };
+
+    useEffect(() => {
+        if (!showSearch) return;
+        const handle = (e) => {
+            if (searchPanelRef.current && !searchPanelRef.current.contains(e.target))
+                closeSearch();
+        };
+        document.addEventListener("mousedown", handle);
+        return () => document.removeEventListener("mousedown", handle);
+    }, [showSearch]);
+
     const handleSearch = (q) => {
         setQuery(q);
         clearTimeout(debRef.current);
@@ -406,7 +573,6 @@ function BoardSection({
     const addStockToThisSection = async (s) => {
         const alreadyInSection = section.symbols.includes(s.symbol);
         if (alreadyInSection) { toast.error(`${s.symbol} already in this section`); return; }
-        // Add to board API if not already pinned globally
         const alreadyPinned = allPinned.some(p => p.symbol === s.symbol);
         if (!alreadyPinned) await addToBoard(s);
         onUpdateSection(section.id, { symbols: [...section.symbols, s.symbol] });
@@ -414,7 +580,6 @@ function BoardSection({
         toast.success(`${s.symbol} added`);
     };
 
-    // Stock drag-to-reorder inside this section
     const onStockDragStart = (i) => setDragStockIdx(i);
     const onStockDragEnd   = () => { setDragStockIdx(null); setOverStockIdx(null); };
     const onStockDragOver  = (i) => setOverStockIdx(i);
@@ -434,39 +599,115 @@ function BoardSection({
         removeFromBoard(symbol);
     };
 
-    // Cols inside section based on section width
-    const innerCols = section.width === 1 ? "grid-cols-2"
-        : section.width === 2 ? "grid-cols-2 sm:grid-cols-3"
-            : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4";
+    // -- Drag to move the whole section ----------------------------------------
+    const startDrag = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest("[data-resize]") || e.target.closest("[data-search]") ||
+            e.target.closest("input") || e.target.closest("button")) return;
+        e.preventDefault();
+        const startX = e.clientX, startY = e.clientY;
+        const origX = section.x || 0, origY = section.y || 0;
+        const canvas = sectionRef.current?.parentElement;
+        const onMove = (me) => {
+            const maxX = canvas ? canvas.offsetWidth - w : 9999;
+            const nx = Math.max(0, Math.min(maxX, origX + me.clientX - startX));
+            const ny = Math.max(0, origY + me.clientY - startY);
+            onUpdateSection(section.id, { x: Math.round(nx), y: Math.round(ny) });
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
+
+    // -- Resize from any edge or corner ----------------------------------------
+    const HANDLE = 6;
+    const startResize = (e, edges) => {
+        e.preventDefault(); e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY;
+        const origX = section.x || 0, origY = section.y || 0;
+        const origW = section.w || 420, origH = section.h || 260;
+        const onMove = (me) => {
+            const dx = me.clientX - startX, dy = me.clientY - startY;
+            const updates = {};
+            if (edges.right)  updates.w = Math.max(200, Math.round(origW + dx));
+            if (edges.bottom) updates.h = Math.max(120, Math.round(origH + dy));
+            if (edges.left) {
+                const nw = Math.max(200, Math.round(origW - dx));
+                updates.w = nw;
+                updates.x = Math.max(0, Math.round(origX + origW - nw));
+            }
+            if (edges.top) {
+                const nh = Math.max(120, Math.round(origH - dy));
+                updates.h = nh;
+                updates.y = Math.max(0, Math.round(origY + origH - nh));
+            }
+            onUpdateSection(section.id, updates);
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
 
     return (
         <div
-            className={
-                "flex flex-col rounded-2xl overflow-hidden transition-all " +
-                "bg-slate-800/70 " +
-                (draggingSection
-                    ? "opacity-40 scale-[0.98] border border-slate-600 "
-                    : overSection
-                        ? "border-2 border-blue-500/70 "
-                        : "border border-slate-700/60 ")
-            }
-            style={{ gridColumn: `span ${section.width || 2}` }}
-            onDragOver={e => { e.preventDefault(); onSectionDragOver(); }}
-            onDrop={e => { e.stopPropagation(); onSectionDrop(); }}
+            ref={sectionRef}
+            className="absolute flex flex-col rounded-2xl bg-slate-800/90
+                       border border-slate-700/60 overflow-visible"
+            style={{ left: x, top: y, width: w, height: h, zIndex: 10 }}
+            onMouseDown={startDrag}
         >
-            {/* ── Section Header ── */}
-            <div
-                draggable
-                onDragStart={e => { e.stopPropagation(); onSectionDragStart(); }}
-                onDragEnd={e => { e.stopPropagation(); onSectionDragEnd(); }}
-                className="flex items-center gap-2 px-3 py-2
-                           bg-slate-900/60 border-b border-slate-700/50
-                           cursor-grab active:cursor-grabbing select-none
-                           flex-shrink-0 group/header"
-            >
-                {/* Drag grip dots */}
+            {/* Top edge resize */}
+            <div data-resize className="absolute left-3 right-3 cursor-ns-resize"
+                 style={{ top: -HANDLE/2, height: HANDLE }}
+                 onMouseDown={e => startResize(e, { top: true })} />
+            {/* Left edge resize */}
+            <div data-resize className="absolute top-3 bottom-3 cursor-ew-resize"
+                 style={{ left: -HANDLE/2, width: HANDLE }}
+                 onMouseDown={e => startResize(e, { left: true })} />
+            {/* Right edge resize */}
+            <div data-resize className="absolute top-3 bottom-3 cursor-ew-resize group/rr"
+                 style={{ right: -HANDLE/2, width: HANDLE }}
+                 onMouseDown={e => startResize(e, { right: true })}>
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                    <div className="w-1 h-8 rounded-full bg-slate-600/0
+                                    group-hover/rr:bg-blue-500/60 transition-colors" />
+                </div>
+            </div>
+            {/* Bottom edge resize */}
+            <div data-resize className="absolute left-3 right-3 cursor-ns-resize group/rb"
+                 style={{ bottom: -HANDLE/2, height: HANDLE }}
+                 onMouseDown={e => startResize(e, { bottom: true })}>
+                <div className="absolute inset-x-0 bottom-0 flex justify-center">
+                    <div className="h-1 w-12 rounded-full bg-slate-600/0
+                                    group-hover/rb:bg-blue-500/60 transition-colors" />
+                </div>
+            </div>
+            {/* Corner handles */}
+            {[
+                { pos: { top:-HANDLE/2, left:-HANDLE/2 },    edges: { top:true, left:true },    cur: "nwse-resize" },
+                { pos: { top:-HANDLE/2, right:-HANDLE/2 },   edges: { top:true, right:true },   cur: "nesw-resize" },
+                { pos: { bottom:-HANDLE/2, left:-HANDLE/2 }, edges: { bottom:true, left:true }, cur: "nesw-resize" },
+                { pos: { bottom:-HANDLE/2, right:-HANDLE/2 },edges: { bottom:true, right:true },cur: "nwse-resize" },
+            ].map((corner, i) => (
+                <div key={i} data-resize
+                     className="absolute w-3 h-3 z-20"
+                     style={{ ...corner.pos, cursor: corner.cur }}
+                     onMouseDown={e => startResize(e, corner.edges)} />
+            ))}
+
+            {/* -- Section Header -- */}
+            <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0
+                            bg-slate-900/60 border-b border-slate-700/50
+                            rounded-t-2xl cursor-move select-none group/header">
+                {/* Grip dots */}
                 <div className="flex flex-col gap-[3px] opacity-25
-                                group-hover/header:opacity-60 transition-opacity flex-shrink-0">
+                                group-hover/header:opacity-70 transition-opacity flex-shrink-0">
                     {[0,1,2].map(r => (
                         <div key={r} className="flex gap-[3px]">
                             <div className="w-[3px] h-[3px] bg-slate-400 rounded-full"/>
@@ -475,113 +716,110 @@ function BoardSection({
                     ))}
                 </div>
 
-                {/* Title — editable */}
+                {/* Title */}
                 {editingTitle ? (
-                    <input
-                        autoFocus
-                        value={titleDraft}
-                        onChange={e => setTitleDraft(e.target.value)}
-                        onBlur={commitTitle}
-                        onKeyDown={e => {
-                            if (e.key === "Enter")  commitTitle();
-                            if (e.key === "Escape") { setEditingTitle(false); setTitleDraft(section.title); }
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        onMouseDown={e => e.stopPropagation()}
-                        className="flex-1 bg-slate-700 border border-blue-500 rounded-lg
-                                   px-2 py-0.5 text-white text-sm font-semibold
-                                   focus:outline-none min-w-0"
-                    />
+                    <input autoFocus value={titleDraft}
+                           onChange={e => setTitleDraft(e.target.value)}
+                           onBlur={commitTitle}
+                           onKeyDown={e => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") { setEditingTitle(false); setTitleDraft(section.title); } }}
+                           onClick={e => e.stopPropagation()}
+                           onMouseDown={e => e.stopPropagation()}
+                           className="flex-1 bg-slate-700 border border-blue-500 rounded-lg
+                                      px-2 py-0.5 text-white text-sm font-semibold
+                                      focus:outline-none min-w-0" />
                 ) : (
-                    <span className="flex-1 text-white text-sm font-semibold truncate min-w-0">
+                    <span className="flex-1 text-white text-sm font-semibold truncate min-w-0"
+                          onDoubleClick={e => { e.stopPropagation(); setEditingTitle(true); }}>
                         {section.title}
                     </span>
                 )}
 
-                {/* Stock count badge */}
+                {/* Stock count */}
                 <span className="text-[9px] text-slate-500 bg-slate-700/70
                                  px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium">
                     {section.symbols.length}
                 </span>
 
-                {/* Action controls — visible on header hover */}
-                <div className="flex items-center gap-1
-                                opacity-0 group-hover/header:opacity-100
-                                transition-opacity flex-shrink-0">
-
-                    {/* Edit title */}
-                    <button
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); setEditingTitle(true); }}
-                        title="Rename section"
-                        className="w-5 h-5 flex items-center justify-center rounded
-                                   text-slate-500 hover:text-blue-400 text-xs transition-colors">
+                {/* Controls */}
+                <div className="flex items-center gap-1 flex-shrink-0
+                                opacity-0 group-hover/header:opacity-100 transition-opacity"
+                     onMouseDown={e => e.stopPropagation()}>
+                    {/* Card size - / + buttons */}
+                    <div className="flex items-center gap-0.5 mr-0.5">
+                        <button
+                            onClick={e => { e.stopPropagation(); onUpdateSection(section.id, { cardScale: Math.max(0.5, parseFloat(((section.cardScale||1) - 0.25).toFixed(2))) }); }}
+                            title="Smaller cards"
+                            disabled={(section.cardScale||1) <= 0.5}
+                            className="w-5 h-5 flex items-center justify-center rounded
+                                       text-slate-400 hover:text-white hover:bg-slate-600
+                                       disabled:opacity-30 disabled:cursor-not-allowed
+                                       text-xs font-bold transition-all">
+                            −
+                        </button>
+                        <span className="text-[9px] text-slate-600 w-5 text-center font-mono">
+                            {Math.round((section.cardScale||1)*100)}%
+                        </span>
+                        <button
+                            onClick={e => { e.stopPropagation(); onUpdateSection(section.id, { cardScale: Math.min(2, parseFloat(((section.cardScale||1) + 0.25).toFixed(2))) }); }}
+                            title="Larger cards"
+                            disabled={(section.cardScale||1) >= 2}
+                            className="w-5 h-5 flex items-center justify-center rounded
+                                       text-slate-400 hover:text-white hover:bg-slate-600
+                                       disabled:opacity-30 disabled:cursor-not-allowed
+                                       text-xs font-bold transition-all">
+                            ＋
+                        </button>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); setEditingTitle(true); }}
+                            title="Rename"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg
+                                       text-slate-500 hover:text-blue-400 hover:bg-blue-500/15
+                                       hover:ring-1 hover:ring-blue-500/40 text-xs transition-all">
                         ✏️
                     </button>
-
-                    {/* Width S / M / L */}
-                    {[
-                        { w: 1, label: "S", title: "Narrow" },
-                        { w: 2, label: "M", title: "Medium" },
-                        { w: 3, label: "L", title: "Wide"   },
-                    ].map(({ w, label, title }) => (
-                        <button
-                            key={w}
-                            onMouseDown={e => e.stopPropagation()}
-                            onClick={e => { e.stopPropagation(); onUpdateSection(section.id, { width: w }); }}
-                            title={title}
-                            className={`w-5 h-5 flex items-center justify-center text-[9px]
-                                       font-bold rounded transition-colors ${
-                                section.width === w
-                                    ? "bg-blue-600 text-white"
-                                    : "text-slate-500 hover:text-white hover:bg-slate-700"
+                    <button onClick={e => { e.stopPropagation(); if (showSearch) closeSearch(); else { setShowSearch(true); setQuery(""); setResults([]); } }}
+                            title="Add stock"
+                            className={`w-6 h-6 flex items-center justify-center rounded-lg
+                                       text-xs font-bold transition-all ${
+                                showSearch
+                                    ? "bg-green-600/20 text-green-400 ring-1 ring-green-500/40"
+                                    : "text-slate-500 hover:text-green-400 hover:bg-green-500/15 hover:ring-1 hover:ring-green-500/40"
                             }`}>
-                            {label}
-                        </button>
-                    ))}
-
-                    {/* Add stock */}
-                    <button
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); setShowSearch(v => !v); setQuery(""); setResults([]); }}
-                        title="Add stock to this section"
-                        className="w-5 h-5 flex items-center justify-center rounded
-                                   text-slate-500 hover:text-green-400 text-xs transition-colors">
                         ＋
                     </button>
-
-                    {/* Delete section */}
                     {!isOnlySection && (
-                        <button
-                            onMouseDown={e => e.stopPropagation()}
-                            onClick={e => { e.stopPropagation(); onRemoveSection(section.id); }}
-                            title="Remove section"
-                            className="w-5 h-5 flex items-center justify-center rounded
-                                       text-slate-500 hover:text-red-400 text-xs transition-colors">
+                        <button onClick={e => { e.stopPropagation(); onRemoveSection(section.id); }}
+                                title="Remove section"
+                                className="w-6 h-6 flex items-center justify-center rounded-lg
+                                           text-slate-500 hover:text-red-400 hover:bg-red-500/15
+                                           hover:ring-1 hover:ring-red-500/40 text-xs transition-all">
                             🗑
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* ── Inline stock search (opens below header) ── */}
+            {/* -- Search panel -- */}
             {showSearch && (
-                <div className="px-3 pt-2 pb-1.5 bg-slate-900/50 border-b
-                                border-slate-700/40 flex-shrink-0">
+                <div ref={searchPanelRef} data-search
+                     className="px-3 pt-2 pb-1.5 bg-slate-900/50 border-b
+                                border-slate-700/40 flex-shrink-0"
+                     onMouseDown={e => e.stopPropagation()}>
                     <div className="relative">
-                        <input
-                            autoFocus
-                            type="text"
-                            value={query}
-                            onChange={e => handleSearch(e.target.value)}
-                            onKeyDown={e => e.key === "Escape" && setShowSearch(false)}
-                            placeholder="Search stock to add..."
-                            className="w-full bg-slate-700 border border-slate-600 rounded-lg
-                                       px-3 py-1.5 text-white text-xs focus:outline-none
-                                       focus:border-blue-500"
-                        />
+                        <input autoFocus type="text" value={query}
+                               onChange={e => handleSearch(e.target.value)}
+                               onKeyDown={e => e.key === "Escape" && closeSearch()}
+                               placeholder="Search stock to add..."
+                               className="w-full bg-slate-700 border border-slate-600 rounded-lg
+                                          px-3 py-1.5 pr-8 text-white text-xs focus:outline-none
+                                          focus:border-blue-500" />
+                        <button onClick={closeSearch}
+                                className="absolute right-2 top-1/2 -translate-y-1/2
+                                           text-slate-500 hover:text-white text-sm
+                                           transition-colors leading-none"
+                                title="Close">✕</button>
                         {searching && (
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <div className="absolute right-7 top-1/2 -translate-y-1/2">
                                 <div className="w-3 h-3 border border-blue-400
                                                 border-t-transparent rounded-full animate-spin"/>
                             </div>
@@ -601,14 +839,11 @@ function BoardSection({
                                     </div>
                                     <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                                         <span className="text-[9px] bg-slate-600 text-slate-300
-                                                         px-1.5 py-0.5 rounded">
-                                            {s.exchange}
-                                        </span>
-                                        <button
-                                            onClick={() => addStockToThisSection(s)}
-                                            className="text-[10px] px-2 py-1 bg-blue-600
-                                                       hover:bg-blue-700 text-white rounded
-                                                       font-medium transition-colors">
+                                                         px-1.5 py-0.5 rounded">{s.exchange}</span>
+                                        <button onClick={() => addStockToThisSection(s)}
+                                                className="text-[10px] px-2 py-1 bg-blue-600
+                                                           hover:bg-blue-700 text-white rounded
+                                                           font-medium transition-colors">
                                             + Add
                                         </button>
                                     </div>
@@ -624,65 +859,214 @@ function BoardSection({
                 </div>
             )}
 
-            {/* ── Cards with fade-scroll ── */}
-            <div className="relative flex-1">
-                <FadeScrollBox height={height}>
-                    {section.symbols.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center
-                                        text-slate-600 text-xs py-10 gap-2">
-                            <span className="text-3xl opacity-30">📌</span>
-                            <span>Empty — hover header and click ＋ to add stocks</span>
-                        </div>
-                    ) : (
-                        <div className={`grid ${innerCols} gap-2 px-3 py-3`}>
-                            {section.symbols.map((sym, idx) => {
-                                const stock = allPinned.find(s => s.symbol === sym);
-                                if (!stock) return null;
-                                return (
-                                    <StockCard
-                                        key={sym}
-                                        stock={stock}
-                                        price={prices[sym]}
-                                        holding={holdingsMap[sym] || null}
-                                        dragging={dragStockIdx === idx}
-                                        over={overStockIdx === idx && dragStockIdx !== null && dragStockIdx !== idx}
-                                        onDragStart={() => onStockDragStart(idx)}
-                                        onDragEnd={onStockDragEnd}
-                                        onDragOver={() => onStockDragOver(idx)}
-                                        onDrop={() => onStockDrop(idx)}
-                                        onRemove={() => removeStockFromSection(sym)}
-                                        onOpen={() => onOpenStock(stock)}
-                                    />
-                                );
-                            })}
-                        </div>
-                    )}
-                </FadeScrollBox>
+            {/* -- Cards -- */}
+            <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0,
+                scrollbarWidth: "thin", scrollbarColor: "#334155 transparent" }}>
+                {section.symbols.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center
+                                    text-slate-600 text-xs gap-2">
+                        <span className="text-3xl opacity-30">📌</span>
+                        <span>Empty — hover header and click ＋ to add stocks</span>
+                    </div>
+                ) : (
+                    <div className={`grid ${innerCols} gap-2 px-3 py-3`}
+                         style={{ transform: `scale(${cardScale})`, transformOrigin: "top left",
+                             width: `${(100/cardScale).toFixed(1)}%` }}>
+                        {section.symbols.map((sym, idx) => {
+                            const stock = allPinned.find(s => s.symbol === sym);
+                            if (!stock) return null;
+                            return (
+                                <StockCard
+                                    key={sym}
+                                    stock={stock}
+                                    price={prices[sym]}
+                                    holding={holdingsMap[sym] || null}
+                                    dragging={dragStockIdx === idx}
+                                    over={overStockIdx === idx && dragStockIdx !== null && dragStockIdx !== idx}
+                                    onDragStart={() => onStockDragStart(idx)}
+                                    onDragEnd={onStockDragEnd}
+                                    onDragOver={() => onStockDragOver(idx)}
+                                    onDrop={() => onStockDrop(idx)}
+                                    onRemove={() => removeStockFromSection(sym)}
+                                    onOpen={() => onOpenStock(stock)}
+                                />
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
-                {/* ── Height resize handle ── */}
-                <div
-                    title="Drag to resize"
-                    className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize
-                               flex items-center justify-center group/resize z-10"
-                    onMouseDown={e => {
-                        e.preventDefault();
-                        const startY = e.clientY;
-                        const startH = height;
-                        const onMove = (me) => {
-                            const newH = Math.max(120, Math.min(600,
-                                startH + (me.clientY - startY)));
-                            onUpdateSection(section.id, { height: Math.round(newH / 10) * 10 });
-                        };
-                        const onUp = () => {
-                            window.removeEventListener("mousemove", onMove);
-                            window.removeEventListener("mouseup",   onUp);
-                        };
-                        window.addEventListener("mousemove", onMove);
-                        window.addEventListener("mouseup",   onUp);
-                    }}>
-                    <div className="w-10 h-1 rounded-full bg-slate-700
-                                    group-hover/resize:bg-blue-500/60 transition-colors"/>
+
+
+// -- IndexSection — freeform board section for index charts ------------------
+function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection }) {
+    const [showPicker, setShowPicker] = useState(false);
+    const x = section.x || 0, y = section.y || 0;
+    const w = section.w || 320, h = section.h || 220;
+    const sectionRef = useRef(null);
+    const HANDLE = 6;
+
+    const indices = section.indices || [];
+
+    const toggleIndex = (sym) => {
+        const next = indices.includes(sym)
+            ? indices.filter(s => s !== sym)
+            : [...indices, sym];
+        onUpdateSection(section.id, { indices: next });
+    };
+
+    const startDrag = (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest("[data-resize]") || e.target.closest("[data-search]") ||
+            e.target.closest("button") || e.target.closest("input")) return;
+        e.preventDefault();
+        const startX = e.clientX, startY = e.clientY;
+        const origX = section.x || 0, origY = section.y || 0;
+        const canvas = sectionRef.current?.parentElement;
+        const onMove = (me) => {
+            const maxX = canvas ? canvas.offsetWidth - w : 9999;
+            onUpdateSection(section.id, {
+                x: Math.max(0, Math.min(maxX, Math.round(origX + me.clientX - startX))),
+                y: Math.max(0, Math.round(origY + me.clientY - startY)),
+            });
+        };
+        const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
+
+    const startResize = (e, edges) => {
+        e.preventDefault(); e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY;
+        const origX = section.x||0, origY = section.y||0, origW = section.w||320, origH = section.h||220;
+        const onMove = (me) => {
+            const dx = me.clientX - startX, dy = me.clientY - startY;
+            const u = {};
+            if (edges.right)  u.w = Math.max(200, Math.round(origW + dx));
+            if (edges.bottom) u.h = Math.max(120, Math.round(origH + dy));
+            if (edges.left)   { u.w = Math.max(200, Math.round(origW - dx)); u.x = Math.max(0, Math.round(origX + origW - u.w)); }
+            if (edges.top)    { u.h = Math.max(120, Math.round(origH - dy)); u.y = Math.max(0, Math.round(origY + origH - u.h)); }
+            onUpdateSection(section.id, u);
+        };
+        const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
+
+    const cols = w < 320 ? "grid-cols-1" : w < 560 ? "grid-cols-2" : "grid-cols-3";
+
+    return (
+        <div ref={sectionRef}
+             className="absolute flex flex-col rounded-2xl bg-slate-800/90
+                        border border-blue-500/20 overflow-visible"
+             style={{ left: x, top: y, width: w, height: h, zIndex: 10 }}
+             onMouseDown={startDrag}>
+            {/* Resize handles */}
+            <div data-resize className="absolute left-3 right-3 cursor-ns-resize" style={{ top: -HANDLE/2, height: HANDLE }} onMouseDown={e => startResize(e, { top: true })} />
+            <div data-resize className="absolute top-3 bottom-3 cursor-ew-resize" style={{ left: -HANDLE/2, width: HANDLE }} onMouseDown={e => startResize(e, { left: true })} />
+            <div data-resize className="absolute top-3 bottom-3 cursor-ew-resize group/rr" style={{ right: -HANDLE/2, width: HANDLE }} onMouseDown={e => startResize(e, { right: true })}>
+                <div className="absolute inset-y-0 right-0 flex items-center"><div className="w-1 h-8 rounded-full bg-slate-600/0 group-hover/rr:bg-blue-500/60 transition-colors"/></div>
+            </div>
+            <div data-resize className="absolute left-3 right-3 cursor-ns-resize group/rb" style={{ bottom: -HANDLE/2, height: HANDLE }} onMouseDown={e => startResize(e, { bottom: true })}>
+                <div className="absolute inset-x-0 bottom-0 flex justify-center"><div className="h-1 w-12 rounded-full bg-slate-600/0 group-hover/rb:bg-blue-500/60 transition-colors"/></div>
+            </div>
+            {[
+                { pos:{top:-HANDLE/2,left:-HANDLE/2},   edges:{top:true,left:true},   cur:"nwse-resize" },
+                { pos:{top:-HANDLE/2,right:-HANDLE/2},  edges:{top:true,right:true},  cur:"nesw-resize" },
+                { pos:{bottom:-HANDLE/2,left:-HANDLE/2},edges:{bottom:true,left:true},cur:"nesw-resize" },
+                { pos:{bottom:-HANDLE/2,right:-HANDLE/2},edges:{bottom:true,right:true},cur:"nwse-resize"},
+            ].map((corner,i) => (
+                <div key={i} data-resize className="absolute w-3 h-3 z-20"
+                     style={{...corner.pos, cursor: corner.cur}}
+                     onMouseDown={e => startResize(e, corner.edges)} />
+            ))}
+
+            {/* Header */}
+            <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0
+                            bg-slate-900/60 border-b border-blue-500/20
+                            rounded-t-2xl cursor-move select-none group/header">
+                <div className="flex flex-col gap-[3px] opacity-30 group-hover/header:opacity-70 transition-opacity flex-shrink-0">
+                    {[0,1,2].map(r=><div key={r} className="flex gap-[3px]"><div className="w-[3px] h-[3px] bg-slate-400 rounded-full"/><div className="w-[3px] h-[3px] bg-slate-400 rounded-full"/></div>)}
                 </div>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/20
+                                 text-blue-400 border border-blue-500/30 font-semibold flex-shrink-0">
+                    📊 INDICES
+                </span>
+                <span className="flex-1 text-white text-sm font-semibold truncate min-w-0">
+                    {section.title || "Indices"}
+                </span>
+                <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100
+                                transition-opacity flex-shrink-0"
+                     onMouseDown={e => e.stopPropagation()}>
+                    <button data-search
+                            onClick={e => { e.stopPropagation(); setShowPicker(v => !v); }}
+                            title="Choose indices"
+                            className={`w-6 h-6 flex items-center justify-center rounded-lg
+                                       text-xs font-bold transition-all ${
+                                showPicker
+                                    ? "bg-blue-600/20 text-blue-400 ring-1 ring-blue-500/40"
+                                    : "text-slate-500 hover:text-blue-400 hover:bg-blue-500/15 hover:ring-1 hover:ring-blue-500/40"
+                            }`}>
+                        ⚙
+                    </button>
+                    {!isOnlySection && (
+                        <button onClick={e => { e.stopPropagation(); onRemoveSection(section.id); }}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg
+                                           text-slate-500 hover:text-red-400 hover:bg-red-500/15
+                                           hover:ring-1 hover:ring-red-500/40 text-xs transition-all">
+                            🗑
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Index picker */}
+            {showPicker && (
+                <div data-search
+                     className="px-3 py-2 bg-slate-900/70 border-b border-blue-500/20
+                                flex-shrink-0"
+                     onMouseDown={e => e.stopPropagation()}>
+                    <p className="text-slate-500 text-[10px] mb-1.5 font-semibold uppercase tracking-wide">
+                        Select indices to show
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {AVAILABLE_INDICES.map(idx => (
+                            <button key={idx.symbol}
+                                    onClick={() => toggleIndex(idx.symbol)}
+                                    className={`text-[10px] px-2 py-1 rounded-lg font-semibold
+                                               transition-all border ${
+                                        indices.includes(idx.symbol)
+                                            ? "bg-blue-600/30 text-blue-300 border-blue-500/50"
+                                            : "bg-slate-700/50 text-slate-400 border-slate-600/50 hover:border-blue-500/40"
+                                    }`}>
+                                {idx.short}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Index cards */}
+            <div style={{ flex:"1 1 0", overflowY:"auto", overflowX:"hidden", minHeight:0,
+                scrollbarWidth:"thin", scrollbarColor:"#334155 transparent" }}>
+                {indices.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center
+                                    text-slate-600 text-xs gap-2">
+                        <span className="text-2xl opacity-30">📊</span>
+                        <span>Hover header, click ⚙ to select indices</span>
+                    </div>
+                ) : (
+                    <div className={`grid ${cols} gap-2 p-3`}>
+                        {indices.map(sym => {
+                            const idx = AVAILABLE_INDICES.find(i => i.symbol === sym);
+                            if (!idx) return null;
+                            return <IndexCard key={sym} symbol={idx.symbol} name={idx.name} short={idx.short} />;
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -702,7 +1086,7 @@ export default function StocksMarketPage() {
     const [secOverIdx,       setSecOverIdx]        = useState(null);
     const toast = useToast();
 
-    // ── Load board from API + initialize sections ─────────────────────────────
+    // -- Load board from API + initialize sections -----------------------------
     const loadBoard = () =>
         getBoardApi()
             .then(res => {
@@ -729,7 +1113,7 @@ export default function StocksMarketPage() {
         if (sections !== null) saveSections(sections);
     }, [sections]);
 
-    // ── Holdings map ──────────────────────────────────────────────────────────
+    // -- Holdings map ----------------------------------------------------------
     useEffect(() => {
         getHoldings()
             .then(res => {
@@ -740,14 +1124,14 @@ export default function StocksMarketPage() {
             .catch(() => {});
     }, []);
 
-    // ── Portfolio summary for greeting bar ────────────────────────────────────
+    // -- Portfolio summary for greeting bar ------------------------------------
     useEffect(() => {
         getPortfolioSummary()
             .then(res => setPortfolioSummary(res.data))
             .catch(() => {});
     }, []);
 
-    // ── Live prices — refresh whenever pinned list changes ────────────────────
+    // -- Live prices  refresh whenever pinned list changes --------------------
     useEffect(() => {
         if (pinned.length === 0) return;
         let cancelled = false;
@@ -763,7 +1147,7 @@ export default function StocksMarketPage() {
         return () => { cancelled = true; };
     }, [pinned.map(s => s.symbol).join(",")]);
 
-    // ── Stock actions ─────────────────────────────────────────────────────────
+    // -- Stock actions ---------------------------------------------------------
     const openStock = (stock) => {
         addToRecentlyVisited(stock);
         trackStockView({
@@ -774,27 +1158,45 @@ export default function StocksMarketPage() {
         setChartStock(stock);
     };
 
-    // ── Section management ────────────────────────────────────────────────────
-    const addSection = () => {
+    // -- Section management ----------------------------------------------------
+    const addIndexSection = () => {
+        const offset = (sections?.length || 0) * 32;
         const newSec = {
-            id:      `sec_${Date.now()}`,
-            title:   "New Section",
-            symbols: [],
-            width:   2,
-            height:  240,
-            order:   (sections?.length || 0),
+            id:      `idx_${Date.now()}`,
+            type:    "index",
+            title:   "Indices",
+            indices: ["^NSEI", "^NSEBANK"],
+            x: 20 + offset,
+            y: 20 + offset,
+            w: 380,
+            h: 280,
         };
         setSections(prev => [...(prev || []), newSec]);
     };
 
-    // Generic updater — merges partial fields into the section
+    const addSection = () => {
+        const offset = (sections?.length || 0) * 32;
+        const newSec = {
+            id:      `sec_${Date.now()}`,
+            title:   "New Section",
+            symbols: [],
+            x: 20 + offset,
+            y: 20 + offset,
+            w: 420,
+            h: 260,
+            cardScale: 1,
+        };
+        setSections(prev => [...(prev || []), newSec]);
+    };
+
+    // Generic updater  merges partial fields into the section
     const updateSection = (id, partial) => {
         setSections(prev => prev.map(s =>
             s.id === id ? { ...s, ...partial } : s
         ));
         // If symbols changed, sync pinned array too
         if (partial.symbols !== undefined) {
-            // Nothing to do with server here — board API is managed per-symbol
+            // Nothing to do with server here  board API is managed per-symbol
         }
     };
 
@@ -823,10 +1225,10 @@ export default function StocksMarketPage() {
     return (
         <div className="space-y-4">
 
-            {/* ── Greeting + market status ── */}
+            {/* -- Greeting + market status -- */}
             <GreetingBar portfolioSummary={portfolioSummary} />
 
-            {/* ── Recently viewed marquee ── */}
+            {/* -- Recently viewed marquee -- */}
             <div className="flex items-center bg-slate-900/60 border border-slate-800
                             rounded-xl overflow-hidden">
                 <div className="flex-shrink-0 flex items-center gap-2 px-4
@@ -844,7 +1246,7 @@ export default function StocksMarketPage() {
                 </div>
             </div>
 
-            {/* ── Board header ── */}
+            {/* -- Board header -- */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                     <span className="text-base">📌</span>
@@ -866,64 +1268,88 @@ export default function StocksMarketPage() {
                         Drag headers to reorder sections · Hover header for controls
                     </p>
                 </div>
-                <button
-                    onClick={addSection}
-                    className="flex items-center gap-2 px-4 py-2
-                               bg-slate-700 hover:bg-slate-600
-                               text-white text-sm font-semibold
-                               rounded-xl transition-colors border border-slate-600">
-                    ＋ Add Section
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={addIndexSection}
+                        className="flex items-center gap-2 px-4 py-2
+                                   bg-slate-700/50 hover:bg-blue-600/20
+                                   text-slate-400 hover:text-blue-300
+                                   text-sm font-semibold rounded-xl
+                                   border border-slate-600 hover:border-blue-500/50
+                                   transition-all duration-200">
+                        📊 Add Index Section
+                    </button>
+                    <button
+                        onClick={addSection}
+                        className="flex items-center gap-2 px-4 py-2
+                                   bg-blue-600/20 hover:bg-blue-600/40
+                                   text-blue-400 hover:text-blue-300
+                                   text-sm font-semibold rounded-xl
+                                   border border-blue-500/50 hover:border-blue-400
+                                   shadow-[0_0_12px_rgba(59,130,246,0.35)]
+                                   hover:shadow-[0_0_20px_rgba(59,130,246,0.6)]
+                                   transition-all duration-200">
+                        ＋ Add Section
+                    </button>
+                </div>
             </div>
 
-            {/* ── Sections grid or empty state ── */}
+            {/* -- Freeform canvas board -- */}
             {(!sections || sections.length === 0) ? (
                 <div className="bg-slate-800 rounded-2xl border border-slate-700
                                 p-16 text-center">
                     <p className="text-5xl mb-4">📌</p>
                     <p className="text-white font-bold text-lg">Your board is empty</p>
                     <p className="text-slate-400 text-sm mt-2 mb-6 max-w-sm mx-auto">
-                        Create sections to organise your watchlist — swing trades,
-                        sector plays, long-term holds — each with live prices and sparklines.
+                        Create sections to organise your watchlist, swing trades,
+                        sector plays, long-term holds, each with live prices and sparklines.
                     </p>
-                    <button
-                        onClick={addSection}
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
-                                   text-sm font-semibold rounded-xl transition-colors">
+                    <button onClick={addSection}
+                            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
                         ＋ Add First Section
                     </button>
                 </div>
-            ) : (
-                <div
-                    className="grid gap-3"
-                    style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                    {sections.map((section, idx) => (
-                        <BoardSection
-                            key={section.id}
-                            section={section}
-                            allPinned={pinned}
-                            prices={prices}
-                            holdingsMap={holdingsMap}
-                            draggingSection={secDragIdx === idx}
-                            overSection={
-                                secOverIdx === idx &&
-                                secDragIdx !== null &&
-                                secDragIdx !== idx
-                            }
-                            onSectionDragStart={() => onSecDragStart(idx)}
-                            onSectionDragEnd={onSecDragEnd}
-                            onSectionDragOver={() => onSecDragOver(idx)}
-                            onSectionDrop={() => onSecDrop(idx)}
-                            onUpdateSection={updateSection}
-                            onRemoveSection={removeSection}
-                            onOpenStock={openStock}
-                            isOnlySection={sections.length === 1}
-                        />
-                    ))}
-                </div>
-            )}
+            ) : (() => {
+                const canvasH = sections.reduce((max, s) =>
+                    Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
+                return (
+                    <div className="relative w-full select-none"
+                         style={{ height: canvasH + "px" }}>
+                        {sections.map((section) =>
+                            section.type === "index" ? (
+                                <IndexSection
+                                    key={section.id}
+                                    section={section}
+                                    onUpdateSection={updateSection}
+                                    onRemoveSection={removeSection}
+                                    isOnlySection={sections.length === 1}
+                                />
+                            ) : (
+                                <BoardSection
+                                    key={section.id}
+                                    section={section}
+                                    allPinned={pinned}
+                                    prices={prices}
+                                    holdingsMap={holdingsMap}
+                                    draggingSection={false}
+                                    overSection={false}
+                                    onSectionDragStart={() => {}}
+                                    onSectionDragEnd={() => {}}
+                                    onSectionDragOver={() => {}}
+                                    onSectionDrop={() => {}}
+                                    onUpdateSection={updateSection}
+                                    onRemoveSection={removeSection}
+                                    onOpenStock={openStock}
+                                    isOnlySection={sections.length === 1}
+                                />
+                            )
+                        )}
+                    </div>
+                );
+            })()}
 
-            {/* ── Stock chart modal ── */}
+            {/* -- Stock chart modal -- */}
             {chartStock && (
                 <StockDetailModal
                     stock={chartStock}
