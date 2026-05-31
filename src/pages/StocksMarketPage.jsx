@@ -14,12 +14,13 @@ import RecentStocksMarquee from "../components/RecentStocksMarquee";
 
 // -- Available indices for board sections ------------------------------------
 const AVAILABLE_INDICES = [
-    { symbol: "^NSEI",      name: "NIFTY 50",       short: "NIFTY"    },
-    { symbol: "^BSESN",     name: "SENSEX",          short: "SENSEX"   },
-    { symbol: "^NSEBANK",   name: "BANK NIFTY",      short: "BANKNIFTY"},
-    { symbol: "^NSEMDCP50", name: "MIDCAP SELECT",   short: "MIDCAP"   },
-    { symbol: "^INDIAVIX",  name: "India VIX",       short: "VIX"      },
-    { symbol: "^CNXIT",     name: "NIFTY IT",        short: "NIFTYIT"  },
+    { symbol: "^NSEI",      name: "NIFTY 50",        short: "NIFTY"     },
+    { symbol: "^BSESN",     name: "SENSEX",           short: "SENSEX"    },
+    { symbol: "^NSEBANK",   name: "BANK NIFTY",       short: "BANKNIFTY" },
+    { symbol: "^NSEMDCP50", name: "MIDCAP SELECT",    short: "MIDCAP"    },
+    { symbol: "^NSESMCP",   name: "SMALLCAP 100",     short: "SMALLCAP"  },
+    { symbol: "^INDIAVIX",  name: "India VIX",        short: "VIX"       },
+    { symbol: "^CNXIT",     name: "NIFTY IT",         short: "NIFTYIT"   },
 ];
 
 // -- Recently visited ----------------------------------------------------------
@@ -44,26 +45,44 @@ export const addToRecentlyVisited = (stock) => {
 // -- Board sections persistence ------------------------------------------------
 const SECTIONS_KEY = "ms_board_sections_v2";
 
-function loadSections() {
+
+
+function saveSections(sections, canvasWidth) {
+    try {
+        const payload = { sections, canvasWidth: canvasWidth || window.innerWidth };
+        localStorage.setItem(SECTIONS_KEY, JSON.stringify(payload));
+    } catch {}
+}
+
+function loadSectionsWithMeta() {
     try {
         const raw = localStorage.getItem(SECTIONS_KEY);
-        return raw ? JSON.parse(raw) : null;
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        // Support both old format (plain array) and new format ({sections, canvasWidth})
+        if (Array.isArray(parsed)) return { sections: parsed, canvasWidth: null };
+        return parsed;
     } catch { return null; }
 }
 
-function saveSections(sections) {
-    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections)); }
-    catch {}
-}
-
 function makeDefaultSections(pinned) {
-    return [{
-        id:      "sec_default",
-        title:   "My Board",
-        symbols: pinned.map(s => s.symbol),
-        x: 0, y: 0, w: 560, h: 320,
-        cardScale: 1,
-    }];
+    return [
+        {
+            id:      "sec_default",
+            title:   "My Board",
+            symbols: pinned.map(s => s.symbol),
+            x: 0, y: 0, w: 560, h: 320,
+            cardScale: 1,
+        },
+        {
+            id:      "sec_indices_default",
+            type:    "index",
+            title:   "Market Indices",
+            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^NSESMCP"],
+            x: 580, y: 0, w: 460, h: 380,
+            cardScale: 1,
+        },
+    ];
 }
 
 // -- Market status helper ------------------------------------------------------
@@ -779,13 +798,14 @@ function BoardSection({
                     </button>
                     <button onClick={e => { e.stopPropagation(); if (showSearch) closeSearch(); else { setShowSearch(true); setQuery(""); setResults([]); } }}
                             title="Add stock"
-                            className={`w-6 h-6 flex items-center justify-center rounded-lg
-                                       text-xs font-bold transition-all ${
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                       text-[10px] font-medium transition-all border ${
                                 showSearch
-                                    ? "bg-green-600/20 text-green-400 ring-1 ring-green-500/40"
-                                    : "text-slate-500 hover:text-green-400 hover:bg-green-500/15 hover:ring-1 hover:ring-green-500/40"
+                                    ? "bg-blue-600/20 text-blue-300 border-blue-500/50"
+                                    : "bg-slate-800 text-slate-300 border-slate-600 hover:text-white hover:border-slate-500"
                             }`}>
-                        ＋
+                        <span className="font-bold">＋</span>
+                        <span>Add stock</span>
                     </button>
                     {!isOnlySection && (
                         <button onClick={e => { e.stopPropagation(); onRemoveSection(section.id); }}
@@ -903,19 +923,33 @@ function BoardSection({
 
 // -- IndexSection — freeform board section for index charts ------------------
 function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection }) {
-    const [showPicker, setShowPicker] = useState(false);
+    const [showPicker,   setShowPicker]   = useState(false);
+    const [customSymbol, setCustomSymbol] = useState("");
+    const [customName,   setCustomName]   = useState("");
     const x = section.x || 0, y = section.y || 0;
-    const w = section.w || 320, h = section.h || 220;
+    const w = section.w || 460, h = section.h || 380;
     const sectionRef = useRef(null);
     const HANDLE = 6;
 
-    const indices = section.indices || [];
+    const indices   = section.indices   || [];
+    const cardScale = section.cardScale || 1;
+    const scaledW   = w / cardScale;
+    const cols      = scaledW < 320 ? "grid-cols-1" : scaledW < 560 ? "grid-cols-2" : "grid-cols-3";
 
     const toggleIndex = (sym) => {
         const next = indices.includes(sym)
             ? indices.filter(s => s !== sym)
             : [...indices, sym];
         onUpdateSection(section.id, { indices: next });
+    };
+
+    const addCustomIndex = () => {
+        const sym = customSymbol.trim().toUpperCase();
+        if (!sym) return;
+        if (!indices.includes(sym)) {
+            onUpdateSection(section.id, { indices: [...indices, sym] });
+        }
+        setCustomSymbol(""); setCustomName("");
     };
 
     const startDrag = (e) => {
@@ -956,7 +990,6 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
         window.addEventListener("mouseup", onUp);
     };
 
-    const cols = w < 320 ? "grid-cols-1" : w < 560 ? "grid-cols-2" : "grid-cols-3";
 
     return (
         <div ref={sectionRef}
@@ -1001,9 +1034,31 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
                 <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100
                                 transition-opacity flex-shrink-0"
                      onMouseDown={e => e.stopPropagation()}>
+                    {/* Card size - / + */}
+                    <div className="flex items-center gap-0.5 mr-0.5">
+                        <button
+                            onClick={e => { e.stopPropagation(); onUpdateSection(section.id, { cardScale: Math.max(0.5, parseFloat(((section.cardScale||1) - 0.25).toFixed(2))) }); }}
+                            disabled={(section.cardScale||1) <= 0.5}
+                            className="w-5 h-5 flex items-center justify-center rounded text-slate-400
+                                       hover:text-white hover:bg-slate-600 disabled:opacity-30
+                                       disabled:cursor-not-allowed text-xs font-bold transition-all">
+                            −
+                        </button>
+                        <span className="text-[9px] text-slate-600 w-5 text-center font-mono">
+                            {Math.round((section.cardScale||1)*100)}%
+                        </span>
+                        <button
+                            onClick={e => { e.stopPropagation(); onUpdateSection(section.id, { cardScale: Math.min(2, parseFloat(((section.cardScale||1) + 0.25).toFixed(2))) }); }}
+                            disabled={(section.cardScale||1) >= 2}
+                            className="w-5 h-5 flex items-center justify-center rounded text-slate-400
+                                       hover:text-white hover:bg-slate-600 disabled:opacity-30
+                                       disabled:cursor-not-allowed text-xs font-bold transition-all">
+                            ＋
+                        </button>
+                    </div>
                     <button data-search
                             onClick={e => { e.stopPropagation(); setShowPicker(v => !v); }}
-                            title="Choose indices"
+                            title="Manage indices"
                             className={`w-6 h-6 flex items-center justify-center rounded-lg
                                        text-xs font-bold transition-all ${
                                 showPicker
@@ -1023,29 +1078,82 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
                 </div>
             </div>
 
-            {/* Index picker */}
+            {/* Index picker + custom search */}
             {showPicker && (
                 <div data-search
-                     className="px-3 py-2 bg-slate-900/70 border-b border-blue-500/20
-                                flex-shrink-0"
+                     className="px-3 py-2.5 bg-slate-900/70 border-b border-blue-500/20
+                                flex-shrink-0 space-y-2.5"
                      onMouseDown={e => e.stopPropagation()}>
-                    <p className="text-slate-500 text-[10px] mb-1.5 font-semibold uppercase tracking-wide">
-                        Select indices to show
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {AVAILABLE_INDICES.map(idx => (
-                            <button key={idx.symbol}
-                                    onClick={() => toggleIndex(idx.symbol)}
-                                    className={`text-[10px] px-2 py-1 rounded-lg font-semibold
-                                               transition-all border ${
-                                        indices.includes(idx.symbol)
-                                            ? "bg-blue-600/30 text-blue-300 border-blue-500/50"
-                                            : "bg-slate-700/50 text-slate-400 border-slate-600/50 hover:border-blue-500/40"
-                                    }`}>
-                                {idx.short}
-                            </button>
-                        ))}
+                    {/* Preset toggles */}
+                    <div>
+                        <p className="text-slate-500 text-[10px] mb-1.5 font-semibold uppercase tracking-wide">
+                            Indian indices
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {AVAILABLE_INDICES.map(idx => (
+                                <button key={idx.symbol}
+                                        onClick={() => toggleIndex(idx.symbol)}
+                                        className={`text-[10px] px-2 py-1 rounded-lg font-semibold
+                                                   transition-all border ${
+                                            indices.includes(idx.symbol)
+                                                ? "bg-blue-600/30 text-blue-300 border-blue-500/50"
+                                                : "bg-slate-700/50 text-slate-400 border-slate-600/50 hover:border-blue-500/40"
+                                        }`}>
+                                    {idx.short}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+                    {/* Custom index search */}
+                    <div>
+                        <p className="text-slate-500 text-[10px] mb-1.5 font-semibold uppercase tracking-wide">
+                            Add any index (Yahoo Finance symbol)
+                        </p>
+                        <div className="flex gap-1.5">
+                            <input
+                                type="text"
+                                value={customSymbol}
+                                onChange={e => setCustomSymbol(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && addCustomIndex()}
+                                placeholder="e.g. ^GSPC, ^FTSE, ^DJI"
+                                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg
+                                           px-2.5 py-1 text-white text-[10px] focus:outline-none
+                                           focus:border-blue-500 min-w-0"
+                            />
+                            <button
+                                onClick={addCustomIndex}
+                                disabled={!customSymbol.trim()}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                                           text-white text-[10px] font-semibold rounded-lg
+                                           transition-colors flex-shrink-0">
+                                Add
+                            </button>
+                        </div>
+                        <p className="text-slate-700 text-[9px] mt-1">
+                            Find symbols at finance.yahoo.com — prefix ^ for indices
+                        </p>
+                    </div>
+                    {/* Active indices list with remove */}
+                    {indices.filter(s => !AVAILABLE_INDICES.find(i => i.symbol === s)).length > 0 && (
+                        <div>
+                            <p className="text-slate-500 text-[10px] mb-1 font-semibold uppercase tracking-wide">
+                                Custom
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {indices.filter(s => !AVAILABLE_INDICES.find(i => i.symbol === s)).map(sym => (
+                                    <div key={sym}
+                                         className="flex items-center gap-1 bg-slate-700/50
+                                                    border border-slate-600/50 rounded-lg px-2 py-1">
+                                        <span className="text-[10px] text-slate-300 font-semibold">{sym}</span>
+                                        <button onClick={() => toggleIndex(sym)}
+                                                className="text-slate-500 hover:text-red-400 text-xs leading-none">
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1056,14 +1164,17 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
                     <div className="h-full flex flex-col items-center justify-center
                                     text-slate-600 text-xs gap-2">
                         <span className="text-2xl opacity-30">📊</span>
-                        <span>Hover header, click ⚙ to select indices</span>
+                        <span>Hover header, click ⚙ to manage indices</span>
                     </div>
                 ) : (
-                    <div className={`grid ${cols} gap-2 p-3`}>
+                    <div className={`grid ${cols} gap-2 p-3`}
+                         style={{ transform: `scale(${cardScale})`, transformOrigin: "top left",
+                             width: `${(100/cardScale).toFixed(1)}%` }}>
                         {indices.map(sym => {
-                            const idx = AVAILABLE_INDICES.find(i => i.symbol === sym);
-                            if (!idx) return null;
-                            return <IndexCard key={sym} symbol={idx.symbol} name={idx.name} short={idx.short} />;
+                            const preset = AVAILABLE_INDICES.find(i => i.symbol === sym);
+                            return <IndexCard key={sym} symbol={sym}
+                                              name={preset?.name || sym}
+                                              short={preset?.short || sym} />;
                         })}
                     </div>
                 )}
@@ -1081,9 +1192,11 @@ export default function StocksMarketPage() {
     const [holdingsMap,      setHoldingsMap]       = useState({});
     const [portfolioSummary, setPortfolioSummary]  = useState(null);
     const [chartStock,       setChartStock]        = useState(null);
-    const [sections,         setSections]          = useState(null); // null = not yet loaded
+    const [sections,         setSections]          = useState(null);
     const [secDragIdx,       setSecDragIdx]        = useState(null);
     const [secOverIdx,       setSecOverIdx]        = useState(null);
+    const [boardZoom,        setBoardZoom]         = useState(1);
+    const canvasRef = useRef(null);
     const toast = useToast();
 
     // -- Load board from API + initialize sections -----------------------------
@@ -1093,11 +1206,26 @@ export default function StocksMarketPage() {
                 const p = res.data || [];
                 setPinned(p);
                 setSections(prev => {
-                    if (prev !== null) return prev;         // already have saved layout
-                    const saved = loadSections();
-                    if (saved && saved.length > 0) return saved;  // restore from localStorage
-                    if (p.length === 0) return [];              // empty board
-                    return makeDefaultSections(p);              // first-time migration
+                    if (prev !== null) return prev;
+                    const meta = loadSectionsWithMeta();
+                    if (meta && meta.sections && meta.sections.length > 0) {
+                        // Option D: scale positions from saved canvas width to current width
+                        const savedW   = meta.canvasWidth;
+                        const currentW = canvasRef.current?.offsetWidth || window.innerWidth - 220;
+                        if (savedW && savedW !== currentW && Math.abs(savedW - currentW) > 50) {
+                            const ratio = currentW / savedW;
+                            return meta.sections.map(s => ({
+                                ...s,
+                                x: Math.round((s.x || 0) * ratio),
+                                y: Math.round((s.y || 0) * ratio),
+                                w: Math.max(200, Math.round((s.w || 420) * ratio)),
+                                h: Math.max(120, Math.round((s.h || 260) * ratio)),
+                            }));
+                        }
+                        return meta.sections;
+                    }
+                    if (p.length === 0) return [];
+                    return makeDefaultSections(p);
                 });
             })
             .catch(() => {});
@@ -1108,9 +1236,12 @@ export default function StocksMarketPage() {
         return () => window.removeEventListener("ms_board_updated", loadBoard);
     }, []);
 
-    // Persist sections to localStorage whenever they change
+    // Persist sections — save canvas width alongside so scaling works on next load
     useEffect(() => {
-        if (sections !== null) saveSections(sections);
+        if (sections !== null) {
+            const w = canvasRef.current?.offsetWidth || window.innerWidth - 220;
+            saveSections(sections, w);
+        }
     }, [sections]);
 
     // -- Holdings map ----------------------------------------------------------
@@ -1269,6 +1400,33 @@ export default function StocksMarketPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Zoom controls */}
+                    <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
+                                    rounded-xl px-2.5 py-1.5">
+                        <button
+                            onClick={() => setBoardZoom(z => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
+                            disabled={boardZoom <= 0.3}
+                            className="w-5 h-5 flex items-center justify-center text-slate-400
+                                       hover:text-white disabled:opacity-30 text-xs font-bold
+                                       transition-colors">
+                            −
+                        </button>
+                        <button
+                            onClick={() => setBoardZoom(1)}
+                            title="Reset zoom"
+                            className="text-[10px] text-slate-400 hover:text-white transition-colors
+                                       font-mono w-8 text-center">
+                            {Math.round(boardZoom * 100)}%
+                        </button>
+                        <button
+                            onClick={() => setBoardZoom(z => Math.min(1.5, parseFloat((z + 0.1).toFixed(1))))}
+                            disabled={boardZoom >= 1.5}
+                            className="w-5 h-5 flex items-center justify-center text-slate-400
+                                       hover:text-white disabled:opacity-30 text-xs font-bold
+                                       transition-colors">
+                            ＋
+                        </button>
+                    </div>
                     <button
                         onClick={addIndexSection}
                         className="flex items-center gap-2 px-4 py-2
@@ -1314,37 +1472,44 @@ export default function StocksMarketPage() {
                 const canvasH = sections.reduce((max, s) =>
                     Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
                 return (
-                    <div className="relative w-full select-none"
-                         style={{ height: canvasH + "px" }}>
-                        {sections.map((section) =>
-                            section.type === "index" ? (
-                                <IndexSection
-                                    key={section.id}
-                                    section={section}
-                                    onUpdateSection={updateSection}
-                                    onRemoveSection={removeSection}
-                                    isOnlySection={sections.length === 1}
-                                />
-                            ) : (
-                                <BoardSection
-                                    key={section.id}
-                                    section={section}
-                                    allPinned={pinned}
-                                    prices={prices}
-                                    holdingsMap={holdingsMap}
-                                    draggingSection={false}
-                                    overSection={false}
-                                    onSectionDragStart={() => {}}
-                                    onSectionDragEnd={() => {}}
-                                    onSectionDragOver={() => {}}
-                                    onSectionDrop={() => {}}
-                                    onUpdateSection={updateSection}
-                                    onRemoveSection={removeSection}
-                                    onOpenStock={openStock}
-                                    isOnlySection={sections.length === 1}
-                                />
-                            )
-                        )}
+                    <div ref={canvasRef} className="relative w-full select-none overflow-hidden"
+                         style={{ height: (canvasH * boardZoom) + "px" }}>
+                        <div style={{
+                            transform: `scale(${boardZoom})`,
+                            transformOrigin: "top left",
+                            width: `${(100 / boardZoom).toFixed(2)}%`,
+                            height: canvasH + "px",
+                        }}>
+                            {sections.map((section) =>
+                                section.type === "index" ? (
+                                    <IndexSection
+                                        key={section.id}
+                                        section={section}
+                                        onUpdateSection={updateSection}
+                                        onRemoveSection={removeSection}
+                                        isOnlySection={sections.length === 1}
+                                    />
+                                ) : (
+                                    <BoardSection
+                                        key={section.id}
+                                        section={section}
+                                        allPinned={pinned}
+                                        prices={prices}
+                                        holdingsMap={holdingsMap}
+                                        draggingSection={false}
+                                        overSection={false}
+                                        onSectionDragStart={() => {}}
+                                        onSectionDragEnd={() => {}}
+                                        onSectionDragOver={() => {}}
+                                        onSectionDrop={() => {}}
+                                        onUpdateSection={updateSection}
+                                        onRemoveSection={removeSection}
+                                        onOpenStock={openStock}
+                                        isOnlySection={sections.length === 1}
+                                    />
+                                )
+                            )}
+                        </div>
                     </div>
                 );
             })()}
