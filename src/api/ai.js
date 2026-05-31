@@ -16,7 +16,7 @@ export const extractTradesFromFiles = async (fileItems) => {
     });
     const response = await api.post("/ai/extract-trades", formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 60000,
+        timeout: 600000,
     });
     return response.data;
 };
