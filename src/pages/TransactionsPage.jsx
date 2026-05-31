@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef, useMemo} from "react";
 import {
-    getTransactions, addTransaction, deleteTransaction,
+    getTransactions, addTransaction, deleteTransaction, bulkDeleteTransactions,
     searchStocks, getStockPrice,
 } from "../api/portfolio";
 import StockTransactionPanel from "../components/StockTransactionPanel";
@@ -36,7 +36,7 @@ const today = () => new Date().toISOString().split("T")[0];
 const MONTHS = ["January","February","March","April","May","June",
     "July","August","September","October","November","December"];
 
-// --─ Confirm dialog ----------------------------------------------------------─
+// ─── Confirm dialog ───────────────────────────────────────────────────────────
 function ConfirmDialog({dialog, onConfirm, onCancel}) {
     if (!dialog.open) return null;
     return (
@@ -71,8 +71,8 @@ function ConfirmDialog({dialog, onConfirm, onCancel}) {
     );
 }
 
-// --─ Stock Group Card --------------------------------------------------------─
-function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
+// ─── Stock Group Card ─────────────────────────────────────────────────────────
+function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, selectedIds, onToggleSelect}) {
     const buys  = group.transactions.filter(t => t.type === "BUY");
     const sells = group.transactions.filter(t => t.type === "SELL");
     const totalBought = buys.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
@@ -145,6 +145,12 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
                                 <tr key={tx.id}
                                     className="border-t border-slate-700/30 hover:bg-slate-700/20
                                                transition-colors">
+                                    <td className="px-2 py-3 w-8" onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox"
+                                               checked={selectedIds?.has(tx.id) || false}
+                                               onChange={() => onToggleSelect?.(tx.id)}
+                                               className="w-3.5 h-3.5 accent-blue-500 cursor-pointer" />
+                                    </td>
                                     <td className="px-5 py-3">
                                         <span className={"text-xs font-bold px-2.5 py-1 rounded-lg " +
                                         (isBuy ? "bg-green-900/40 text-green-400"
@@ -209,7 +215,7 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete}) {
     );
 }
 
-// --─ Calendar View ------------------------------------------------------------
+// ─── Calendar View ────────────────────────────────────────────────────────────
 function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
     const [selectedDate,  setSelectedDate]  = useState(null);
     const [showMonthPick, setShowMonthPick] = useState(false);
@@ -511,7 +517,7 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
     );
 }
 
-// --─ Main Page ----------------------------------------------------------------
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TransactionsPage() {
     const [transactions,   setTx]            = useState([]);
     const [loading,        setLoading]        = useState(true);
@@ -522,6 +528,8 @@ export default function TransactionsPage() {
     const [quickAddStock,  setQuickAddStock]  = useState(null);
     const [activeStock,    setActiveStock]    = useState(null);
     const [dialog,         setDialog]         = useState({open: false});
+    const [selectedIds,    setSelectedIds]    = useState(new Set());
+    const [bulkDeleting,   setBulkDeleting]   = useState(false);
     const [calYear,        setCalYear]        = useState(new Date().getFullYear());
     const [calMonth,       setCalMonth]       = useState(new Date().getMonth());
     const [expandedSymbol, setExpanded]       = useState(null);
@@ -593,6 +601,39 @@ export default function TransactionsPage() {
         }
     };
 
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const selectAll = () => {
+        setSelectedIds(new Set(transactions.map(t => t.id)));
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) return;
+        const confirmed = window.confirm(
+            `Delete ${selectedIds.size} transaction${selectedIds.size > 1 ? "s" : ""}? This will recompute your holdings.`
+        );
+        if (!confirmed) return;
+        setBulkDeleting(true);
+        try {
+            await bulkDeleteTransactions([...selectedIds]);
+            toast.success(`Deleted ${selectedIds.size} transactions`);
+            setSelectedIds(new Set());
+            load();
+        } catch {
+            toast.error("Bulk delete failed");
+        } finally {
+            setBulkDeleting(false);
+        }
+    };
+
     const handleExportCSV = () => {
         const rows = transactions.map(t => [
             t.stockSymbol || "", t.type || "", t.quantity || "",
@@ -624,7 +665,28 @@ export default function TransactionsPage() {
                         {transactions.length} total · {groups.length} stocks
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Bulk delete toolbar — appears when rows are selected */}
+                    {selectedIds.size > 0 && (
+                        <div className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/40
+                                        rounded-xl px-3 py-1.5">
+                            <span className="text-blue-300 text-sm font-medium">
+                                {selectedIds.size} selected
+                            </span>
+                            <button
+                                onClick={handleBulkDelete}
+                                disabled={bulkDeleting}
+                                className="flex items-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-700
+                                           disabled:opacity-50 text-white text-xs font-semibold
+                                           rounded-lg transition-colors">
+                                {bulkDeleting ? "Deleting..." : "Delete selected"}
+                            </button>
+                            <button onClick={clearSelection}
+                                    className="text-slate-400 hover:text-white text-xs transition-colors px-1">
+                                ✕
+                            </button>
+                        </div>
+                    )}
                     <button onClick={() => setShowAiImport(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-purple-600
                                        hover:bg-purple-700 text-white text-sm font-semibold
@@ -731,6 +793,8 @@ export default function TransactionsPage() {
                             )}
                             onOpenPanel={openPanel}
                             onAskDelete={askDelete}
+                            selectedIds={selectedIds}
+                            onToggleSelect={toggleSelect}
                         />
                     ))}
                 </div>
@@ -789,7 +853,7 @@ export default function TransactionsPage() {
     );
 }
 
-// --─ Add Transaction Modal ----------------------------------------------------
+// ─── Add Transaction Modal ────────────────────────────────────────────────────
 function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedStock, defaultDate}) {
     const [query,        setQuery]       = useState("");
     const [results,      setResults]     = useState([]);

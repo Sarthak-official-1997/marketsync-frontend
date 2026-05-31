@@ -109,6 +109,7 @@ export const getTransactions   = (page = 0, size = 50) =>
     api.get(`/transactions?page=${page}&size=${size}`);
 export const addTransaction    = (data) => api.post("/transactions", data);
 export const deleteTransaction = (id)   => api.delete(`/transactions/${id}`);
+export const bulkDeleteTransactions = (ids) => api.delete("/transactions/bulk", { data: ids });
 
 // ====================================================================
 // WATCHLIST
