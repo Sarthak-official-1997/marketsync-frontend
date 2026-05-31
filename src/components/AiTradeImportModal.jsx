@@ -429,7 +429,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 justify-center text-2xl">✨</div>
                                 </div>
                                 <h3 className="text-white font-bold text-lg mb-2">
-                                    Analyzing your screenshot
+                                    Analyzing your input file
                                 </h3>
                                 <p className="text-slate-400 text-sm mb-1">
                                     AI is reading your trade details...
