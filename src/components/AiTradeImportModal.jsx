@@ -69,6 +69,17 @@ export default function AiTradeImportModal({ onClose, onImported }) {
     const fileInputRef = useRef(null);
     const toast = useToast();
 
+    // -- Trade editing helpers -----------------------------------------------
+    const toggleInclude = (id) =>
+        setEditableTrades(prev =>
+            prev.map(t => t._id === id ? { ...t, _include: !t._include } : t)
+        );
+
+    const updateTrade = (id, field, value) =>
+        setEditableTrades(prev =>
+            prev.map(t => t._id === id ? { ...t, [field]: value } : t)
+        );
+
     // -- File selection ------------------------------------------------------
 
     const handleFiles = async (newFiles) => {
@@ -582,9 +593,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                         type="number"
                                                         value={trade.quantity || ""}
                                                         onChange={e => updateTrade(trade._id,
-                                                            "quantity", e.target.value)}
+                                                            "quantity", Math.max(1, parseInt(e.target.value) || 1))}
                                                         placeholder="0"
                                                         min="1"
+                                                        step="1"
                                                         className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"

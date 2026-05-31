@@ -297,10 +297,10 @@ export default function StockTransactionPanel({ stock, onClose, onChanged, onDel
                                     <label className="text-xs text-slate-400 block mb-1">
                                         Quantity *
                                     </label>
-                                    <input type="number" min="0.01" step="0.01"
+                                    <input type="number" min="1" step="1"
                                            value={form.quantity}
                                            onChange={e => setForm(f => ({
-                                               ...f, quantity: e.target.value
+                                               ...f, quantity: Math.max(1, parseInt(e.target.value) || "")
                                            }))}
                                            placeholder="e.g. 10"
                                            className="w-full bg-slate-700 border border-slate-600
