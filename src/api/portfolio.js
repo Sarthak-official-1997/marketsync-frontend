@@ -91,6 +91,8 @@ export const getStockReturns   = (symbol, exchange) =>
 export const getStockChart     = (symbol, exchange, interval, range) =>
     api.get(`/market-data/chart/${symbol}?exchange=${exchange}&interval=${interval}&range=${range}`);
 export const getIndices        = () => api.get("/market-data/indices");
+export const getIndexConstituents = (symbol) =>
+    api.get(`/market-data/index-constituents/${encodeURIComponent(symbol)}`);
 export const getIndexChart     = (symbol, interval = "5m", range = "1d") =>
     api.get(`/market-data/index-chart/${encodeURIComponent(symbol)}`, { params: { interval, range } });
 

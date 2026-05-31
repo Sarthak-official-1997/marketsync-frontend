@@ -337,7 +337,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                     <input
                                         ref={fileInputRef}
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/*,.pdf,.csv,.txt,.xls,.xlsx"
                                         className="hidden"
                                         onChange={e => handleFiles(e.target.files)}
                                     />

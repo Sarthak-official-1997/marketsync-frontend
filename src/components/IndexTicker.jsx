@@ -23,7 +23,7 @@ const TV_URL = {
     "^INDIAVIX":  "https://www.tradingview.com/chart/?symbol=NSE%3AINDIAVIX",
 };
 
-// -- Index Modal — clean info + redirect, no broken embed ------------─
+// ── Index Modal — clean info + redirect, no broken embed ─────────────
 function IndexModal({ idx, onClose }) {
     const up     = parseFloat(idx.changePercent || 0) >= 0;
     const tvUrl  = TV_URL[idx.symbol] || "https://www.tradingview.com";
@@ -35,11 +35,11 @@ function IndexModal({ idx, onClose }) {
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
              onClick={onClose}>
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
             <div
-                className="relative z-50 bg-slate-900 border border-slate-700
+                className="relative z-[201] bg-slate-900 border border-slate-700
                            rounded-2xl shadow-2xl w-full max-w-sm"
                 onClick={e => e.stopPropagation()}>
 

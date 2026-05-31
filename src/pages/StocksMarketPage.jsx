@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { searchStocks, addToWatchlist, getStockPrice,
     getStockChart, getHoldings, getPortfolioSummary, getIndexChart, getIndices } from "../api/portfolio";
+import IndexConstituentsModal from "../components/IndexConstituentsModal";
 import StockDetailModal  from "../components/StockDetailModal";
 import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
@@ -451,7 +453,7 @@ function IndexChart({ symbol, up }) {
 }
 
 // -- IndexCard — single index display card for inside IndexSection -----------
-function IndexCard({ symbol, name, short }) {
+function IndexCard({ symbol, name, short, onClick }) {
     const [data, setData] = useState(null);
 
     const fetchData = () => {
@@ -474,7 +476,10 @@ function IndexCard({ symbol, name, short }) {
     const val = data?.value;
 
     return (
-        <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-1.5">
+        <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-1.5
+                        cursor-pointer hover:border-blue-500/40 hover:bg-slate-800
+                        transition-all group"
+             onClick={onClick}>
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-white font-bold text-xs">{short}</p>
@@ -496,6 +501,10 @@ function IndexCard({ symbol, name, short }) {
                 <span className={`text-xs font-semibold ${up ? "text-green-400" : "text-red-400"}`}>
                     {up ? "+" : ""}{chg.toFixed(2)}%
                 </span>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[9px] text-blue-400">View constituents</span>
+                <span className="text-[9px] text-blue-400">›</span>
             </div>
         </div>
     );
@@ -923,9 +932,10 @@ function BoardSection({
 
 // -- IndexSection — freeform board section for index charts ------------------
 function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection }) {
-    const [showPicker,   setShowPicker]   = useState(false);
-    const [customSymbol, setCustomSymbol] = useState("");
-    const [customName,   setCustomName]   = useState("");
+    const [showPicker,      setShowPicker]      = useState(false);
+    const [customSymbol,    setCustomSymbol]    = useState("");
+    const [customName,      setCustomName]      = useState("");
+    const [constituentSym,  setConstituentSym]  = useState(null);
     const x = section.x || 0, y = section.y || 0;
     const w = section.w || 460, h = section.h || 380;
     const sectionRef = useRef(null);
@@ -1157,6 +1167,13 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
                 </div>
             )}
 
+            {constituentSym && createPortal(
+                <IndexConstituentsModal
+                    symbol={constituentSym}
+                    onClose={() => setConstituentSym(null)}
+                />,
+                document.body
+            )}
             {/* Index cards */}
             <div style={{ flex:"1 1 0", overflowY:"auto", overflowX:"hidden", minHeight:0,
                 scrollbarWidth:"thin", scrollbarColor:"#334155 transparent" }}>
@@ -1174,7 +1191,8 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
                             const preset = AVAILABLE_INDICES.find(i => i.symbol === sym);
                             return <IndexCard key={sym} symbol={sym}
                                               name={preset?.name || sym}
-                                              short={preset?.short || sym} />;
+                                              short={preset?.short || sym}
+                                              onClick={() => setConstituentSym(sym)} />;
                         })}
                     </div>
                 )}
@@ -1514,12 +1532,13 @@ export default function StocksMarketPage() {
                 );
             })()}
 
-            {/* -- Stock chart modal -- */}
-            {chartStock && (
+            {/* -- Stock chart modal — portal so it renders above all layout layers -- */}
+            {chartStock && createPortal(
                 <StockDetailModal
                     stock={chartStock}
                     onClose={() => setChartStock(null)}
-                />
+                />,
+                document.body
             )}
         </div>
     );

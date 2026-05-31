@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import StockTransactionPanel from "./StockTransactionPanel";
 import PriceAlertModal       from "./PriceAlertModal";
 import { getHoldings }       from "../api/portfolio";
@@ -245,7 +244,7 @@ export default function StockDetailModal({ stock, onClose }) {
     // ── RENDER ─────────────────────────────────────────────────────────────────
     // FIX: wrap everything in <> so txPanel and alertModal can be siblings of
     // the main modal div within the same return statement.
-    return createPortal(
+    return (
         <>
             <div
                 className="fixed inset-0 z-[300] flex items-center justify-center"
@@ -773,5 +772,5 @@ export default function StockDetailModal({ stock, onClose }) {
                 />
             )}
         </>
-        , document.body);
+    );
 }
