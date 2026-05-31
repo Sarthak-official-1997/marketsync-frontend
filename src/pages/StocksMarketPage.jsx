@@ -16,11 +16,11 @@ import RecentStocksMarquee from "../components/RecentStocksMarquee";
 
 // -- Available indices for board sections ------------------------------------
 const AVAILABLE_INDICES = [
-    { symbol: "^NSEI",      name: "NIFTY 50",        short: "NIFTY"     },
+    { symbol: "^NSEI",      name: "NIFTY 50",         short: "NIFTY"     },
     { symbol: "^BSESN",     name: "SENSEX",           short: "SENSEX"    },
     { symbol: "^NSEBANK",   name: "BANK NIFTY",       short: "BANKNIFTY" },
     { symbol: "^NSEMDCP50", name: "MIDCAP SELECT",    short: "MIDCAP"    },
-    { symbol: "^NSESMCP",   name: "SMALLCAP 100",     short: "SMALLCAP"  },
+    { symbol: "^CNXSC",     name: "SMALLCAP 100",     short: "SMALLCAP" },
     { symbol: "^INDIAVIX",  name: "India VIX",        short: "VIX"       },
     { symbol: "^CNXIT",     name: "NIFTY IT",         short: "NIFTYIT"   },
 ];
