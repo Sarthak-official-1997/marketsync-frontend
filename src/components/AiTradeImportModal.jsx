@@ -330,7 +330,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                         "transition-all " +
                                         (dragOver
                                             ? "border-purple-500 bg-purple-900/20"
-                                            : imageFile
+                                            : fileItems.length > 0
                                                 ? "border-green-500/50 bg-green-900/10"
                                                 : "border-slate-600 hover:border-slate-500 hover:bg-slate-800/50")
                                     }>
@@ -339,15 +339,15 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                         type="file"
                                         accept="image/*"
                                         className="hidden"
-                                        onChange={e => handleFile(e.target.files[0])}
+                                        onChange={e => handleFiles(e.target.files)}
                                     />
 
-                                    {imagePreview ? (
+                                    {fileItems[0]?.preview ? (
                                         <div>
-                                            <img src={imagePreview} alt="Preview"
+                                            <img src={fileItems[0]?.preview} alt="Preview"
                                                  className="max-h-48 mx-auto rounded-xl mb-3 object-contain" />
                                             <p className="text-green-400 text-sm font-medium">
-                                                ✓ {imageFile?.name}
+                                                ✓ {fileItems[0]?.file?.name}
                                             </p>
                                             <p className="text-slate-500 text-xs mt-1">
                                                 Click to change image
@@ -397,8 +397,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 )}
 
                                 <button
-                                    onClick={analyzeImage}
-                                    disabled={!imageFile}
+                                    onClick={analyzeFiles}
+                                    disabled={fileItems.length === 0}
                                     className="w-full mt-4 py-3 bg-purple-600 hover:bg-purple-700
                                     disabled:opacity-40 disabled:cursor-not-allowed
                                     text-white font-bold rounded-xl transition-colors">
@@ -437,8 +437,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 <p className="text-slate-600 text-xs">
                                     Usually takes 3-6 seconds
                                 </p>
-                                {imagePreview && (
-                                    <img src={imagePreview} alt="Analyzing"
+                                {fileItems[0]?.preview && (
+                                    <img src={fileItems[0]?.preview} alt="Analyzing"
                                          className="max-h-32 mx-auto rounded-xl mt-6 opacity-40 object-contain" />
                                 )}
                             </div>
