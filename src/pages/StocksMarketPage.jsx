@@ -68,12 +68,18 @@ function loadSectionsWithMeta() {
 }
 
 function makeDefaultSections(pinned) {
+    // Use vw-relative widths so default layout works on any screen.
+    // canvasW is estimated; ResizeObserver will correct on first load if needed.
+    const vw = Math.max(800, window.innerWidth - 240); // subtract sidebar
+    const col1w = Math.round(vw * 0.55);
+    const col2w = Math.round(vw * 0.40);
+    const gap   = Math.round(vw * 0.02);
     return [
         {
             id:      "sec_default",
             title:   "My Board",
             symbols: pinned.map(s => s.symbol),
-            x: 0, y: 0, w: 560, h: 320,
+            x: 0, y: 0, w: col1w, h: 340,
             cardScale: 1,
         },
         {
@@ -81,7 +87,7 @@ function makeDefaultSections(pinned) {
             type:    "index",
             title:   "Market Indices",
             indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^NSESMCP"],
-            x: 580, y: 0, w: 460, h: 380,
+            x: col1w + gap, y: 0, w: col2w, h: 420,
             cardScale: 1,
         },
     ];
@@ -1215,7 +1221,9 @@ export default function StocksMarketPage() {
     const [secDragIdx,       setSecDragIdx]        = useState(null);
     const [secOverIdx,       setSecOverIdx]        = useState(null);
     const [boardZoom,        setBoardZoom]         = useState(1);
-    const canvasRef = useRef(null);
+    const [canvasWidth,      setCanvasWidth]       = useState(null);
+    const canvasRef     = useRef(null);
+    const scalingDone   = useRef(false); // prevent double-scaling on re-render
     const toast = useToast();
 
     // -- Load board from API + initialize sections -----------------------------
@@ -1228,20 +1236,8 @@ export default function StocksMarketPage() {
                     if (prev !== null) return prev;
                     const meta = loadSectionsWithMeta();
                     if (meta && meta.sections && meta.sections.length > 0) {
-                        // Option D: scale positions from saved canvas width to current width
-                        const savedW   = meta.canvasWidth;
-                        const currentW = canvasRef.current?.offsetWidth || window.innerWidth - 220;
-                        if (savedW && savedW !== currentW && Math.abs(savedW - currentW) > 50) {
-                            const ratio = currentW / savedW;
-                            return meta.sections.map(s => ({
-                                ...s,
-                                x: Math.round((s.x || 0) * ratio),
-                                y: Math.round((s.y || 0) * ratio),
-                                w: Math.max(200, Math.round((s.w || 420) * ratio)),
-                                h: Math.max(120, Math.round((s.h || 260) * ratio)),
-                            }));
-                        }
-                        return meta.sections;
+                        // Store raw sections — scaling applied after canvas mounts
+                        return { _raw: meta.sections, _savedW: meta.canvasWidth };
                     }
                     if (p.length === 0) return [];
                     return makeDefaultSections(p);
@@ -1249,19 +1245,53 @@ export default function StocksMarketPage() {
             })
             .catch(() => {});
 
+    // Apply proportional scaling once canvas is mounted and we know its real width
+    useEffect(() => {
+        if (!sections || !sections._raw || scalingDone.current) return;
+        if (!canvasWidth) return; // wait for ResizeObserver to fire
+
+        const savedW   = sections._savedW;
+        const currentW = canvasWidth;
+        scalingDone.current = true;
+
+        if (savedW && Math.abs(savedW - currentW) > 50) {
+            const ratio = currentW / savedW;
+            setSections(sections._raw.map(s => ({
+                ...s,
+                x: Math.max(0, Math.round((s.x || 0) * ratio)),
+                y: Math.max(0, Math.round((s.y || 0) * ratio)),
+                w: Math.max(200, Math.round((s.w || 420) * ratio)),
+                h: Math.max(120, Math.round((s.h || 260) * ratio)),
+            })));
+        } else {
+            setSections(sections._raw);
+        }
+    }, [sections, canvasWidth]);
+
     useEffect(() => {
         loadBoard();
         window.addEventListener("ms_board_updated", loadBoard);
         return () => window.removeEventListener("ms_board_updated", loadBoard);
     }, []);
 
-    // Persist sections — save canvas width alongside so scaling works on next load
+    // ResizeObserver — tracks exact canvas width in real px after layout
     useEffect(() => {
-        if (sections !== null) {
-            const w = canvasRef.current?.offsetWidth || window.innerWidth - 220;
-            saveSections(sections, w);
+        if (!canvasRef.current) return;
+        const ro = new ResizeObserver(entries => {
+            const w = entries[0]?.contentRect?.width;
+            if (w && w > 100) setCanvasWidth(Math.round(w));
+        });
+        ro.observe(canvasRef.current);
+        return () => ro.disconnect();
+    }, [canvasRef.current]);
+
+    // Persist sections — save real canvas width alongside layout
+    useEffect(() => {
+        if (sections !== null && !sections._raw) {
+            const w = canvasWidth || canvasRef.current?.offsetWidth;
+            if (w) saveSections(sections, w);
         }
-    }, [sections]);
+    }, [sections, canvasWidth]);
 
     // -- Holdings map ----------------------------------------------------------
     useEffect(() => {
@@ -1415,7 +1445,7 @@ export default function StocksMarketPage() {
                         </div>
                     )}
                     <p className="text-xs text-slate-600 hidden sm:block">
-                        Drag headers to reorder sections · Hover header for controls
+                        Drag section headers to move · Pull edges to resize
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1487,7 +1517,7 @@ export default function StocksMarketPage() {
                         ＋ Add First Section
                     </button>
                 </div>
-            ) : (() => {
+            ) : sections._raw ? null : (() => {
                 const canvasH = sections.reduce((max, s) =>
                     Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
                 return (
