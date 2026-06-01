@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect }     from "react";
 import { ThemeProvider }   from "./context/ThemeContext";
 import { AuthProvider }    from "./context/AuthContext";
@@ -47,6 +47,8 @@ import AdminAiReportPage from "./pages/AdminAiReportPage";
 
 function AdminRoute({ children }) {
     const { user } = useAuth();
+    const location = useLocation();
+    const locationKey = location.pathname;
     if (!user || (user.role !== "ADMIN" && user.role !== "CREATOR"))
         return <Navigate to="/" replace />;
     return children;
@@ -62,15 +64,25 @@ function CreatorRoute({ children }) {
 // -- App shell ----------------------------------------------------------------─
 
 function AppShell() {
+    const location = useLocation();
+    const locationKey = location.pathname;
+
     const [portfolioSummary, setPortfolioSummary] = useState(null);
-    const [pendingNotifs,    setPendingNotifs]    = useState([]);
-    const [notifsChecked,    setNotifsChecked]    = useState(false);
-    const [showWelcome,      setShowWelcome]      = useState(false);
+    const [pendingNotifs, setPendingNotifs] = useState([]);
+    const [notifsChecked, setNotifsChecked] = useState(false);
+    const [showWelcome, setShowWelcome] = useState(false);
     const { user } = useAuth();
 
     useEffect(() => {
-        if (user?.firstLogin) setShowWelcome(true);
-    }, [user?.firstLogin]);
+        if (!user) return;
+        // Only show welcome if:
+        // 1. Backend flagged this as first login AND
+        // 2. We haven't already shown it (localStorage guard)
+        const key = `ms_welcomed_${user.id || user.username}`;
+        if (user?.firstLogin && !localStorage.getItem(key)) {
+            setShowWelcome(true);
+        }
+    }, [user?.id]);
 
     useEffect(() => {
         if (!user) return;
@@ -122,35 +134,35 @@ function AppShell() {
                     {/* -- ADMIN -- */}
                     <Route path="/admin" element={
                         <AdminRoute>
-                            <ErrorBoundary fallbackTitle="Admin dashboard failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Admin dashboard failed to load">
                                 <AdminDashboardPage />
                             </ErrorBoundary>
                         </AdminRoute>
                     } />
                     <Route path="/admin/clients" element={
                         <AdminRoute>
-                            <ErrorBoundary fallbackTitle="Client list failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Client list failed to load">
                                 <AdminClientsPage />
                             </ErrorBoundary>
                         </AdminRoute>
                     } />
                     <Route path="/admin/clients/:clientId" element={
                         <AdminRoute>
-                            <ErrorBoundary fallbackTitle="Client detail failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Client detail failed to load">
                                 <AdminClientDetailPage />
                             </ErrorBoundary>
                         </AdminRoute>
                     } />
                     <Route path="/admin/analytics" element={
                         <AdminRoute>
-                            <ErrorBoundary fallbackTitle="Analytics failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Analytics failed to load">
                                 <AdminAnalyticsPage />
                             </ErrorBoundary>
                         </AdminRoute>
                     } />
                     <Route path="/admin/users" element={
                         <CreatorRoute>
-                            <ErrorBoundary fallbackTitle="User management failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="User management failed to load">
                                 <AdminUserManagementPage />
                             </ErrorBoundary>
                         </CreatorRoute>
@@ -158,56 +170,56 @@ function AppShell() {
 
                     {/* -- STOCKS -- */}
                     <Route path="/stocks" element={
-                        <ErrorBoundary fallbackTitle="Stock market failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Stock market failed to load">
                             <StocksMarketPage />
                         </ErrorBoundary>
                     } />
                     <Route path="/stocks/holdings" element={
-                        <ErrorBoundary fallbackTitle="Holdings failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Holdings failed to load">
                             <HoldingsPage defaultView="stocks" />
                         </ErrorBoundary>
                     } />
                     <Route path="/stocks/transactions" element={
-                        <ErrorBoundary fallbackTitle="Transactions failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Transactions failed to load">
                             <TransactionsPage />
                         </ErrorBoundary>
                     } />
                     <Route path="/stocks/watchlist" element={
-                        <ErrorBoundary fallbackTitle="Watchlist failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Watchlist failed to load">
                             <WatchlistPage defaultTab="stocks" />
                         </ErrorBoundary>
                     } />
                     <Route path="/stocks/alerts" element={
-                        <ErrorBoundary fallbackTitle="Alerts failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Alerts failed to load">
                             <AlertsPage />
                         </ErrorBoundary>
                     } />
 
                     {/* -- MUTUAL FUNDS -- */}
                     <Route path="/mf" element={
-                        <ErrorBoundary fallbackTitle="MF market failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="MF market failed to load">
                             <MfMarketPage />
                         </ErrorBoundary>
                     } />
                     <Route path="/mf/holdings" element={
-                        <ErrorBoundary fallbackTitle="MF holdings failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="MF holdings failed to load">
                             <HoldingsPage defaultView="mf" />
                         </ErrorBoundary>
                     } />
                     <Route path="/mf/transactions" element={
-                        <ErrorBoundary fallbackTitle="MF transactions failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="MF transactions failed to load">
                             <MutualFundsPage defaultTab="history" />
                         </ErrorBoundary>
                     } />
                     <Route path="/mf/watchlist" element={
-                        <ErrorBoundary fallbackTitle="MF watchlist failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="MF watchlist failed to load">
                             <WatchlistPage defaultTab="mf" />
                         </ErrorBoundary>
                     } />
 
                     {/* -- COMBINED -- */}
                     <Route path="/portfolio" element={
-                        <ErrorBoundary fallbackTitle="Combined portfolio failed to load">
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Combined portfolio failed to load">
                             <CombinedPortfolio />
                         </ErrorBoundary>
                     } />
@@ -215,7 +227,7 @@ function AppShell() {
                     {/* -- NOTIFICATIONS (CREATOR only) -- */}
                     <Route path="/admin/notifications" element={
                         <CreatorRoute>
-                            <ErrorBoundary fallbackTitle="Notifications failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Notifications failed to load">
                                 <AdminNotificationsPage />
                             </ErrorBoundary>
                         </CreatorRoute>
@@ -224,7 +236,7 @@ function AppShell() {
                     {/* -- CLIENT VIEW / IMPERSONATION (CREATOR only) -- */}
                     <Route path="/admin/clients/:clientId/view" element={
                         <CreatorRoute>
-                            <ErrorBoundary fallbackTitle="Client view failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Client view failed to load">
                                 <AdminClientViewPage />
                             </ErrorBoundary>
                         </CreatorRoute>
@@ -240,7 +252,7 @@ function AppShell() {
                     {/* -- AI REPORT (CREATOR only) -- */}
                     <Route path="/admin/ai-report" element={
                         <CreatorRoute>
-                            <ErrorBoundary fallbackTitle="AI report failed to load">
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="AI report failed to load">
                                 <AdminAiReportPage />
                             </ErrorBoundary>
                         </CreatorRoute>
@@ -263,7 +275,11 @@ function AppShell() {
             {showWelcome && (
                 <WelcomeModal
                     user={user}
-                    onClose={() => setShowWelcome(false)}
+                    onClose={() => {
+                        const key = `ms_welcomed_${user?.id || user?.username}`;
+                        localStorage.setItem(key, "1");
+                        setShowWelcome(false);
+                    }}
                 />
             )}
         </PasskeyBlocker>

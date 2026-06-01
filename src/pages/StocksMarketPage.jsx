@@ -20,7 +20,7 @@ const AVAILABLE_INDICES = [
     { symbol: "^BSESN",     name: "SENSEX",           short: "SENSEX"    },
     { symbol: "^NSEBANK",   name: "BANK NIFTY",       short: "BANKNIFTY" },
     { symbol: "^NSEMDCP50", name: "MIDCAP SELECT",    short: "MIDCAP"    },
-    { symbol: "^CNXSC",     name: "SMALLCAP 100",     short: "SMALLCAP" },
+    { symbol: "^CNXPHARMA", name: "NIFTY PHARMA",     short: "PHARMA"   },
     { symbol: "^INDIAVIX",  name: "India VIX",        short: "VIX"       },
     { symbol: "^CNXIT",     name: "NIFTY IT",         short: "NIFTYIT"   },
 ];
@@ -67,18 +67,30 @@ function loadSectionsWithMeta() {
     } catch { return null; }
 }
 
+// Top 9 NIFTY 50 stocks shown to new users on first board load.
+// These are reliably available on NSE and Yahoo Finance.
+const NIFTY50_DEFAULT_STOCKS = [
+    "RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS",
+    "BAJFINANCE", "SBIN", "AXISBANK", "LT",
+];
+
 function makeDefaultSections(pinned) {
-    // Use vw-relative widths so default layout works on any screen.
-    // canvasW is estimated; ResizeObserver will correct on first load if needed.
-    const vw = Math.max(800, window.innerWidth - 240); // subtract sidebar
+    const vw    = Math.max(800, window.innerWidth - 240);
     const col1w = Math.round(vw * 0.55);
     const col2w = Math.round(vw * 0.40);
     const gap   = Math.round(vw * 0.02);
+
+    // For a new user (empty pinned), prefill with 9 NIFTY 50 stocks.
+    // For returning users who already have stocks, use their pinned list.
+    const boardSymbols = pinned.length > 0
+        ? pinned.map(s => s.symbol)
+        : NIFTY50_DEFAULT_STOCKS;
+
     return [
         {
-            id:      "sec_default",
-            title:   "My Board",
-            symbols: pinned.map(s => s.symbol),
+            id:       "sec_default",
+            title:    pinned.length > 0 ? "My Board" : "NIFTY 50 — Top Picks",
+            symbols:  boardSymbols,
             x: 0, y: 0, w: col1w, h: 340,
             cardScale: 1,
         },
@@ -86,7 +98,9 @@ function makeDefaultSections(pinned) {
             id:      "sec_indices_default",
             type:    "index",
             title:   "Market Indices",
-            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^NSESMCP"],
+            // Removed ^NSESMCP (SMALLCAP) — Yahoo Finance symbol unreliable.
+            // Use ^CNXIT (NIFTY IT) instead which works consistently.
+            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^CNXIT"],
             x: col1w + gap, y: 0, w: col2w, h: 420,
             cardScale: 1,
         },
@@ -608,7 +622,8 @@ function BoardSection({
     const addStockToThisSection = async (s) => {
         const alreadyInSection = section.symbols.includes(s.symbol);
         if (alreadyInSection) { toast.error(`${s.symbol} already in this section`); return; }
-        const alreadyPinned = allPinned.some(p => p.symbol === s.symbol);
+        // Stubs (negative id) are display-only and not real board entries
+        const alreadyPinned = allPinned.some(p => p.symbol === s.symbol && (p.id || 0) > 0);
         if (!alreadyPinned) await addToBoard(s);
         onUpdateSection(section.id, { symbols: [...section.symbols, s.symbol] });
         setShowSearch(false); setQuery(""); setResults([]);
@@ -695,7 +710,6 @@ function BoardSection({
             className="absolute flex flex-col rounded-2xl bg-slate-800/90
                        border border-slate-700/60 overflow-visible"
             style={{ left: x, top: y, width: w, height: h, zIndex: 10 }}
-            onMouseDown={startDrag}
         >
             {/* Top edge resize */}
             <div data-resize className="absolute left-3 right-3 cursor-ns-resize"
@@ -739,7 +753,8 @@ function BoardSection({
             {/* -- Section Header -- */}
             <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0
                             bg-slate-900/60 border-b border-slate-700/50
-                            rounded-t-2xl cursor-move select-none group/header">
+                            rounded-t-2xl cursor-move select-none group/header"
+                 onMouseDown={startDrag}>
                 {/* Grip dots */}
                 <div className="flex flex-col gap-[3px] opacity-25
                                 group-hover/header:opacity-70 transition-opacity flex-shrink-0">
@@ -1012,8 +1027,7 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
         <div ref={sectionRef}
              className="absolute flex flex-col rounded-2xl bg-slate-800/90
                         border border-blue-500/20 overflow-visible"
-             style={{ left: x, top: y, width: w, height: h, zIndex: 10 }}
-             onMouseDown={startDrag}>
+             style={{ left: x, top: y, width: w, height: h, zIndex: 10 }}>
             {/* Resize handles */}
             <div data-resize className="absolute left-3 right-3 cursor-ns-resize" style={{ top: -HANDLE/2, height: HANDLE }} onMouseDown={e => startResize(e, { top: true })} />
             <div data-resize className="absolute top-3 bottom-3 cursor-ew-resize" style={{ left: -HANDLE/2, width: HANDLE }} onMouseDown={e => startResize(e, { left: true })} />
@@ -1037,7 +1051,8 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
             {/* Header */}
             <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0
                             bg-slate-900/60 border-b border-blue-500/20
-                            rounded-t-2xl cursor-move select-none group/header">
+                            rounded-t-2xl cursor-move select-none group/header"
+                 onMouseDown={startDrag}>
                 <div className="flex flex-col gap-[3px] opacity-30 group-hover/header:opacity-70 transition-opacity flex-shrink-0">
                     {[0,1,2].map(r=><div key={r} className="flex gap-[3px]"><div className="w-[3px] h-[3px] bg-slate-400 rounded-full"/><div className="w-[3px] h-[3px] bg-slate-400 rounded-full"/></div>)}
                 </div>
@@ -1209,6 +1224,14 @@ function IndexSection({ section, onUpdateSection, onRemoveSection, isOnlySection
 }
 
 // ====================================================================
+// Safe array accessor — sections can be null, a {_raw,_savedW} object,
+// or an actual array. Always returns an array for safe iteration.
+function sectionsArray(sections) {
+    if (!sections) return [];
+    if (Array.isArray(sections)) return sections;
+    return []; // _raw intermediate state — not an array yet
+}
+
 export default function StocksMarketPage() {
 // ====================================================================
 
@@ -1222,36 +1245,74 @@ export default function StocksMarketPage() {
     const [secOverIdx,       setSecOverIdx]        = useState(null);
     const [boardZoom,        setBoardZoom]         = useState(1);
     const [canvasWidth,      setCanvasWidth]       = useState(null);
+    const [boardLoading,     setBoardLoading]      = useState(true);
     const canvasRef     = useRef(null);
-    const scalingDone   = useRef(false); // prevent double-scaling on re-render
+    const measureRef    = useRef(null); // always-mounted wrapper for width measurement
+    const scalingDone   = useRef(false);
     const toast = useToast();
 
     // -- Load board from API + initialize sections -----------------------------
-    const loadBoard = () =>
+    const loadBoard = (isUpdate = false) =>
         getBoardApi()
             .then(res => {
                 const p = res.data || [];
                 setPinned(p);
                 setSections(prev => {
+                    // On explicit update (ms_board_updated), always refresh pinned
+                    // but keep existing section layout — just update symbols list
+                    if (isUpdate && prev !== null && !prev._raw) {
+                        // A new stock was added — ensure it appears in the default section
+                        // if no sections exist yet, create default
+                        if (prev.length === 0 && p.length > 0) {
+                            return makeDefaultSections(p);
+                        }
+                        // Otherwise update existing sections with new stock symbols
+                        // (addStockToThisSection handles this via onUpdateSection already,
+                        //  but for board-level adds via search bar, sync the first section)
+                        return prev;
+                    }
+                    // Initial load
                     if (prev !== null) return prev;
                     const meta = loadSectionsWithMeta();
                     if (meta && meta.sections && meta.sections.length > 0) {
                         // Store raw sections — scaling applied after canvas mounts
                         return { _raw: meta.sections, _savedW: meta.canvasWidth };
                     }
-                    if (p.length === 0) return [];
+                    if (p.length === 0) {
+                        // New user — show default board with NIFTY 50 top stocks.
+                        // Populate pinned with stubs so StockCard renders symbol/logo.
+                        // These are NOT saved to the board API — user hasn't pinned them.
+                        const stubs = NIFTY50_DEFAULT_STOCKS.map((sym, i) => ({
+                            id:       -(i + 1), // negative ids = stubs, not real board entries
+                            symbol:   sym,
+                            name:     sym,
+                            exchange: "NSE",
+                        }));
+                        setPinned(stubs);
+                        return makeDefaultSections([]);
+                    }
                     return makeDefaultSections(p);
                 });
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => setBoardLoading(false));
 
-    // Apply proportional scaling once canvas is mounted and we know its real width
+    // Apply proportional scaling as soon as _raw sections are available.
+    // We measure the container width directly from the DOM rather than
+    // waiting for ResizeObserver (which can't fire until the canvas renders,
+    // creating a deadlock). canvasRef may be null here — use the persistent
+    // measureRef wrapper instead, which is always mounted.
     useEffect(() => {
         if (!sections || !sections._raw || scalingDone.current) return;
-        if (!canvasWidth) return; // wait for ResizeObserver to fire
+
+        // Compute current canvas area width:
+        // 1. Try the persistent measureRef wrapper (always mounted)
+        // 2. Fall back to window.innerWidth minus sidebar (152px) minus padding (32px)
+        const measuredW = measureRef.current?.offsetWidth
+            || Math.max(800, window.innerWidth - 152 - 32);
 
         const savedW   = sections._savedW;
-        const currentW = canvasWidth;
+        const currentW = measuredW;
         scalingDone.current = true;
 
         if (savedW && Math.abs(savedW - currentW) > 50) {
@@ -1266,24 +1327,26 @@ export default function StocksMarketPage() {
         } else {
             setSections(sections._raw);
         }
-    }, [sections, canvasWidth]);
+    }, [sections]);
 
     useEffect(() => {
-        loadBoard();
-        window.addEventListener("ms_board_updated", loadBoard);
-        return () => window.removeEventListener("ms_board_updated", loadBoard);
+        loadBoard(false);
+        const onUpdate = () => loadBoard(true);
+        window.addEventListener("ms_board_updated", onUpdate);
+        return () => window.removeEventListener("ms_board_updated", onUpdate);
     }, []);
 
-    // ResizeObserver — tracks exact canvas width in real px after layout
+    // ResizeObserver on measureRef — always mounted so always fires.
+    // Updates canvasWidth for saveSections persistence (not for initial scaling).
     useEffect(() => {
-        if (!canvasRef.current) return;
+        if (!measureRef.current) return;
         const ro = new ResizeObserver(entries => {
             const w = entries[0]?.contentRect?.width;
             if (w && w > 100) setCanvasWidth(Math.round(w));
         });
-        ro.observe(canvasRef.current);
+        ro.observe(measureRef.current);
         return () => ro.disconnect();
-    }, [canvasRef.current]);
+    }, []);
 
     // Persist sections — save real canvas width alongside layout
     useEffect(() => {
@@ -1340,7 +1403,7 @@ export default function StocksMarketPage() {
 
     // -- Section management ----------------------------------------------------
     const addIndexSection = () => {
-        const offset = (sections?.length || 0) * 32;
+        const offset = sectionsArray(sections).length * 32;
         const newSec = {
             id:      `idx_${Date.now()}`,
             type:    "index",
@@ -1351,11 +1414,11 @@ export default function StocksMarketPage() {
             w: 380,
             h: 280,
         };
-        setSections(prev => [...(prev || []), newSec]);
+        setSections(prev => [...sectionsArray(prev), newSec]);
     };
 
     const addSection = () => {
-        const offset = (sections?.length || 0) * 32;
+        const offset = sectionsArray(sections).length * 32;
         const newSec = {
             id:      `sec_${Date.now()}`,
             title:   "New Section",
@@ -1366,14 +1429,15 @@ export default function StocksMarketPage() {
             h: 260,
             cardScale: 1,
         };
-        setSections(prev => [...(prev || []), newSec]);
+        setSections(prev => [...sectionsArray(prev), newSec]);
     };
 
     // Generic updater  merges partial fields into the section
     const updateSection = (id, partial) => {
-        setSections(prev => prev.map(s =>
-            s.id === id ? { ...s, ...partial } : s
-        ));
+        setSections(prev => {
+            const arr = sectionsArray(prev);
+            return arr.map(s => s.id === id ? { ...s, ...partial } : s);
+        });
         // If symbols changed, sync pinned array too
         if (partial.symbols !== undefined) {
             // Nothing to do with server here  board API is managed per-symbol
@@ -1381,7 +1445,7 @@ export default function StocksMarketPage() {
     };
 
     const removeSection = (id) => {
-        setSections(prev => prev.filter(s => s.id !== id));
+        setSections(prev => sectionsArray(prev).filter(s => s.id !== id));
     };
 
     // Section drag reorder
@@ -1390,7 +1454,7 @@ export default function StocksMarketPage() {
     const onSecDragOver  = (i) => setSecOverIdx(i);
     const onSecDrop      = (i) => {
         if (secDragIdx === null || secDragIdx === i) return;
-        const arr = [...(sections || [])];
+        const arr = [...sectionsArray(sections)];
         const [moved] = arr.splice(secDragIdx, 1);
         arr.splice(i, 0, moved);
         setSections(arr);
@@ -1398,9 +1462,9 @@ export default function StocksMarketPage() {
     };
 
     // Total unique stocks across all sections (for the LIVE badge count)
-    const totalStocks = sections
-        ? [...new Set(sections.flatMap(s => s.symbols))].length
-        : 0;
+    const totalStocks = [...new Set(
+        sectionsArray(sections).flatMap(s => s.symbols || [])
+    )].length;
 
     return (
         <div className="space-y-4">
@@ -1502,66 +1566,87 @@ export default function StocksMarketPage() {
             </div>
 
             {/* -- Freeform canvas board -- */}
-            {(!sections || sections.length === 0) ? (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700
-                                p-16 text-center">
-                    <p className="text-5xl mb-4">📌</p>
-                    <p className="text-white font-bold text-lg">Your board is empty</p>
-                    <p className="text-slate-400 text-sm mt-2 mb-6 max-w-sm mx-auto">
-                        Create sections to organise your watchlist, swing trades,
-                        sector plays, long-term holds, each with live prices and sparklines.
-                    </p>
-                    <button onClick={addSection}
-                            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
-                                       text-sm font-semibold rounded-xl transition-colors">
-                        ＋ Add First Section
-                    </button>
-                </div>
-            ) : sections._raw ? null : (() => {
-                const canvasH = sections.reduce((max, s) =>
-                    Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
-                return (
-                    <div ref={canvasRef} className="relative w-full select-none overflow-hidden"
-                         style={{ height: (canvasH * boardZoom) + "px" }}>
-                        <div style={{
-                            transform: `scale(${boardZoom})`,
-                            transformOrigin: "top left",
-                            width: `${(100 / boardZoom).toFixed(2)}%`,
-                            height: canvasH + "px",
-                        }}>
-                            {sections.map((section) =>
-                                section.type === "index" ? (
-                                    <IndexSection
-                                        key={section.id}
-                                        section={section}
-                                        onUpdateSection={updateSection}
-                                        onRemoveSection={removeSection}
-                                        isOnlySection={sections.length === 1}
-                                    />
-                                ) : (
-                                    <BoardSection
-                                        key={section.id}
-                                        section={section}
-                                        allPinned={pinned}
-                                        prices={prices}
-                                        holdingsMap={holdingsMap}
-                                        draggingSection={false}
-                                        overSection={false}
-                                        onSectionDragStart={() => {}}
-                                        onSectionDragEnd={() => {}}
-                                        onSectionDragOver={() => {}}
-                                        onSectionDrop={() => {}}
-                                        onUpdateSection={updateSection}
-                                        onRemoveSection={removeSection}
-                                        onOpenStock={openStock}
-                                        isOnlySection={sections.length === 1}
-                                    />
-                                )
-                            )}
-                        </div>
+            {/* Persistent width-measurement wrapper — always mounted so
+                ResizeObserver and measureRef.current always work */}
+            <div ref={measureRef} className="w-full">
+                {boardLoading ? (
+                    /* Board is loading — show skeleton so user knows it's coming */
+                    <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
+                                flex flex-col items-center justify-center gap-4 min-h-[320px]">
+                        <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent
+                                    rounded-full animate-spin" />
+                        <p className="text-slate-500 text-sm">Loading your board...</p>
                     </div>
-                );
-            })()}
+                ) : (!sections || sections.length === 0) ? (
+                    <div className="bg-slate-800 rounded-2xl border border-slate-700
+                                p-16 text-center">
+                        <p className="text-5xl mb-4">📌</p>
+                        <p className="text-white font-bold text-lg">Your board is empty</p>
+                        <p className="text-slate-400 text-sm mt-2 mb-6 max-w-sm mx-auto">
+                            Create sections to organise your watchlist, swing trades,
+                            sector plays, long-term holds, each with live prices and sparklines.
+                        </p>
+                        <button onClick={addSection}
+                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
+                            ＋ Add First Section
+                        </button>
+                    </div>
+                ) : sections._raw ? (
+                    /* Sections loaded but waiting for canvas width to scale — brief spinner */
+                    <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
+                                flex flex-col items-center justify-center gap-4 min-h-[320px]">
+                        <div className="w-8 h-8 border-2 border-blue-500/60 border-t-transparent
+                                    rounded-full animate-spin" />
+                        <p className="text-slate-600 text-xs">Applying layout...</p>
+                    </div>
+                ) : (() => {
+                    const canvasH = sections.reduce((max, s) =>
+                        Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
+                    return (
+                        <div ref={canvasRef} className="relative w-full select-none overflow-hidden"
+                             style={{ height: (canvasH * boardZoom) + "px" }}>
+                            <div style={{
+                                transform: `scale(${boardZoom})`,
+                                transformOrigin: "top left",
+                                width: `${(100 / boardZoom).toFixed(2)}%`,
+                                height: canvasH + "px",
+                            }}>
+                                {sections.map((section) =>
+                                    section.type === "index" ? (
+                                        <IndexSection
+                                            key={section.id}
+                                            section={section}
+                                            onUpdateSection={updateSection}
+                                            onRemoveSection={removeSection}
+                                            isOnlySection={sections.length === 1}
+                                        />
+                                    ) : (
+                                        <BoardSection
+                                            key={section.id}
+                                            section={section}
+                                            allPinned={pinned}
+                                            prices={prices}
+                                            holdingsMap={holdingsMap}
+                                            draggingSection={false}
+                                            overSection={false}
+                                            onSectionDragStart={() => {}}
+                                            onSectionDragEnd={() => {}}
+                                            onSectionDragOver={() => {}}
+                                            onSectionDrop={() => {}}
+                                            onUpdateSection={updateSection}
+                                            onRemoveSection={removeSection}
+                                            onOpenStock={openStock}
+                                            isOnlySection={sections.length === 1}
+                                        />
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+            </div>{/* end measureRef wrapper */}
 
             {/* -- Stock chart modal — portal so it renders above all layout layers -- */}
             {chartStock && createPortal(
