@@ -227,11 +227,11 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 return;
             }
             if (!t.quantity || parseFloat(t.quantity) <= 0) {
-                setError(`Invalid quantity for ${t.stockSymbol}`);
+                setError(`${t.stockSymbol}: quantity must be greater than 0`);
                 return;
             }
             if (!t.price || parseFloat(t.price) <= 0) {
-                setError(`Invalid price for ${t.stockSymbol}`);
+                setError(`${t.stockSymbol}: price is ₹0.00 — enter the actual trade price before importing`);
                 return;
             }
         }
@@ -271,7 +271,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 successCount++;
             } catch (err) {
                 failCount++;
-                console.error(`Failed to import ${trade.stockSymbol}:`, err);
+                const reason = err.response?.data?.message || err.message || "Unknown error";
+                console.error(`Failed to import ${trade.stockSymbol}: ${reason}`, err);
+                // Surface first failure reason to user
+                if (failCount === 1) setError(`Import error for ${trade.stockSymbol}: ${reason}`);
             }
         }
 
@@ -511,6 +514,14 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                      : "border-slate-700/40 opacity-50")
                                              }>
 
+                                            {/* Zero price warning */}
+                                            {(!trade.price || parseFloat(trade.price) <= 0) && (
+                                                <div className="mb-3 px-3 py-2 bg-amber-900/30
+                                                               border border-amber-600/40 rounded-lg
+                                                               text-amber-300 text-xs font-medium">
+                                                    ⚠ Price is ₹0 — this trade will fail. Enter the actual price or uncheck it.
+                                                </div>
+                                            )}
                                             {/* Trade header */}
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className="flex items-center gap-3">
@@ -596,7 +607,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                             "quantity", Math.max(1, parseInt(e.target.value) || 1))}
                                                         placeholder="0"
                                                         min="1"
-                                                        step="1"
                                                         className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"
@@ -613,7 +623,7 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                         onChange={e => updateTrade(trade._id,
                                                             "price", e.target.value)}
                                                         placeholder="0.00"
-                                                        step="0.01"
+                                                        step="1"
                                                         className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
                                                                focus:outline-none focus:border-purple-500"

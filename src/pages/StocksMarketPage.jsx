@@ -282,9 +282,10 @@ function StockCard({ stock, price, holding, dragging, over,
             onDragEnd={onDragEnd}
             onDragOver={e => { e.preventDefault(); onDragOver(); }}
             onDrop={onDrop}
+            onMouseDown={e => e.stopPropagation()}
             className={
                 "relative bg-slate-800 border rounded-xl p-2.5 select-none group " +
-                "transition-all cursor-grab active:cursor-grabbing " +
+                "transition-all cursor-default " +
                 (dragging ? "opacity-40 scale-95 " : "") +
                 (over
                     ? "border-blue-500 bg-slate-750 "
