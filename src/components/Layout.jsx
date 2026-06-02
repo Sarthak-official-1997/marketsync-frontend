@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { useAuth }  from "../context/AuthContext";
 import IndexTicker  from "./IndexTicker";
+import ErrorBoundary, { SilentErrorBoundary } from "./ErrorBoundary";
 import { searchStocks, searchMfSchemes, addToWatchlist, getStockPrice } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import StockDetailModal from "./StockDetailModal";
@@ -511,7 +512,9 @@ export default function Layout({ children, portfolioSummary }) {
 
             {/* -- INDEX BAR   Indices -- */}
             <div className="flex-shrink-0 bg-slate-900/80 border-b border-slate-700/40 overflow-x-auto scrollbar-hide">
-                <IndexTicker />
+                <SilentErrorBoundary>
+                    <IndexTicker />
+                </SilentErrorBoundary>
             </div>
 
             {/* -- CONTENT AREA -- */}

@@ -120,3 +120,20 @@ export default class ErrorBoundary extends Component {
         );
     }
 }
+// SilentErrorBoundary — swallows errors with no UI feedback.
+// Use for non-critical decorative components (tickers, sparklines, badges)
+// where a crash should be invisible to the user.
+export class SilentErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError() { return { hasError: true }; }
+    componentDidCatch(error) {
+        console.warn("[SilentErrorBoundary] Suppressed:", error?.message);
+    }
+    render() {
+        if (this.state.hasError) return this.props.fallback || null;
+        return this.props.children;
+    }
+}

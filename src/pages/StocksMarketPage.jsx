@@ -100,7 +100,7 @@ function makeDefaultSections(pinned) {
             title:   "Market Indices",
             // Removed ^NSESMCP (SMALLCAP) — Yahoo Finance symbol unreliable.
             // Use ^CNXIT (NIFTY IT) instead which works consistently.
-            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^CNXIT"],
+            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50"],
             x: col1w + gap, y: 0, w: col2w, h: 420,
             cardScale: 1,
         },
@@ -500,6 +500,7 @@ function IndexCard({ symbol, name, short, onClick }) {
         <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-1.5
                         cursor-pointer hover:border-blue-500/40 hover:bg-slate-800
                         transition-all group"
+             onMouseDown={e => e.stopPropagation()}
              onClick={onClick}>
             <div className="flex items-center justify-between">
                 <div>
@@ -523,9 +524,9 @@ function IndexCard({ symbol, name, short, onClick }) {
                     {up ? "+" : ""}{chg.toFixed(2)}%
                 </span>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[9px] text-blue-400">View constituents</span>
-                <span className="text-[9px] text-blue-400">›</span>
+            <div className="flex items-center justify-between pt-1 border-t border-slate-700/40 mt-0.5">
+                <span className="text-[10px] text-blue-400 font-medium">View constituents</span>
+                <span className="text-[10px] text-blue-400">›</span>
             </div>
         </div>
     );
@@ -784,11 +785,16 @@ function BoardSection({
                     </span>
                 )}
 
-                {/* Stock count */}
-                <span className="text-[9px] text-slate-500 bg-slate-700/70
-                                 px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium">
-                    {section.symbols.length}
-                </span>
+                {/* Stock count — only show resolved stocks */}
+                {(() => {
+                    const n = section.symbols.filter(sym => allPinned.some(p => p.symbol === sym)).length;
+                    return n > 0 ? (
+                        <span className="text-[9px] text-slate-500 bg-slate-700/70
+                                         px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium">
+                            {n}
+                        </span>
+                    ) : null;
+                })()}
 
                 {/* Controls */}
                 <div className="flex items-center gap-1 flex-shrink-0
@@ -913,38 +919,49 @@ function BoardSection({
             {/* -- Cards -- */}
             <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0,
                 scrollbarWidth: "thin", scrollbarColor: "#334155 transparent" }}>
-                {section.symbols.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center
-                                    text-slate-600 text-xs gap-2">
-                        <span className="text-3xl opacity-30">📌</span>
-                        <span>Empty — hover header and click ＋ to add stocks</span>
-                    </div>
-                ) : (
-                    <div className={`grid ${innerCols} gap-2 px-3 py-3`}
-                         style={{ transform: `scale(${cardScale})`, transformOrigin: "top left",
-                             width: `${(100/cardScale).toFixed(1)}%` }}>
-                        {section.symbols.map((sym, idx) => {
-                            const stock = allPinned.find(s => s.symbol === sym);
-                            if (!stock) return null;
-                            return (
-                                <StockCard
-                                    key={sym}
-                                    stock={stock}
-                                    price={prices[sym]}
-                                    holding={holdingsMap[sym] || null}
-                                    dragging={dragStockIdx === idx}
-                                    over={overStockIdx === idx && dragStockIdx !== null && dragStockIdx !== idx}
-                                    onDragStart={() => onStockDragStart(idx)}
-                                    onDragEnd={onStockDragEnd}
-                                    onDragOver={() => onStockDragOver(idx)}
-                                    onDrop={() => onStockDrop(idx)}
-                                    onRemove={() => removeStockFromSection(sym)}
-                                    onOpen={() => onOpenStock(stock)}
-                                />
-                            );
-                        })}
-                    </div>
-                )}
+                {(() => {
+                    const visibleStocks = section.symbols
+                        .map(sym => allPinned.find(s => s.symbol === sym))
+                        .filter(Boolean);
+                    if (visibleStocks.length === 0) return (
+                        <div className="h-full flex flex-col items-center justify-center gap-3 p-4"
+                             style={{ opacity: 0.5 }}>
+                            <span className="text-3xl">📌</span>
+                            <div className="text-center">
+                                <p className="text-slate-400 text-xs font-medium">No stocks yet</p>
+                                <p className="text-slate-500 text-[10px] mt-1">
+                                    Hover the header and click ＋ Add stock
+                                </p>
+                            </div>
+                        </div>
+                    );
+                    return (
+                        <div className={`grid ${innerCols} gap-2 px-3 py-3`}
+                             style={{ transform: `scale(${cardScale})`, transformOrigin: "top left",
+                                 width: `${(100/cardScale).toFixed(1)}%` }}>
+                            {section.symbols.map((sym, idx) => {
+                                const stock = allPinned.find(s => s.symbol === sym);
+                                if (!stock) return null;
+                                return (
+                                    <StockCard
+                                        key={sym}
+                                        stock={stock}
+                                        price={prices[sym]}
+                                        holding={holdingsMap[sym] || null}
+                                        dragging={dragStockIdx === idx}
+                                        over={overStockIdx === idx && dragStockIdx !== null && dragStockIdx !== idx}
+                                        onDragStart={() => onStockDragStart(idx)}
+                                        onDragEnd={onStockDragEnd}
+                                        onDragOver={() => onStockDragOver(idx)}
+                                        onDrop={() => onStockDrop(idx)}
+                                        onRemove={() => removeStockFromSection(sym)}
+                                        onOpen={() => onOpenStock(stock)}
+                                    />
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );
@@ -1261,15 +1278,29 @@ export default function StocksMarketPage() {
                     // On explicit update (ms_board_updated), always refresh pinned
                     // but keep existing section layout — just update symbols list
                     if (isUpdate && prev !== null && !prev._raw) {
-                        // A new stock was added — ensure it appears in the default section
-                        // if no sections exist yet, create default
                         if (prev.length === 0 && p.length > 0) {
                             return makeDefaultSections(p);
                         }
-                        // Otherwise update existing sections with new stock symbols
-                        // (addStockToThisSection handles this via onUpdateSection already,
-                        //  but for board-level adds via search bar, sync the first section)
-                        return prev;
+                        // Find which symbols are new (in pinned API but not in any section)
+                        const allSectionSymbols = new Set(
+                            prev.flatMap(s => s.symbols || [])
+                        );
+                        const newSymbols = p
+                            .filter(stock => stock.id > 0) // skip stubs
+                            .map(s => s.symbol)
+                            .filter(sym => !allSectionSymbols.has(sym));
+
+                        if (newSymbols.length === 0) return prev; // nothing new
+
+                        // Add new symbols to the first non-index section
+                        let added = false;
+                        return prev.map(sec => {
+                            if (!added && sec.type !== "index") {
+                                added = true;
+                                return { ...sec, symbols: [...(sec.symbols || []), ...newSymbols] };
+                            }
+                            return sec;
+                        });
                     }
                     // Initial load
                     if (prev !== null) return prev;
@@ -1332,8 +1363,27 @@ export default function StocksMarketPage() {
     useEffect(() => {
         loadBoard(false);
         const onUpdate = () => loadBoard(true);
+        // Targeted add: add stock to a specific section by id
+        const onAddToSection = (e) => {
+            const { symbol, sectionId } = e.detail || {};
+            if (!symbol || !sectionId) return;
+            setSections(prev => {
+                const arr = sectionsArray(prev);
+                return arr.map(sec =>
+                    sec.id === sectionId && !sec.symbols?.includes(symbol)
+                        ? { ...sec, symbols: [...(sec.symbols || []), symbol] }
+                        : sec
+                );
+            });
+            // Also reload pinned so price fetches
+            loadBoard(true);
+        };
         window.addEventListener("ms_board_updated", onUpdate);
-        return () => window.removeEventListener("ms_board_updated", onUpdate);
+        window.addEventListener("ms_board_add_to_section", onAddToSection);
+        return () => {
+            window.removeEventListener("ms_board_updated", onUpdate);
+            window.removeEventListener("ms_board_add_to_section", onAddToSection);
+        };
     }, []);
 
     // ResizeObserver on measureRef — always mounted so always fires.

@@ -86,8 +86,10 @@ export default function StockDetailModal({ stock, onClose }) {
     const [chartLoading, setCL]          = useState(true);
     const [showReturns,  setShowReturns] = useState(false);
     const [addingWatch,  setAddingWatch] = useState(false);
-    const [onBoard, setOnBoard] = useState(false);
+    const [onBoard,      setOnBoard]      = useState(false);
     const [activeIdx,    setActiveIdx]   = useState(null);
+    const [showSectionPicker, setShowSectionPicker] = useState(false);
+    const [boardSections,     setBoardSections]     = useState([]);
 
     // PIECE 2: Declared missing reactive state variables for Watchlist functionality
     const [inWatchlist, setInWatchlist]         = useState(false);
@@ -185,10 +187,20 @@ export default function StockDetailModal({ stock, onClose }) {
 
     useEffect(() => {
         if (!stock?.symbol) return;
-        const checkBoard = () =>
+        const checkBoard = () => {
             getBoardApi()
                 .then(res => setOnBoard((res.data || []).some(s => s.symbol === stock.symbol)))
                 .catch(() => {});
+            // Load sections from localStorage for section picker
+            try {
+                const raw = localStorage.getItem("ms_board_sections_v2");
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    const secs = Array.isArray(parsed) ? parsed : (parsed.sections || []);
+                    setBoardSections(secs.filter(s => s.type !== "index" && s.title));
+                }
+            } catch {}
+        };
         checkBoard();
         window.addEventListener("ms_board_updated", checkBoard);
         return () => window.removeEventListener("ms_board_updated", checkBoard);
@@ -341,35 +353,76 @@ export default function StockDetailModal({ stock, onClose }) {
                             </button>
 
                             {/* Add to Board */}
-                            <button
-                                onClick={async e => {
-                                    e.stopPropagation();
-                                    if (onBoard) {
-                                        await removeFromBoard(stock.symbol);
-                                        setOnBoard(false);
-                                        toast.success(`${stock.symbol} removed from board`);
-                                    } else {
-                                        const added = await addToBoard({
-                                            id: stock.id, symbol: stock.symbol,
-                                            name: stock.name, exchange: stock.exchange,
-                                        });
-                                        if (added) {
-                                            setOnBoard(true);
-                                            toast.success(`${stock.symbol} added to board`);
+                            <div className="relative">
+                                {/* Section picker dropdown */}
+                                {showSectionPicker && !onBoard && (
+                                    <div className="absolute top-full right-0 mt-1 bg-slate-800
+                                                border border-slate-700 rounded-xl shadow-xl
+                                                z-10 min-w-[180px] overflow-hidden">
+                                        <p className="text-[10px] text-slate-500 uppercase
+                                                  tracking-wide px-3 py-2 border-b border-slate-700">
+                                            Add to section
+                                        </p>
+                                        {boardSections.map(sec => (
+                                            <button key={sec.id}
+                                                    onClick={async e => {
+                                                        e.stopPropagation();
+                                                        setShowSectionPicker(false);
+                                                        // Add to board API (pinned list)
+                                                        await addToBoard({
+                                                            id: stock.id, symbol: stock.symbol,
+                                                            name: stock.name, exchange: stock.exchange,
+                                                        });
+                                                        // Dispatch with target section info
+                                                        window.dispatchEvent(new CustomEvent(
+                                                            "ms_board_add_to_section",
+                                                            { detail: { symbol: stock.symbol, sectionId: sec.id } }
+                                                        ));
+                                                        setOnBoard(true);
+                                                        toast.success(`${stock.symbol} added to "${sec.title}"`);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2.5 text-sm
+                                                           text-slate-300 hover:bg-slate-700
+                                                           transition-colors">
+                                                {sec.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <button
+                                    onClick={async e => {
+                                        e.stopPropagation();
+                                        if (onBoard) {
+                                            await removeFromBoard(stock.symbol);
+                                            setOnBoard(false);
+                                            toast.success(`${stock.symbol} removed from board`);
+                                        } else if (boardSections.length > 1) {
+                                            // Multiple sections — show picker
+                                            setShowSectionPicker(v => !v);
                                         } else {
-                                            toast.error(`${stock.symbol} already on board`);
+                                            // Single section or no sections — add directly
+                                            const added = await addToBoard({
+                                                id: stock.id, symbol: stock.symbol,
+                                                name: stock.name, exchange: stock.exchange,
+                                            });
+                                            if (added) {
+                                                setOnBoard(true);
+                                                toast.success(`${stock.symbol} added to board`);
+                                            } else {
+                                                toast.error(`${stock.symbol} already on board`);
+                                            }
                                         }
-                                    }
-                                }}
-                                className={
-                                    "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
-                                    "rounded-xl transition-all whitespace-nowrap " +
-                                    (onBoard
-                                        ? "bg-purple-700 hover:bg-red-700 text-white ring-1 ring-purple-500/40"
-                                        : "bg-slate-700 hover:bg-purple-600 text-white")
-                                }>
-                                {onBoard ? "✓ On Board" : "📌 Board"}
-                            </button>
+                                    }}
+                                    className={
+                                        "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
+                                        "rounded-xl transition-all whitespace-nowrap " +
+                                        (onBoard
+                                            ? "bg-purple-700 hover:bg-red-700 text-white ring-1 ring-purple-500/40"
+                                            : "bg-slate-700 hover:bg-purple-600 text-white")
+                                    }>
+                                    {onBoard ? "✓ On Board" : boardSections.length > 1 && !onBoard ? "📌 Board ▾" : "📌 Board"}
+                                </button>
+                            </div>
 
                             {/* TradingView */}
                             <a href={tvUrl} target="_blank" rel="noopener noreferrer"
@@ -754,23 +807,25 @@ export default function StockDetailModal({ stock, onClose }) {
                 </div>{/* end modal card */}
             </div>{/* end backdrop */}
 
-            {/* Transaction panel — opened by BUY / SELL buttons */}
-            {txPanel && (
+            {/* Transaction panel — own portal so it renders above StockDetailModal (z-[300]) */}
+            {txPanel && createPortal(
                 <StockTransactionPanel
                     stock={stock}
                     defaultType={txPanel}
                     onClose={() => setTxPanel(null)}
                     onChanged={() => setTxPanel(null)}
-                />
+                />,
+                document.body
             )}
 
-            {/* Price alert modal — opened by 🔔 button */}
-            {alertModal && (
+            {/* Price alert modal — own portal so it renders above StockDetailModal (z-[300]) */}
+            {alertModal && createPortal(
                 <PriceAlertModal
                     stock={stock}
                     currentPrice={quote?.currentPrice}
                     onClose={() => setAlertModal(false)}
-                />
+                />,
+                document.body
             )}
         </>
         , document.body);

@@ -9,7 +9,7 @@ import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
 import NotificationModal   from "./components/NotificationModal";
-import WelcomeModal        from "./components/WelcomeModal";
+import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
 import PasskeyBlocker      from "./components/PasskeyBlocker";
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
 import AdminClientViewPage    from "./pages/AdminClientViewPage";
@@ -71,16 +71,17 @@ function AppShell() {
     const [pendingNotifs, setPendingNotifs] = useState([]);
     const [notifsChecked, setNotifsChecked] = useState(false);
     const [showWelcome, setShowWelcome] = useState(false);
+    const [showChecklist, setShowChecklist] = useState(false);
     const { user } = useAuth();
 
     useEffect(() => {
         if (!user) return;
-        // Only show welcome if:
-        // 1. Backend flagged this as first login AND
-        // 2. We haven't already shown it (localStorage guard)
-        const key = `ms_welcomed_${user.id || user.username}`;
-        if (user?.firstLogin && !localStorage.getItem(key)) {
+        const welcomeKey   = `ms_welcomed_${user.id || user.username}`;
+        const checklistKey = `ms_checklist_dismissed_${user.id || user.username}`;
+        if (user?.firstLogin && !localStorage.getItem(welcomeKey)) {
             setShowWelcome(true);
+        } else if (localStorage.getItem(welcomeKey) && !localStorage.getItem(checklistKey)) {
+            setShowChecklist(true);
         }
     }, [user?.id]);
 
@@ -272,6 +273,26 @@ function AppShell() {
                 />
             )}
 
+            {showChecklist && (
+                <SetupChecklist
+                    onDismiss={() => {
+                        const key = `ms_checklist_dismissed_${user?.id || user?.username}`;
+                        localStorage.setItem(key, "1");
+                        setShowChecklist(false);
+                    }}
+                />
+            )}
+
+            {showChecklist && (
+                <SetupChecklist
+                    onDismiss={() => {
+                        const key = `ms_checklist_dismissed_${user?.id || user?.username}`;
+                        localStorage.setItem(key, "1");
+                        setShowChecklist(false);
+                    }}
+                />
+            )}
+
             {showWelcome && (
                 <WelcomeModal
                     user={user}
@@ -279,6 +300,7 @@ function AppShell() {
                         const key = `ms_welcomed_${user?.id || user?.username}`;
                         localStorage.setItem(key, "1");
                         setShowWelcome(false);
+                        setShowChecklist(true);
                     }}
                 />
             )}

@@ -24,7 +24,7 @@ const today = () => new Date().toISOString().split("T")[0];
 function ConfirmDialog({ dialog, onConfirm, onCancel }) {
     if (!dialog.open) return null;
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[420] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                  onClick={onCancel} />
             <div className="relative z-10 bg-slate-800 border border-slate-700
@@ -124,7 +124,6 @@ export default function StockTransactionPanel({ stock, onClose, onChanged, onDel
     }, [onClose]);
 
     if (!stock) return null;
-
     const pl    = parseFloat(quote?.changePercent || 0);
     const plClr = pl >= 0 ? "text-green-400" : "text-red-400";
 
@@ -186,11 +185,11 @@ export default function StockTransactionPanel({ stock, onClose, onChanged, onDel
     return (
         <>
             {/* Backdrop */}
-            <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            <div className="fixed inset-0 z-[400] bg-black/50 backdrop-blur-sm"
                  onClick={onClose} />
 
             {/* Drawer */}
-            <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl
+            <div className="fixed right-0 top-0 bottom-0 z-[410] w-full max-w-xl
                             bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col"
                  onClick={e => e.stopPropagation()}>
 
