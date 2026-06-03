@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { extractTradesFromFiles } from "../api/ai";
-import { searchStocks, addTransaction } from "../api/portfolio";
+import { searchStocks, addTransaction, resolveStock } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import AiTokenWarningModal from "./AiTokenWarningModal";
@@ -62,6 +62,8 @@ export default function AiTradeImportModal({ onClose, onImported }) {
     const [editableTrades, setEditableTrades] = useState([]);
     const [error,          setError]          = useState("");
     const [confirming,     setConfirming]     = useState(false);
+    const [showConfirm,    setShowConfirm]    = useState(false);
+    const [resolvedTrades, setResolvedTrades] = useState([]);
 
     // Token warning — Promise-based so we can await user's decision sequentially
     const [tokenWarning,   setTokenWarning]   = useState(null); // { level, estimated, resolve }
@@ -181,19 +183,44 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                 return;
             }
 
+            // Resolve each trade symbol via backend 4-step chain:
+            // exact symbol → name search → Claude AI → NOT_FOUND
             const enriched = await Promise.all(
                 result.trades.map(async (t, i) => {
-                    let symbol = t.stockSymbol || "";
-                    if (!symbol && t.stockName) {
-                        try {
-                            const res    = await searchStocks(t.stockName);
-                            const stocks = res.data?.content || [];
-                            if (stocks.length > 0) symbol = stocks[0].symbol;
-                        } catch {
-                            // silently ignore — user can fill manually
+                    let resolvedSymbol = t.stockSymbol || "";
+                    let resolvedName   = t.stockName   || "";
+                    let resolvedBy     = "ORIGINAL";
+                    let stockId        = null;
+                    let resolved       = false;
+
+                    try {
+                        const res = await resolveStock({
+                            symbol:   t.stockSymbol || "",
+                            name:     t.stockName   || "",
+                            exchange: t.exchange    || "NSE",
+                        });
+                        const r = res.data;
+                        if (r.resolved || r.resolvedBy === "AI_NOT_IN_DB") {
+                            resolvedSymbol = r.symbol;
+                            resolvedName   = r.name || resolvedName;
+                            resolvedBy     = r.resolvedBy;
+                            stockId        = r.stockId;
+                            resolved       = r.resolved;
                         }
-                    }
-                    return { ...t, stockSymbol: symbol, _id: i, _include: true, _date: t.date || "" };
+                    } catch { /* user can fix manually */ }
+
+                    return {
+                        ...t,
+                        stockSymbol:   resolvedSymbol,
+                        stockName:     resolvedName,
+                        _stockId:      stockId,       // pre-resolved stockId
+                        _resolved:     resolved,
+                        _resolvedBy:   resolvedBy,
+                        _originalSym:  t.stockSymbol,
+                        _id:           i,
+                        _include:      true,
+                        _date:         t.date || "",
+                    };
                 })
             );
 
@@ -210,32 +237,9 @@ export default function AiTradeImportModal({ onClose, onImported }) {
         }
     };
 
-    const confirmImport = async () => {
-        const selected = editableTrades.filter(t => t._include);
-        if (selected.length === 0) {
-            setError("Select at least one trade to import");
-            return;
-        }
-
-        for (const t of selected) {
-            if (!t.stockSymbol) {
-                setError(`Please enter a stock symbol for "${t.stockName}"`);
-                return;
-            }
-            if (!t._date) {
-                setError(`Please select a date for ${t.stockSymbol}`);
-                return;
-            }
-            if (!t.quantity || parseFloat(t.quantity) <= 0) {
-                setError(`${t.stockSymbol}: quantity must be greater than 0`);
-                return;
-            }
-            if (!t.price || parseFloat(t.price) <= 0) {
-                setError(`${t.stockSymbol}: price is ₹0.00 — enter the actual trade price before importing`);
-                return;
-            }
-        }
-
+    const confirmImport = async (tradesToImport) => {
+        const selected = tradesToImport || resolvedTrades;
+        setShowConfirm(false);
         setConfirming(true);
         setError("");
 
@@ -244,26 +248,30 @@ export default function AiTradeImportModal({ onClose, onImported }) {
 
         for (const trade of selected) {
             try {
-                const searchRes = await searchStocks(trade.stockSymbol);
-                const stocks    = searchRes.data?.content || [];
+                let stockId = trade._stockId;
 
-                const match = stocks.find(s =>
-                    s.symbol === trade.stockSymbol &&
-                    s.exchange === (trade.exchange || "NSE")
-                ) || stocks.find(s =>
-                    s.symbol === trade.stockSymbol
-                ) || stocks[0];
+                // If no pre-resolved stockId, try to resolve now
+                if (!stockId) {
+                    const searchRes = await searchStocks(trade.stockSymbol);
+                    const stocks    = searchRes.data?.content || [];
+                    const match = stocks.find(s =>
+                        s.symbol === trade.stockSymbol &&
+                        s.exchange === (trade.exchange || "NSE")
+                    ) || stocks.find(s => s.symbol === trade.stockSymbol);
 
-                if (!match) {
-                    failCount++;
-                    console.error(`Stock not found in system: ${trade.stockSymbol}`);
-                    continue;
+                    if (!match) {
+                        failCount++;
+                        const errMsg = `"${trade.stockSymbol}" not found — please correct the symbol`;
+                        if (failCount === 1) setError(errMsg);
+                        continue;
+                    }
+                    stockId = match.id;
                 }
 
                 await addTransaction({
-                    stockId:         match.id,
+                    stockId,
                     type:            trade.transactionType,
-                    quantity:        parseFloat(trade.quantity),
+                    quantity:        parseInt(trade.quantity),
                     pricePerShare:   parseFloat(trade.price),
                     transactionDate: trade._date,
                     notes:           `AI import · ${SOURCE_LABELS[extraction?.detectedSource] || "screenshot"}`,
@@ -272,8 +280,6 @@ export default function AiTradeImportModal({ onClose, onImported }) {
             } catch (err) {
                 failCount++;
                 const reason = err.response?.data?.message || err.message || "Unknown error";
-                console.error(`Failed to import ${trade.stockSymbol}: ${reason}`, err);
-                // Surface first failure reason to user
                 if (failCount === 1) setError(`Import error for ${trade.stockSymbol}: ${reason}`);
             }
         }
@@ -716,7 +722,12 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                 {editableTrades.length} selected
                             </span>
                                 <button
-                                    onClick={confirmImport}
+                                    onClick={() => {
+                                        const selected = editableTrades.filter(t => t._include);
+                                        if (selected.length === 0) return;
+                                        setResolvedTrades(selected);
+                                        setShowConfirm(true);
+                                    }}
                                     disabled={confirming ||
                                     editableTrades.filter(t => t._include).length === 0}
                                     className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700
@@ -731,6 +742,92 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                     )}
                 </div>
             </div>
+
+            {/* ── Confirmation popup ── */}
+            {showConfirm && (
+                <div className="fixed inset-0 z-[600] flex items-center justify-center p-4"
+                     style={{ backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}>
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl
+                                    w-full max-w-md overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+                            <div className="w-8 h-8 bg-green-600/20 border border-green-500/30
+                                            rounded-lg flex items-center justify-center">
+                                <span className="text-sm">✅</span>
+                            </div>
+                            <div>
+                                <h3 className="text-white font-bold text-sm">Confirm Import</h3>
+                                <p className="text-slate-500 text-xs">
+                                    Review before adding to your portfolio
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Trade list */}
+                        <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
+                            {resolvedTrades.map((t, i) => {
+                                const up = t.transactionType === "BUY";
+                                const total = (parseFloat(t.quantity || 0) * parseFloat(t.price || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+                                return (
+                                    <div key={i} className="flex items-center gap-3 px-5 py-3">
+                                        {/* Type badge */}
+                                        <span className={"text-[10px] font-bold px-2 py-0.5 rounded w-10 text-center flex-shrink-0 " +
+                                        (up ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400")}>
+                                            {t.transactionType}
+                                        </span>
+                                        {/* Stock */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-white font-bold text-sm">{t.stockSymbol}</span>
+                                                {t._originalSym && t._originalSym !== t.stockSymbol && (
+                                                    <span className="text-[10px] text-amber-400 bg-amber-900/20
+                                                                     px-1.5 py-0.5 rounded">
+                                                        was {t._originalSym}
+                                                    </span>
+                                                )}
+                                                {t._resolvedBy === "AI" && (
+                                                    <span className="text-[10px] text-purple-400 bg-purple-900/20
+                                                                     px-1.5 py-0.5 rounded">✨ AI</span>
+                                                )}
+                                                {!t._resolved && (
+                                                    <span className="text-[10px] text-red-400 bg-red-900/20
+                                                                     px-1.5 py-0.5 rounded">⚠ unverified</span>
+                                                )}
+                                            </div>
+                                            <p className="text-slate-500 text-[10px] truncate">{t.stockName}</p>
+                                        </div>
+                                        {/* Details */}
+                                        <div className="text-right flex-shrink-0">
+                                            <p className="text-white text-xs font-semibold">
+                                                {parseInt(t.quantity)} × ₹{parseFloat(t.price).toFixed(2)}
+                                            </p>
+                                            <p className="text-slate-500 text-[10px]">
+                                                = ₹{total} · {t._date}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-5 py-4 border-t border-slate-800 flex gap-3">
+                            <button
+                                onClick={() => setShowConfirm(false)}
+                                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700
+                                           text-slate-300 text-sm font-medium rounded-xl transition-colors">
+                                ← Go back
+                            </button>
+                            <button
+                                onClick={() => confirmImport(resolvedTrades)}
+                                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700
+                                           text-white text-sm font-bold rounded-xl transition-colors">
+                                ✅ Confirm & Import {resolvedTrades.length} trade{resolvedTrades.length !== 1 ? "s" : ""}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Token warning modal — shown before API call, CREATOR only */}
             {tokenWarning && (

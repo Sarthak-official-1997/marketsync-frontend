@@ -6,8 +6,7 @@ const TOKEN_KEY           = "ms_token";
 const SESSION_EXPIRED_KEY = "ms_session_expired";
 
 // ── Read token from either storage ───────────────────────────────────
-const getToken = () =>
-    localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+const getToken              = ()                    => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 
 // ── Axios instance ────────────────────────────────────────────────────
 export const api = axios.create({
@@ -75,81 +74,71 @@ function getUserFriendlyMessage(status, code, backendMessage) {
  * Login. Backend field is "usernameOrEmail" (not "username").
  * Pass rememberMe=true for 30-day token.
  */
-export const loginApi = (usernameOrEmail, password, rememberMe = false) =>
-    api.post("/auth/login", { usernameOrEmail, password, rememberMe });
+export const loginApi                               = (usernameOrEmail, password, rememberMe = false)   => api.post("/auth/login", { usernameOrEmail, password, rememberMe });
 
-export const registerApi = (data) => api.post("/auth/register", data);
+export const registerApi                            = (data)                                                    => api.post("/auth/register", data);
 
 // ====================================================================
 // STOCKS
 // ====================================================================
-export const searchStocks      = (q, page = 0, size = 20) =>
-    api.get(`/stocks/search?q=${encodeURIComponent(q)}&page=${page}&size=${size}`);
-export const getStockPrice     = (symbol) => api.get(`/stocks/${symbol}/price`);
-export const getStockReturns   = (symbol, exchange) =>
-    api.get(`/market-data/returns/${symbol}?exchange=${exchange}`);
-export const getStockChart     = (symbol, exchange, interval, range) =>
-    api.get(`/market-data/chart/${symbol}?exchange=${exchange}&interval=${interval}&range=${range}`);
-export const getIndices        = () => api.get("/market-data/indices");
-export const getIndexConstituents = (symbol) =>
-    api.get(`/market-data/index-constituents/${encodeURIComponent(symbol)}`);
-export const getIndexChart     = (symbol, interval = "5m", range = "1d") =>
-    api.get(`/market-data/index-chart/${encodeURIComponent(symbol)}`, { params: { interval, range } });
+export const resolveStock                           = (data)                                                    => api.post("/stocks/resolve", data);
+export const searchStocks                           = (q, page = 0, size = 20)                  => api.get(`/stocks/search?q=${encodeURIComponent(q)}&page=${page}&size=${size}`);
+export const getStockPrice                          = (symbol)                                                  => api.get(`/stocks/${symbol}/price`);
+export const getStockReturns                        = (symbol, exchange)                                        => api.get(`/market-data/returns/${symbol}?exchange=${exchange}`);
+export const getStockChart                          = (symbol, exchange, interval, range)                       => api.get(`/market-data/chart/${symbol}?exchange=${exchange}&interval=${interval}&range=${range}`);
+export const getIndices                             = ()                                                        => api.get("/market-data/indices");
+export const getIndexConstituents                   = (symbol)                                                  => api.get(`/market-data/index-constituents/${encodeURIComponent(symbol)}`);
+export const getIndexChart                          = (symbol, interval = "5m", range = "1d")       => api.get(`/market-data/index-chart/${encodeURIComponent(symbol)}`, { params: { interval, range } });
 
 // ====================================================================
 // HOLDINGS
 // ====================================================================
-export const getHoldings    = () => api.get("/holdings");
-export const getMfHoldings  = () => api.get("/mf/holdings");
+export const getHoldings                            = ()                                        => api.get("/holdings");
+export const getMfHoldings                          = ()                                        => api.get("/mf/holdings");
 
 // ====================================================================
 // TRANSACTIONS
 // ====================================================================
-export const getTransactions   = (page = 0, size = 50) =>
-    api.get(`/transactions?page=${page}&size=${size}`);
-export const addTransaction    = (data) => api.post("/transactions", data);
-export const deleteTransaction = (id)   => api.delete(`/transactions/${id}`);
-export const bulkDeleteTransactions = (ids) => api.delete("/transactions/bulk", { data: ids });
+export const getTransactions                        = (page = 0, size = 50)     => api.get(`/transactions?page=${page}&size=${size}`);
+export const addTransaction                         = (data)                                    => api.post("/transactions", data);
+export const deleteTransaction                      = (id)                                      => api.delete(`/transactions/${id}`);
+export const bulkDeleteTransactions                 = (ids)                                     => api.delete("/transactions/bulk", { data: ids });
 
 // ====================================================================
 // WATCHLIST
 // ====================================================================
-export const getWatchlist        = ()     => api.get("/watchlist");
-export const addToWatchlist      = (data) => api.post("/watchlist/items", data);
-export const removeFromWatchlist = (id)   => api.delete(`/watchlist/items/${id}`);
-export const getWatchlistPrices  = ()     => api.get("/watchlist/prices");
+export const getWatchlist                           = ()                => api.get("/watchlist");
+export const addToWatchlist                         = (data)            => api.post("/watchlist/items", data);
+export const removeFromWatchlist                    = (id)              => api.delete(`/watchlist/items/${id}`);
+export const getWatchlistPrices                     = ()                => api.get("/watchlist/prices");
 
 // ====================================================================
 // PORTFOLIO
 // ====================================================================
-export const getPortfolioSummary    = () => api.get("/portfolio/summary");
-export const getMfPortfolioSummary  = () => api.get("/mf/portfolio/summary");
+export const getPortfolioSummary                    = ()                => api.get("/portfolio/summary");
+export const getMfPortfolioSummary                  = ()                => api.get("/mf/portfolio/summary");
 
 // ====================================================================
 // MUTUAL FUNDS
 // ====================================================================
-export const searchMfSchemes       = (q, page = 0, size = 20) =>
-    api.get(`/mf/schemes/search?q=${encodeURIComponent(q)}&page=${page}&size=${size}`);
-export const getMfScheme           = (code)        => api.get(`/mf/schemes/${code}`);
-export const getMfNavHistory       = (code, range = "1Y") =>
-    api.get(`/mf/schemes/${code}/nav-history?range=${range}`);
-export const getMfNavOnDate        = (code, date)  =>
-    api.get(`/mf/schemes/${code}/nav-on-date?date=${date}`);
-export const getMfTransactions     = (page = 0, size = 50) =>
-    api.get(`/mf/transactions?page=${page}&size=${size}`);
-export const addMfTransaction      = (data) => api.post("/mf/transactions", data);
-export const deleteMfTransaction   = (id)   => api.delete(`/mf/transactions/${id}`);
+export const searchMfSchemes                        = (q, page = 0, size = 20)       => api.get(`/mf/schemes/search?q=${encodeURIComponent(q)}&page=${page}&size=${size}`);
+export const getMfScheme                            = (code)                                        => api.get(`/mf/schemes/${code}`);
+export const getMfNavHistory                        = (code, range = "1Y")                    => api.get(`/mf/schemes/${code}/nav-history?range=${range}`);
+export const getMfNavOnDate                         = (code, date)                                  => api.get(`/mf/schemes/${code}/nav-on-date?date=${date}`);
+export const getMfTransactions                      = (page = 0, size = 50)         => api.get(`/mf/transactions?page=${page}&size=${size}`);
+export const addMfTransaction                       = (data)                                        => api.post("/mf/transactions", data);
+export const deleteMfTransaction                    = (id)                                          => api.delete(`/mf/transactions/${id}`);
 
 
 
-export const getMfWatchlist        = ()     => api.get("/mf/watchlist");
-export const addToMfWatchlist = (data) => api.post("/mf/watchlist", data);
-export const removeFromMfWatchlist = (id) => api.delete(`/mf/watchlist/${id}`);
+export const getMfWatchlist                         = ()        => api.get("/mf/watchlist");
+export const addToMfWatchlist                       = (data)    => api.post("/mf/watchlist", data);
+export const removeFromMfWatchlist                  = (id)      => api.delete(`/mf/watchlist/${id}`);
 
-export const getPortfolioHistory = (range = "3mo") => api.get("/api/holdings/history", { params: { range } }).then(r => r.data);
+export const getPortfolioHistory                    = (range = "3mo")                         => api.get("/api/holdings/history", { params: { range } }).then(r => r.data);
 
 // ── Price Alerts ──────────────────────────────────────────────────────────────
-export const getAlerts     = ()          => api.get("/alerts");
-export const createAlert   = (data)      => api.post("/alerts", data);
-export const toggleAlert   = (id)        => api.patch(`/alerts/${id}/toggle`);
-export const deleteAlert   = (id)        => api.delete(`/alerts/${id}`);
+export const getAlerts                              = ()          => api.get("/alerts");
+export const createAlert                            = (data)      => api.post("/alerts", data);
+export const toggleAlert                            = (id)        => api.patch(`/alerts/${id}/toggle`);
+export const deleteAlert                            = (id)        => api.delete(`/alerts/${id}`);
