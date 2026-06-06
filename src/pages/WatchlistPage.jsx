@@ -96,7 +96,6 @@ function WatchlistSparkline({ symbol, exchange, previousClose, changePercent }) 
 
 export default function WatchlistPage(props) {
     const [superTab, setSuperTab] = useState(props.defaultTab || "stocks");
-    const isMobile = useMobile();
     const toast = useToast();
     return (
         <div className="space-y-4">

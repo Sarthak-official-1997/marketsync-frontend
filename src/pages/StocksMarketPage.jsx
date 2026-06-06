@@ -1,3 +1,4 @@
+import { useMobile } from "../hooks/useMobile";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { searchStocks, addToWatchlist, getStockPrice,
@@ -162,42 +163,35 @@ function GreetingBar({ portfolioSummary }) {
     const dayPLPos   = dayPL >= 0;
 
     return (
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl px-5 py-4
-                        flex items-center justify-between flex-wrap gap-4">
-            <div>
-                <h2 className="text-white font-bold text-lg leading-tight">
-                    {getGreeting()}, {firstName} 👋
-                </h2>
-                <p className="text-slate-500 text-xs mt-0.5">{dateStr}</p>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2
-                            bg-slate-900/60 rounded-xl border border-slate-700/40">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
-                <span className={`text-sm font-semibold ${status.color}`}>{status.label}</span>
-                <span className="text-slate-600 text-xs hidden md:block">
-                    · NSE / BSE · 9:15 AM – 3:30 PM IST
-                </span>
-            </div>
-            {totalValue > 0 && (
-                <div className="flex items-center gap-4">
-                    <div className="text-right">
-                        <p className="text-slate-400 text-xs">Portfolio Value</p>
-                        <p className="text-white font-bold text-base leading-tight">
+        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl px-4 py-3">
+            {/* Top row: greeting + portfolio value */}
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h2 className="text-white font-bold text-base leading-tight">
+                        {getGreeting()}, {firstName} 👋
+                    </h2>
+                    <p className="text-slate-500 text-xs mt-0.5">{dateStr}</p>
+                </div>
+                {totalValue > 0 && (
+                    <div className="text-right flex-shrink-0">
+                        <p className="text-slate-400 text-[11px]">Portfolio</p>
+                        <p className="text-white font-bold text-sm leading-tight">
                             {valuesHidden ? "••••••" : fmt(totalValue)}
                         </p>
+                        {dayPL !== 0 && (
+                            <p className={`text-xs font-semibold ${dayPLPos ? "text-green-400" : "text-red-400"}`}>
+                                {valuesHidden ? "••••" : (dayPLPos ? "▲ +" : "▼ ") + fmt(Math.abs(dayPL))} today
+                            </p>
+                        )}
                     </div>
-                    {dayPL !== 0 && (
-                        <div className={`px-3 py-1.5 rounded-xl border text-sm font-bold ${
-                            dayPLPos
-                                ? "bg-green-900/20 border-green-500/30 text-green-400"
-                                : "bg-red-900/20 border-red-500/30 text-red-400"
-                        }`}>
-                            {valuesHidden ? "••••" : (dayPLPos ? "▲ +" : "▼ ") + fmt(Math.abs(dayPL))}
-                            <span className="text-xs font-normal ml-1 opacity-70">today</span>
-                        </div>
-                    )}
-                </div>
-            )}
+                )}
+            </div>
+            {/* Bottom row: market status */}
+            <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-slate-700/40">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+                <span className={`text-xs font-semibold ${status.color}`}>{status.label}</span>
+                <span className="text-slate-600 text-xs">· NSE / BSE · 9:15 AM – 3:30 PM IST</span>
+            </div>
         </div>
     );
 }
@@ -1549,7 +1543,9 @@ export default function StocksMarketPage() {
                 : "flex items-center justify-between flex-wrap gap-3"}>
                 <div className="flex items-center gap-2">
                     <span className="text-base">📌</span>
-                    <h1 className={isMobile ? "text-base font-bold text-white" : "text-xl font-bold text-white"}>
+                    <h1 className={isMobile
+                        ? "text-base font-bold text-white whitespace-nowrap"
+                        : "text-xl font-bold text-white"}>
                         My Board
                     </h1>
                     {totalStocks > 0 && (
