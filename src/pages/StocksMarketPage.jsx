@@ -9,7 +9,6 @@ import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth }       from "../context/AuthContext";
-import { useMobile }      from "../hooks/useMobile";
 import { addToBoard, removeFromBoard } from "../components/Layout";
 import { getBoardApi } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
