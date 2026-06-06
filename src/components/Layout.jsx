@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useMobile }       from "../hooks/useMobile";
-import MobileHeader        from "./MobileHeader";
-import MobileBottomNav     from "./MobileBottomNav";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { useAuth }  from "../context/AuthContext";
 import IndexTicker  from "./IndexTicker";
@@ -24,6 +21,193 @@ import InboxPanel from "./InboxPanel";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
+// ── Inline mobile hook — no external file dependency ──────────────────────────
+function useMobile() {
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    useEffect(() => {
+        const mq = window.matchMedia("(max-width: 767px)");
+        const h  = (e) => setIsMobile(e.matches);
+        mq.addEventListener("change", h);
+        setIsMobile(mq.matches);
+        return () => mq.removeEventListener("change", h);
+    }, []);
+    return isMobile;
+}
+
+
+// ── Inline MobileHeader ───────────────────────────────────────────────────────
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user }) {
+    const initial = (user?.fullName || user?.username || "?")[0].toUpperCase();
+    return (
+        <header className="flex items-center gap-2 px-3 py-2
+                            bg-slate-900 border-b border-slate-700/60
+                            sticky top-0 z-50 h-14 flex-shrink-0">
+            <Link to="/stocks" className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-white font-black text-lg tracking-tight">FOLYO</span>
+            </Link>
+            <button onClick={onSearchOpen}
+                    className="flex-1 flex items-center gap-2 px-3 py-2
+                               bg-slate-800 border border-slate-700/60
+                               rounded-xl text-left min-w-0 mx-1">
+                <svg className="w-4 h-4 text-slate-500 flex-shrink-0"
+                     fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
+                </svg>
+                <span className="text-slate-500 text-sm truncate">Search...</span>
+            </button>
+            <button onClick={onAiOpen}
+                    className="flex items-center justify-center w-9 h-9
+                               bg-purple-600/20 border border-purple-500/30
+                               rounded-xl flex-shrink-0">
+                <span className="text-base">✨</span>
+            </button>
+            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center
+                            justify-center text-white font-bold text-sm flex-shrink-0">
+                {initial}
+            </div>
+        </header>
+    );
+}
+
+// ── Inline MobileBottomNav ────────────────────────────────────────────────────
+function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore }) {
+    const navigate = useNavigate();
+    const tabs = [
+        { id: "market",       label: "Market",    to: "/stocks",              exact: true,
+            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+        { id: "holdings",     label: "Holdings",  to: "/stocks/holdings",
+            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4" strokeLinecap="round"/></svg> },
+        { id: "transactions", label: "Trades",    to: "/stocks/transactions",
+            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+        { id: "watchlist",    label: "Watchlist", to: "/stocks/watchlist",
+            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M12 4.318C9.403.5 3 1.545 3 8c0 4.5 9 12 9 12s9-7.5 9-12c0-6.455-6.403-7.5-9-3.682z" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+        { id: "more",         label: "More",      to: null,
+            icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
+    ];
+    const isActive = (tab) => {
+        if (tab.id === "more") return showMore;
+        if (tab.exact) return currentPath === tab.to;
+        return currentPath.startsWith(tab.to);
+    };
+    return (
+        <nav style={{
+            position: "fixed", bottom: 0, left: 0, right: 0,
+            zIndex: 9000,
+            display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+            backgroundColor: "#0f172a",
+            borderTop: "1px solid rgba(51,65,85,0.6)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}>
+            {tabs.map(tab => {
+                const active = isActive(tab);
+                return (
+                    <button key={tab.id}
+                            onClick={() => {
+                                if (tab.id === "more") {
+                                    showMore ? onHideMore() : onShowMore();
+                                } else {
+                                    onHideMore();
+                                    navigate(tab.to);
+                                }
+                            }}
+                            style={{
+                                display: "flex", flexDirection: "column",
+                                alignItems: "center", justifyContent: "center",
+                                gap: "2px", padding: "8px 4px",
+                                color: active ? "#a855f7" : "#64748b",
+                                background: "none", border: "none", cursor: "pointer",
+                            }}>
+                        {tab.icon}
+                        <span style={{ fontSize: "10px", fontWeight: 500 }}>{tab.label}</span>
+                    </button>
+                );
+            })}
+        </nav>
+    );
+}
+
+// ── Inline More Drawer ────────────────────────────────────────────────────────
+function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
+    const navigate = useNavigate();
+    const go = (to) => { onClose(); navigate(to); };
+    const items = [
+        { label: "MF Market",          to: "/mf",               icon: "📊" },
+        { label: "MF Holdings",        to: "/mf/holdings",      icon: "💼" },
+        { label: "MF Transactions",    to: "/mf/transactions",  icon: "🔄" },
+        { label: "MF Watchlist",       to: "/mf/watchlist",     icon: "👁" },
+        { label: "Alerts",             to: "/stocks/alerts",    icon: "🔔" },
+        { label: "Combined Portfolio", to: "/portfolio",         icon: "⊞" },
+    ];
+    return (
+        <>
+            <div onClick={onClose}
+                 style={{
+                     position: "fixed", inset: 0, zIndex: 8998,
+                     backgroundColor: "rgba(0,0,0,0.6)",
+                 }} />
+            <div style={{
+                position: "fixed", bottom: 64, left: 0, right: 0,
+                zIndex: 8999,
+                backgroundColor: "#0f172a",
+                borderTop: "1px solid rgba(51,65,85,0.6)",
+                borderRadius: "16px 16px 0 0",
+                padding: "16px",
+            }}>
+                <div style={{ width: 40, height: 4, background: "#334155",
+                    borderRadius: 2, margin: "0 auto 16px" }} />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    {items.map(item => (
+                        <button key={item.to} onClick={() => go(item.to)}
+                                style={{
+                                    display: "flex", flexDirection: "column",
+                                    alignItems: "center", gap: 6,
+                                    padding: "12px 8px",
+                                    background: "#1e293b",
+                                    border: "1px solid rgba(51,65,85,0.6)",
+                                    borderRadius: 12, cursor: "pointer",
+                                    color: "#cbd5e1",
+                                }}>
+                            <span style={{ fontSize: 22 }}>{item.icon}</span>
+                            <span style={{ fontSize: 11, fontWeight: 500,
+                                textAlign: "center", lineHeight: 1.3 }}>
+                                {item.label}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+                {isAdmin && (
+                    <div style={{ marginTop: 12, paddingTop: 12,
+                        borderTop: "1px solid rgba(51,65,85,0.4)" }}>
+                        <p style={{ fontSize: 10, color: "#475569", fontWeight: 600,
+                            textTransform: "uppercase", letterSpacing: "0.08em",
+                            marginBottom: 8 }}>
+                            {isCreator ? "👑 Creator" : "Admin"}
+                        </p>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {[
+                                { to: "/admin",           label: "Dashboard" },
+                                { to: "/admin/clients",   label: "Clients"   },
+                                { to: "/admin/analytics", label: "Analytics" },
+                            ].map(l => (
+                                <button key={l.to} onClick={() => go(l.to)}
+                                        style={{
+                                            padding: "6px 12px",
+                                            background: "#1e293b",
+                                            border: "1px solid rgba(51,65,85,0.6)",
+                                            borderRadius: 8, cursor: "pointer",
+                                            color: "#94a3b8", fontSize: 12,
+                                        }}>
+                                    {l.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </>
+    );
+}
 
 // -- Board helpers ------------------------------------------------------------
 
@@ -120,6 +304,7 @@ export default function Layout({ children, portfolioSummary }) {
     const { user, logout, isAdmin, isCreator } = useAuth();
     const { hidden: valuesHidden, toggle: togglePrivacy } = usePrivacy();
     const navigate  = useNavigate();
+    const location  = useLocation();
     const isMobile  = useMobile();
 
     const [stocksOpen,  setStocksOpen]  = useState(true);
@@ -138,6 +323,7 @@ export default function Layout({ children, portfolioSummary }) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [showInbox,   setShowInbox]   = useState(false);
     const [inboxUnread, setInboxUnread] = useState(0);
+    const [showMore,    setShowMore]    = useState(false);
 
     const handleLogout = () => {
         localStorage.removeItem("ms_board_stocks");
@@ -213,6 +399,7 @@ export default function Layout({ children, portfolioSummary }) {
                     onSearchOpen={() => setSearchOpen(true)}
                     onAiOpen={() => setShowAiChat(true)}
                     pendingNotifs={inboxUnread}
+                    user={user}
                 />
             )}
 
@@ -617,7 +804,23 @@ export default function Layout({ children, portfolioSummary }) {
             />
 
             {/* Mobile bottom navigation */}
-            {isMobile && <MobileBottomNav />}
+            {isMobile && (
+                <>
+                    {showMore && (
+                        <MobileMoreDrawer
+                            onClose={() => setShowMore(false)}
+                            isAdmin={isAdmin}
+                            isCreator={isCreator}
+                        />
+                    )}
+                    <MobileBottomNav
+                        currentPath={location.pathname}
+                        showMore={showMore}
+                        onShowMore={() => setShowMore(true)}
+                        onHideMore={() => setShowMore(false)}
+                    />
+                </>
+            )}
         </div>
     );
 }
