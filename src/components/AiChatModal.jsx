@@ -62,16 +62,19 @@ const LEVELS = [
 const LEVEL_STYLES = {
     green:  {
         badge:    "bg-green-900/30 border-green-500/40 text-green-300",
+        text:     "text-green-400",
         active:   "bg-green-600 text-white",
         inactive: "bg-slate-800 text-slate-400 hover:text-white border border-slate-700",
     },
     blue:   {
         badge:    "bg-blue-900/30 border-blue-500/40 text-blue-300",
+        text:     "text-blue-400",
         active:   "bg-blue-600 text-white",
         inactive: "bg-slate-800 text-slate-400 hover:text-white border border-slate-700",
     },
     purple: {
         badge:    "bg-purple-900/30 border-purple-500/40 text-purple-300",
+        text:     "text-purple-400",
         active:   "bg-purple-600 text-white",
         inactive: "bg-slate-800 text-slate-400 hover:text-white border border-slate-700",
     },
@@ -149,8 +152,6 @@ export default function AiChatModal({ onClose }) {
     const [error,        setError]        = useState("");
     // Idea 3: persistent level state
     const [level,        setLevel]        = useState("intermediate");
-    const [showLevelDrop,setShowLevelDrop]= useState(false);
-    const levelDropRef   = useRef(null);
     const messagesEndRef = useRef(null);
     const inputRef       = useRef(null);
 
@@ -254,15 +255,7 @@ export default function AiChatModal({ onClose }) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, loading]);
 
-    // Close level dropdown on outside click
-    useEffect(() => {
-        const h = (e) => {
-            if (levelDropRef.current && !levelDropRef.current.contains(e.target))
-                setShowLevelDrop(false);
-        };
-        document.addEventListener("mousedown", h);
-        return () => document.removeEventListener("mousedown", h);
-    }, []);
+
 
     // ── Send message — silently appends level context ─────────────────────────
     const sendMessage = useCallback(async (text) => {
@@ -352,65 +345,13 @@ export default function AiChatModal({ onClose }) {
 
                         <div className="flex items-center gap-2">
 
-                            {/* Idea 3: Level badge + dropdown */}
-                            <div ref={levelDropRef} className="relative">
-                                <button
-                                    onClick={() => setShowLevelDrop(v => !v)}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1.5
-                                           border rounded-lg text-xs font-semibold
-                                           transition-colors ${
-                                        LEVEL_STYLES[currentLevel.color].badge
-                                    }`}>
-                                    <span>{currentLevel.emoji}</span>
-                                    <span className="hidden sm:block">{currentLevel.label}</span>
-                                    <span className="text-[10px] opacity-60">▾</span>
-                                </button>
-
-                                {showLevelDrop && (
-                                    <div className="absolute right-0 top-full mt-1.5 w-56
-                                                bg-slate-800 border border-slate-700
-                                                rounded-xl shadow-2xl z-50 overflow-hidden">
-                                        <p className="text-slate-500 text-[10px] font-bold
-                                                  uppercase tracking-widest px-3 pt-3 pb-1.5">
-                                            Explain answers as if I am:
-                                        </p>
-                                        {LEVELS.map(l => (
-                                            <button key={l.id}
-                                                    onClick={() => {
-                                                        setLevel(l.id);
-                                                        setShowLevelDrop(false);
-                                                    }}
-                                                    className={`w-full text-left px-3 py-2.5
-                                                           flex items-start gap-3
-                                                           transition-colors last:rounded-b-xl
-                                                           ${level === l.id
-                                                        ? "bg-slate-700/80"
-                                                        : "hover:bg-slate-700/40"}`}>
-                                            <span className="text-lg flex-shrink-0 mt-0.5">
-                                                {l.emoji}
-                                            </span>
-                                                <div>
-                                                    <p className={`text-sm font-semibold ${
-                                                        level === l.id
-                                                            ? "text-white" : "text-slate-300"
-                                                    }`}>
-                                                        {l.label}
-                                                        {level === l.id && (
-                                                            <span className="text-blue-400 ml-2
-                                                                         text-xs">✓</span>
-                                                        )}
-                                                    </p>
-                                                    <p className="text-slate-500 text-xs mt-0.5">
-                                                        {l.desc}
-                                                    </p>
-                                                </div>
-                                            </button>
-                                        ))}
-                                        <p className="text-slate-600 text-[10px] px-3 pb-3 pt-1">
-                                            Affects how answers are explained
-                                        </p>
-                                    </div>
-                                )}
+                            {/* Level indicator — compact badge in header */}
+                            <div className="flex items-center gap-1 px-2 py-1
+                                            bg-slate-800/60 border border-slate-700/50 rounded-lg">
+                                <span className="text-xs">{currentLevel.emoji}</span>
+                                <span className={`text-[10px] font-semibold hidden sm:block ${
+                                    LEVEL_STYLES[currentLevel.color].text
+                                }`}>{currentLevel.label}</span>
                             </div>
 
                             <button onClick={() => setShowSessions(v => !v)}
@@ -491,10 +432,40 @@ export default function AiChatModal({ onClose }) {
                         </div>
                     )}
 
-                    {/* Messages */}
-                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                    {/* Level tabs — 3 compact tabs always visible above messages */}
+                    <div className="flex items-center gap-1.5 px-3 pt-3 pb-0 flex-shrink-0">
+                        {LEVELS.map(l => {
+                            const isActive = level === l.id;
+                            const activeClass = {
+                                green:  "bg-green-900/30 text-green-400 border-green-500/40",
+                                blue:   "bg-blue-900/30 text-blue-400 border-blue-500/40",
+                                purple: "bg-purple-900/30 text-purple-400 border-purple-500/40",
+                            }[l.color];
+                            return (
+                                <button key={l.id}
+                                        onClick={() => setLevel(l.id)}
+                                        title={l.desc}
+                                        className={`flex items-center justify-center gap-1.5
+                                                    flex-1 py-1.5 border rounded-xl
+                                                    text-[11px] font-semibold transition-all ${
+                                            isActive
+                                                ? activeClass
+                                                : "text-slate-500 border-slate-700 hover:border-slate-600 hover:text-slate-300"
+                                        }`}>
+                                    <span className="text-sm">{l.emoji}</span>
+                                    <span>{l.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-slate-600 text-[10px] text-center pt-1 pb-0 px-3 flex-shrink-0">
+                        Tap a level — answers adapt instantly
+                    </p>
 
-                        {/* ── Idea 2: Empty state with level toggle + level-aware suggestions ── */}
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+
+                        {/* ── Empty state with level-aware suggestions ── */}
                         {isEmpty && (
                             <div className="h-full flex flex-col items-center
                                         justify-center gap-5 py-6">

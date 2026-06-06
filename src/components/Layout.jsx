@@ -237,19 +237,6 @@ export default function Layout({ children, portfolioSummary }) {
 
                 <div className="h-5 w-px bg-slate-700 flex-shrink-0 hidden sm:block" />
 
-                {/* ✨ FOLYO AI — prominent, always labeled, pulsing glow */}
-                <button
-                    onClick={() => setShowAiChat(true)}
-                    className="ai-glow flex-shrink-0 flex items-center gap-1.5
-                               px-3 py-2
-                               bg-gradient-to-r from-blue-600 to-purple-600
-                               hover:from-blue-500 hover:to-purple-500
-                               border border-blue-400/40 rounded-xl
-                               transition-all duration-200 text-white">
-                    <span className="text-base leading-none">✨</span>
-                    <span className="text-xs font-bold tracking-wide">FOLYO AI</span>
-                </button>
-
                 {/* Creator live cost badge */}
                 {isCreator && aiCost && (
                     <button
@@ -267,25 +254,43 @@ export default function Layout({ children, portfolioSummary }) {
                     </button>
                 )}
 
-                {/* Search trigger — command palette */}
-                {/* Search trigger — absolutely centered in header */}
-                <button
-                    onClick={() => setSearchOpen(true)}
-                    className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2
-                               bg-slate-800/70 hover:bg-slate-800
-                               border border-slate-700 hover:border-slate-600
-                               rounded-xl text-left transition-all duration-150 group">
-                    <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
-                    flex-shrink-0 transition-colors"
-                         fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
-                    </svg>
-                    <span className="text-slate-500 group-hover:text-slate-400 text-sm
-                     flex-1 transition-colors truncate">
-                                Search stocks & MF...
-                    </span>
-                </button>
+                {/* Search + Ask AI — unified bar */}
+                <div className="flex-1 min-w-0 flex items-center
+                                bg-slate-800/70 hover:bg-slate-800
+                                border border-slate-700 hover:border-slate-600
+                                rounded-xl transition-all duration-150 overflow-hidden">
+                    {/* Search trigger */}
+                    <button
+                        onClick={() => setSearchOpen(true)}
+                        className="flex items-center gap-3 px-4 py-2 flex-1 min-w-0
+                                   text-left group bg-transparent border-none">
+                        <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
+                                        flex-shrink-0 transition-colors"
+                             fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
+                        </svg>
+                        <span className="text-slate-500 group-hover:text-slate-400 text-sm
+                                         flex-1 transition-colors truncate">
+                            Search stocks & MF...
+                        </span>
+                    </button>
+
+                    {/* Divider */}
+                    <div className="h-5 w-px bg-slate-700 flex-shrink-0" />
+
+                    {/* Ask AI pill — opens chat popup */}
+                    <button
+                        onClick={() => setShowAiChat(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 flex-shrink-0
+                                   text-purple-400 hover:text-purple-300
+                                   hover:bg-purple-500/10
+                                   transition-all duration-150 group/ai">
+                        <span className="text-sm leading-none
+                                         group-hover/ai:scale-110 transition-transform">✨</span>
+                        <span className="text-xs font-semibold hidden sm:block">Ask AI</span>
+                    </button>
+                </div>
 
                 {/* Right side items */}
                 <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">

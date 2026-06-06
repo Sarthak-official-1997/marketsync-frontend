@@ -650,6 +650,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                         value={trade._date || ""}
                                                         onChange={e => updateTrade(trade._id,
                                                             "_date", e.target.value)}
+                                                        required
+                                                        style={!trade._date
+                                                            ? { borderColor: "#ef4444", boxShadow: "0 0 0 1px #ef4444" }
+                                                            : { borderColor: "#22c55e" }}
                                                         max={new Date().toISOString().split("T")[0]}
                                                         className="w-full bg-slate-700 border border-slate-600
                                                                rounded-lg px-3 py-2 text-white text-sm
@@ -725,6 +729,22 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                     onClick={() => {
                                         const selected = editableTrades.filter(t => t._include);
                                         if (selected.length === 0) return;
+
+                                        // Block if any trade has no date
+                                        const missingDate = selected.filter(t => !t._date || !t._date.trim());
+                                        if (missingDate.length > 0) {
+                                            setError(`Enter trade date for: ${missingDate.map(t => t.stockSymbol || t.stockName).join(", ")}`);
+                                            return;
+                                        }
+
+                                        // Block if any trade is unverified
+                                        const unverified = selected.filter(t => !t._resolved);
+                                        if (unverified.length > 0) {
+                                            setError(`Fix unverified symbol for: ${unverified.map(t => t.stockSymbol).join(", ")}`);
+                                            return;
+                                        }
+
+                                        setError("");
                                         setResolvedTrades(selected);
                                         setShowConfirm(true);
                                     }}
@@ -791,7 +811,10 @@ export default function AiTradeImportModal({ onClose, onImported }) {
                                                 )}
                                                 {!t._resolved && (
                                                     <span className="text-[10px] text-red-400 bg-red-900/20
-                                                                     px-1.5 py-0.5 rounded">⚠ unverified</span>
+                                                                     px-1.5 py-0.5 rounded"
+                                                          title="This symbol could not be found in the system. Edit the symbol field above to the correct NSE ticker.">
+                                                        ⚠ unverified — edit symbol
+                                                    </span>
                                                 )}
                                             </div>
                                             <p className="text-slate-500 text-[10px] truncate">{t.stockName}</p>
