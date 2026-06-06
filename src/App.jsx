@@ -43,6 +43,10 @@ import { getPortfolioSummary, getMfPortfolioSummary } from "./api/portfolio";
 
 import AdminAiReportPage from "./pages/AdminAiReportPage";
 
+//PWA mobile app
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
+
+
 // -- Route guards --------------------------------------------------------------
 
 function AdminRoute({ children }) {
@@ -313,6 +317,7 @@ export default function App() {
         <ThemeProvider>
             <AuthProvider>
                 <ToastProvider>
+                    <PwaInstallPrompt />   {/* ADDed THIS */}
                     <ErrorBoundary>
                         <Routes>
                             <Route path="/login"    element={<LoginPage />} />

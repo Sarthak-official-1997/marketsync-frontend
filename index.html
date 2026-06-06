@@ -1,17 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
   <meta charset="UTF-8" />
 
-  <!-- 1. CHANGED: Updated href to point to your new logo file -->
+  <!-- PWA essential meta tags -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FOLYO" />
+  <meta name="theme-color" content="#863bff" />
+  <meta name="msapplication-TileColor" content="#0a0f1e" />
+
+  <!-- SEO / description -->
+  <meta name="description" content="Track your stocks and mutual funds with live prices, AI insights, and FIFO P&L" />
+
+  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/chartlogo.svg" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Apple touch icons (iOS home screen) -->
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
 
-  <!-- 2. CHANGED: Updated the tab title text from 'frontend' to 'FOLYO' -->
+  <!-- Apple splash screens — optional but makes launch feel native on iOS -->
+  <!-- Generate at https://appsco.pe/developer/splash-screens -->
+
+  <!-- PWA manifest — VitePWA injects this automatically in build,
+       keep it here as fallback for dev -->
+  <link rel="manifest" href="/manifest.json" />
+
   <title>FOLYO</title>
 </head>
 <body>
