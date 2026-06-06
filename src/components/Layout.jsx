@@ -393,6 +393,18 @@ export default function Layout({ children, portfolioSummary }) {
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
 
+            {/* DEBUG BANNER — remove after confirming mobile works */}
+            <div style={{
+                position: "fixed", top: 0, left: 0, right: 0,
+                zIndex: 99999, padding: "4px 8px",
+                background: isMobile ? "#16a34a" : "#dc2626",
+                color: "white", fontSize: "11px", textAlign: "center",
+                fontWeight: "bold",
+            }}>
+                {isMobile ? "✅ MOBILE MODE" : "🖥 DESKTOP MODE"} — width: {window.innerWidth}px
+            </div>
+            <div style={{ height: 24 }} />
+
             {/* ── Mobile header — shown only on small screens ── */}
             {isMobile && (
                 <MobileHeader
