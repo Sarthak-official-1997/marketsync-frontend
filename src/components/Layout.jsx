@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useMobile }       from "../hooks/useMobile";
+import MobileHeader        from "./MobileHeader";
+import MobileBottomNav     from "./MobileBottomNav";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { useAuth }  from "../context/AuthContext";
 import IndexTicker  from "./IndexTicker";
@@ -22,9 +25,7 @@ import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
 
-
-
-// -- Board helpers ------------------------------------------------------------─
+// -- Board helpers ------------------------------------------------------------
 
 export async function addToBoard(stock) {
     try {
@@ -36,7 +37,7 @@ export async function addToBoard(stock) {
         window.dispatchEvent(new Event("ms_board_updated"));
         return true;
     } catch {
-        return false; // already exists or error
+        return false;
     }
 }
 
@@ -47,7 +48,6 @@ export async function removeFromBoard(symbol) {
     } catch {}
 }
 
-// Kept for any sync references — actual data always fetched from API
 export function getBoardStocks() { return []; }
 
 const STOCKS_LINKS = [
@@ -119,7 +119,8 @@ export default function Layout({ children, portfolioSummary }) {
     const themeRef = useRef(null);
     const { user, logout, isAdmin, isCreator } = useAuth();
     const { hidden: valuesHidden, toggle: togglePrivacy } = usePrivacy();
-    const navigate = useNavigate();
+    const navigate  = useNavigate();
+    const isMobile  = useMobile();
 
     const [stocksOpen,  setStocksOpen]  = useState(true);
     const [mfOpen,      setMfOpen]      = useState(true);
@@ -139,7 +140,6 @@ export default function Layout({ children, portfolioSummary }) {
     const [inboxUnread, setInboxUnread] = useState(0);
 
     const handleLogout = () => {
-        // Clear all user-specific localStorage on logout
         localStorage.removeItem("ms_board_stocks");
         localStorage.removeItem("ms_recently_visited");
         localStorage.removeItem("ms_recently_viewed_mf");
@@ -187,7 +187,6 @@ export default function Layout({ children, portfolioSummary }) {
         return () => clearInterval(t);
     }, [isCreator]);
 
-    // Inbox unread polling — all users get pending count, CREATOR also gets contact messages
     useEffect(() => {
         const poll = async () => {
             try {
@@ -205,399 +204,389 @@ export default function Layout({ children, portfolioSummary }) {
         return () => clearInterval(t);
     }, [isCreator]);
 
-
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
 
-            {/* -- TOP NAVBAR -- */}
-            <header className="flex-shrink-0 h-16 bg-slate-900 border-b
-                   border-slate-700/60 flex items-center px-3 sm:px-4
-                   gap-2 sm:gap-3 z-30">
+            {/* ── Mobile header — shown only on small screens ── */}
+            {isMobile && (
+                <MobileHeader
+                    onSearchOpen={() => setSearchOpen(true)}
+                    onAiOpen={() => setShowAiChat(true)}
+                    pendingNotifs={inboxUnread}
+                />
+            )}
 
-                {/* Hamburger — mobile only */}
-                <button
-                    onClick={() => setSidebarOpen(v => !v)}
-                    className="md:hidden flex-shrink-0 p-2 rounded-lg text-slate-400
-                               hover:text-white hover:bg-slate-700 transition-colors"
-                    aria-label="Toggle menu">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor"
-                         strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round"
-                              d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
+            {/* ── Desktop header — hidden on mobile ── */}
+            {!isMobile && (
+                <header className="flex-shrink-0 h-16 bg-slate-900 border-b
+                       border-slate-700/60 flex items-center px-3 sm:px-4
+                       gap-2 sm:gap-3 z-30">
 
-                {/* -- Brand logo — single Link, properly closed -- */}
-                <Link to="/stocks" className="flex items-center gap-2 flex-shrink-0">
-                    <AppLogo className="w-8 h-8" />
-                    <div className="hidden sm:block">
-                        <FolyoBrand size="xs" />
-                    </div>
-                </Link>
-
-                <div className="h-5 w-px bg-slate-700 flex-shrink-0 hidden sm:block" />
-
-                {/* Creator live cost badge */}
-                {isCreator && aiCost && (
-                    <button
-                        onClick={() => navigate("/admin/ai-report")}
-                        className="flex-shrink-0 hidden md:flex flex-col items-end
-                                   bg-amber-900/20 border border-amber-500/20
-                                   hover:border-amber-500/40 rounded-xl px-3 py-1.5
-                                   transition-colors">
-                        <span className="text-amber-400 text-xs font-bold">
-                            Rs.{parseFloat(aiCost.todayCostInr || 0).toFixed(2)} today
-                        </span>
-                        <span className="text-slate-600 text-[10px]">
-                            Rs.{parseFloat(aiCost.totalCostInr || 0).toFixed(2)} total
-                        </span>
-                    </button>
-                )}
-
-                {/* Search + Ask AI — unified bar */}
-                <div className="flex-1 min-w-0 flex items-center
-                                bg-slate-800/70 hover:bg-slate-800
-                                border border-slate-700 hover:border-slate-600
-                                rounded-xl transition-all duration-150 overflow-hidden">
-                    {/* Search trigger */}
-                    <button
-                        onClick={() => setSearchOpen(true)}
-                        className="flex items-center gap-3 px-4 py-2 flex-1 min-w-0
-                                   text-left group bg-transparent border-none">
-                        <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
-                                        flex-shrink-0 transition-colors"
-                             fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
-                        </svg>
-                        <span className="text-slate-500 group-hover:text-slate-400 text-sm
-                                         flex-1 transition-colors truncate">
-                            Search stocks & MF...
-                        </span>
-                    </button>
-
-                    {/* Divider */}
-                    <div className="h-5 w-px bg-slate-700 flex-shrink-0" />
-
-                    {/* Ask AI pill — opens chat popup */}
-                    <button
-                        onClick={() => setShowAiChat(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 flex-shrink-0
-                                   text-purple-400 hover:text-purple-300
-                                   hover:bg-purple-500/10
-                                   transition-all duration-150 group/ai">
-                        <span className="text-sm leading-none
-                                         group-hover/ai:scale-110 transition-transform">✨</span>
-                        <span className="text-xs font-semibold hidden sm:block">Ask AI</span>
-                    </button>
-                </div>
-
-                {/* Right side items */}
-                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">
-
-
-
-                    {/* Portfolio value */}
-                    {totalValue && (
-                        <div className="hidden md:flex flex-col items-end bg-slate-800
-                                        border border-slate-700 rounded-xl px-3 py-1.5">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400">Portfolio</span>
-                                <span className="text-sm font-bold text-white">
-                                    {valuesHidden ? "••••••" : fmtCrore(totalValue)}
-                                </span>
-                            </div>
-                            {totalPL && (
-                                <span className={"text-xs font-semibold " +
-                                (isPLPos ? "text-green-400" : "text-red-400")}>
-                                    {valuesHidden ? "••••" : `P&L ${isPLPos ? "+" : ""}${fmtCrore(totalPL)}`}
-                                </span>
-                            )}
+                    <Link to="/stocks" className="flex items-center gap-2 flex-shrink-0">
+                        <AppLogo className="w-8 h-8" />
+                        <div className="hidden sm:block">
+                            <FolyoBrand size="xs" />
                         </div>
+                    </Link>
+
+                    <div className="h-5 w-px bg-slate-700 flex-shrink-0 hidden sm:block" />
+
+                    {isCreator && aiCost && (
+                        <button
+                            onClick={() => navigate("/admin/ai-report")}
+                            className="flex-shrink-0 hidden md:flex flex-col items-end
+                                       bg-amber-900/20 border border-amber-500/20
+                                       hover:border-amber-500/40 rounded-xl px-3 py-1.5
+                                       transition-colors">
+                            <span className="text-amber-400 text-xs font-bold">
+                                Rs.{parseFloat(aiCost.todayCostInr || 0).toFixed(2)} today
+                            </span>
+                            <span className="text-slate-600 text-[10px]">
+                                Rs.{parseFloat(aiCost.totalCostInr || 0).toFixed(2)} total
+                            </span>
+                        </button>
                     )}
 
-                    {/* Privacy eye toggle */}
-                    <button
-                        onClick={togglePrivacy}
-                        title={valuesHidden ? "Show financial values" : "Hide financial values"}
-                        className={"relative flex items-center justify-center w-9 h-9 rounded-xl " +
-                        "border transition-colors flex-shrink-0 " +
-                        (valuesHidden
-                            ? "bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
-                            : "bg-slate-800 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700")}>
-                        {valuesHidden ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round"
-                                      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                    {/* Search + Ask AI unified bar */}
+                    <div className="flex-1 min-w-0 flex items-center
+                                    bg-slate-800/70 hover:bg-slate-800
+                                    border border-slate-700 hover:border-slate-600
+                                    rounded-xl transition-all duration-150 overflow-hidden">
+                        <button
+                            onClick={() => setSearchOpen(true)}
+                            className="flex items-center gap-3 px-4 py-2 flex-1 min-w-0
+                                       text-left group bg-transparent border-none">
+                            <svg className="w-4 h-4 text-slate-500 group-hover:text-slate-400
+                                            flex-shrink-0 transition-colors"
+                                 fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
                             </svg>
-                        ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round"
-                                      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            </svg>
-                        )}
-                    </button>
-
-                    {/* -- Inbox bell -- */}
-                    <button
-                        onClick={() => setShowInbox(v => !v)}
-                        className="relative flex items-center gap-1.5 px-3 py-2
-                                   text-slate-400 hover:text-white
-                                   hover:bg-slate-700 rounded-xl transition-colors
-                                   flex-shrink-0 border border-slate-700/60
-                                   hover:border-slate-600"
-                        title="Inbox">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor"
-                             strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118
-                                     14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0
-                                     10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0
-                                     .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3
-                                     0 11-6 0v-1m6 0H9"/>
-                        </svg>
-                        <span className="text-xs font-medium hidden sm:inline">Inbox</span>
-                        {inboxUnread > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4
-                                             bg-red-500 text-white text-[10px] font-bold
-                                             rounded-full flex items-center justify-center
-                                             px-1 leading-none">
-                                {inboxUnread > 99 ? "99+" : inboxUnread}
+                            <span className="text-slate-500 group-hover:text-slate-400 text-sm
+                                             flex-1 transition-colors truncate">
+                                Search stocks & MF...
                             </span>
-                        )}
-                    </button>
-
-
-                    {/* Theme dropdown */}
-                    <div ref={themeRef} className="relative">
-                        <button onClick={() => setThemeOpen(v => !v)}
-                                className="flex items-center gap-2 px-3 py-2 bg-slate-800
-                                           hover:bg-slate-700 border border-slate-700
-                                           rounded-xl text-sm transition-colors">
-                            <span className="text-base leading-none">{theme.emoji}</span>
-                            <span className="text-slate-300 text-xs hidden md:block font-medium max-w-[80px] truncate">
-                                {theme.name}
-                            </span>
-                            <span className="text-slate-500 text-xs">▾</span>
                         </button>
-                        {themeOpen && (
-                            <div className="absolute right-0 top-full mt-2 bg-slate-800
-                                            border border-slate-700 rounded-2xl shadow-2xl
-                                            z-50 overflow-hidden w-56">
-                                <div className="px-3 py-2 border-b border-slate-700/50">
-                                    <p className="text-slate-500 text-xs font-semibold
-                                                  uppercase tracking-wide">🌙 Dark</p>
-                                </div>
-                                {THEMES.filter(t => t.type === "dark").map(t => (
-                                    <button key={t.id}
-                                            onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
-                                            className={"w-full flex items-center gap-3 px-4 py-2.5 " +
-                                            "hover:bg-slate-700/60 transition-colors text-left " +
-                                            (themeId === t.id ? "bg-slate-700/80" : "")}>
-                                        <span className="text-base">{t.emoji}</span>
-                                        <span className="text-sm text-white flex-1">{t.name}</span>
-                                        <div className="flex gap-0.5">
-                                            {t.preview.map((c, i) => (
-                                                <div key={i} className="w-3 h-3 rounded-sm"
-                                                     style={{ backgroundColor: c }} />
-                                            ))}
-                                        </div>
-                                        {themeId === t.id && (
-                                            <span className="text-blue-400 text-xs">✓</span>
-                                        )}
-                                    </button>
-                                ))}
-                                <div className="px-3 py-2 border-t border-b border-slate-700/50">
-                                    <p className="text-slate-500 text-xs font-semibold
-                                                  uppercase tracking-wide">☀️ Light</p>
-                                </div>
-                                {THEMES.filter(t => t.type === "light").map(t => (
-                                    <button key={t.id}
-                                            onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
-                                            className={"w-full flex items-center gap-3 px-4 py-2.5 " +
-                                            "hover:bg-slate-700/60 transition-colors text-left " +
-                                            (themeId === t.id ? "bg-slate-700/80" : "")}>
-                                        <span className="text-base">{t.emoji}</span>
-                                        <span className="text-sm text-white flex-1">{t.name}</span>
-                                        <div className="flex gap-0.5">
-                                            {t.preview.map((c, i) => (
-                                                <div key={i} className="w-3 h-3 rounded-sm
-                                                                        border border-slate-600"
-                                                     style={{ backgroundColor: c }} />
-                                            ))}
-                                        </div>
-                                        {themeId === t.id && (
-                                            <span className="text-blue-400 text-xs">✓</span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                        <div className="h-5 w-px bg-slate-700 flex-shrink-0" />
+                        <button
+                            onClick={() => setShowAiChat(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 flex-shrink-0
+                                       text-purple-400 hover:text-purple-300
+                                       hover:bg-purple-500/10 transition-all duration-150 group/ai">
+                            <span className="text-sm leading-none
+                                             group-hover/ai:scale-110 transition-transform">✨</span>
+                            <span className="text-xs font-semibold hidden sm:block">Ask AI</span>
+                        </button>
                     </div>
 
-                    {/* User menu */}
-                    <div ref={userMenuRef} className="relative">
-                        <button
-                            onClick={() => setUserMenuOpen(v => !v)}
-                            className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
-                                       rounded-xl px-2.5 py-1.5 hover:bg-slate-700 transition-colors">
-                            <div className="relative flex-shrink-0">
-                                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center
-                                                justify-center text-white text-xs font-bold">
-                                    {user?.username?.[0]?.toUpperCase() || "U"}
+                    {/* Right side items */}
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto">
+
+                        {totalValue && (
+                            <div className="hidden md:flex flex-col items-end bg-slate-800
+                                            border border-slate-700 rounded-xl px-3 py-1.5">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-400">Portfolio</span>
+                                    <span className="text-sm font-bold text-white">
+                                        {valuesHidden ? "••••••" : fmtCrore(totalValue)}
+                                    </span>
                                 </div>
-                                {isCreator && (
-                                    <span className="absolute -top-2 left-1/2 -translate-x-1/2
-                                                     text-[11px] leading-none select-none"
-                                          title="Creator">
-                                        👑
+                                {totalPL && (
+                                    <span className={"text-xs font-semibold " +
+                                    (isPLPos ? "text-green-400" : "text-red-400")}>
+                                        {valuesHidden ? "••••" : `P&L ${isPLPos ? "+" : ""}${fmtCrore(totalPL)}`}
                                     </span>
                                 )}
                             </div>
-                            <span className="text-slate-500 text-xs">▾</span>
+                        )}
+
+                        {/* Privacy toggle */}
+                        <button
+                            onClick={togglePrivacy}
+                            title={valuesHidden ? "Show financial values" : "Hide financial values"}
+                            className={"relative flex items-center justify-center w-9 h-9 rounded-xl " +
+                            "border transition-colors flex-shrink-0 " +
+                            (valuesHidden
+                                ? "bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
+                                : "bg-slate-800 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700")}>
+                            {valuesHidden ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round"
+                                          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                                </svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round"
+                                          d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            )}
                         </button>
 
-                        {userMenuOpen && (
-                            <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800
-                                            border border-slate-700 rounded-2xl shadow-2xl
-                                            z-50 overflow-hidden">
-                                <div className="px-4 py-3 border-b border-slate-700/50">
-                                    <p className="text-white font-semibold text-sm">
-                                        {user?.fullName || user?.username}
-                                    </p>
-                                    <p className="text-slate-500 text-xs mt-0.5">
-                                        {user?.email || user?.username}
-                                    </p>
-                                    <span className={
-                                        "inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full " +
-                                        "font-bold border " +
-                                        (user?.role === "CREATOR"
-                                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                            : user?.role === "ADMIN"
-                                                ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
-                                                : "bg-blue-500/20 text-blue-400 border-blue-500/30")
-                                    }>
-                                        {user?.role === "CREATOR" ? "👑 CREATOR" : user?.role}
-                                    </span>
+                        {/* Inbox bell */}
+                        <button
+                            onClick={() => setShowInbox(v => !v)}
+                            className="relative flex items-center gap-1.5 px-3 py-2
+                                       text-slate-400 hover:text-white hover:bg-slate-700
+                                       rounded-xl transition-colors flex-shrink-0
+                                       border border-slate-700/60 hover:border-slate-600"
+                            title="Inbox">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor"
+                                 strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round"
+                                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118
+                                         14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0
+                                         10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0
+                                         .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3
+                                         0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            <span className="text-xs font-medium hidden sm:inline">Inbox</span>
+                            {inboxUnread > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4
+                                                 bg-red-500 text-white text-[10px] font-bold
+                                                 rounded-full flex items-center justify-center
+                                                 px-1 leading-none">
+                                    {inboxUnread > 99 ? "99+" : inboxUnread}
+                                </span>
+                            )}
+                        </button>
+
+                        {/* Theme dropdown */}
+                        <div ref={themeRef} className="relative">
+                            <button onClick={() => setThemeOpen(v => !v)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-slate-800
+                                               hover:bg-slate-700 border border-slate-700
+                                               rounded-xl text-sm transition-colors">
+                                <span className="text-base leading-none">{theme.emoji}</span>
+                                <span className="text-slate-300 text-xs hidden md:block font-medium max-w-[80px] truncate">
+                                    {theme.name}
+                                </span>
+                                <span className="text-slate-500 text-xs">▾</span>
+                            </button>
+                            {themeOpen && (
+                                <div className="absolute right-0 top-full mt-2 bg-slate-800
+                                                border border-slate-700 rounded-2xl shadow-2xl
+                                                z-50 overflow-hidden w-56">
+                                    <div className="px-3 py-2 border-b border-slate-700/50">
+                                        <p className="text-slate-500 text-xs font-semibold
+                                                      uppercase tracking-wide">🌙 Dark</p>
+                                    </div>
+                                    {THEMES.filter(t => t.type === "dark").map(t => (
+                                        <button key={t.id}
+                                                onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
+                                                className={"w-full flex items-center gap-3 px-4 py-2.5 " +
+                                                "hover:bg-slate-700/60 transition-colors text-left " +
+                                                (themeId === t.id ? "bg-slate-700/80" : "")}>
+                                            <span className="text-base">{t.emoji}</span>
+                                            <span className="text-sm text-white flex-1">{t.name}</span>
+                                            <div className="flex gap-0.5">
+                                                {t.preview.map((c, i) => (
+                                                    <div key={i} className="w-3 h-3 rounded-sm"
+                                                         style={{ backgroundColor: c }} />
+                                                ))}
+                                            </div>
+                                            {themeId === t.id && (
+                                                <span className="text-blue-400 text-xs">✓</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                    <div className="px-3 py-2 border-t border-b border-slate-700/50">
+                                        <p className="text-slate-500 text-xs font-semibold
+                                                      uppercase tracking-wide">☀️ Light</p>
+                                    </div>
+                                    {THEMES.filter(t => t.type === "light").map(t => (
+                                        <button key={t.id}
+                                                onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
+                                                className={"w-full flex items-center gap-3 px-4 py-2.5 " +
+                                                "hover:bg-slate-700/60 transition-colors text-left " +
+                                                (themeId === t.id ? "bg-slate-700/80" : "")}>
+                                            <span className="text-base">{t.emoji}</span>
+                                            <span className="text-sm text-white flex-1">{t.name}</span>
+                                            <div className="flex gap-0.5">
+                                                {t.preview.map((c, i) => (
+                                                    <div key={i} className="w-3 h-3 rounded-sm
+                                                                            border border-slate-600"
+                                                         style={{ backgroundColor: c }} />
+                                                ))}
+                                            </div>
+                                            {themeId === t.id && (
+                                                <span className="text-blue-400 text-xs">✓</span>
+                                            )}
+                                        </button>
+                                    ))}
                                 </div>
-                                <button
-                                    onClick={() => { setUserMenuOpen(false); setShowChangePw(true); }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
-                                               text-slate-300 hover:text-white hover:bg-slate-700/60
-                                               transition-colors text-left">
-                                    <span>🔒</span> Change Password
-                                </button>
-                                <button
-                                    onClick={() => { setUserMenuOpen(false); setShowRevealPw(true); }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
-                                               text-amber-400 hover:text-amber-300 hover:bg-amber-900/20
-                                               transition-colors text-left border-t border-slate-700/30">
-                                    <span>🔓</span> View / Recover Password
-                                </button>
-                                <button
-                                    onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm
-                                               text-red-400 hover:text-red-300 hover:bg-red-900/20
-                                               transition-colors text-left border-t border-slate-700/50">
-                                    <span>🚪</span> Logout
-                                </button>
-                            </div>
+                            )}
+                        </div>
+
+                        {/* User menu */}
+                        <div ref={userMenuRef} className="relative">
+                            <button
+                                onClick={() => setUserMenuOpen(v => !v)}
+                                className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
+                                           rounded-xl px-2.5 py-1.5 hover:bg-slate-700 transition-colors">
+                                <div className="relative flex-shrink-0">
+                                    <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center
+                                                    justify-center text-white text-xs font-bold">
+                                        {user?.username?.[0]?.toUpperCase() || "U"}
+                                    </div>
+                                    {isCreator && (
+                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2
+                                                         text-[11px] leading-none select-none"
+                                              title="Creator">
+                                            👑
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-slate-500 text-xs">▾</span>
+                            </button>
+
+                            {userMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800
+                                                border border-slate-700 rounded-2xl shadow-2xl
+                                                z-50 overflow-hidden">
+                                    <div className="px-4 py-3 border-b border-slate-700/50">
+                                        <p className="text-white font-semibold text-sm">
+                                            {user?.fullName || user?.username}
+                                        </p>
+                                        <p className="text-slate-500 text-xs mt-0.5">
+                                            {user?.email || user?.username}
+                                        </p>
+                                        <span className={
+                                            "inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full " +
+                                            "font-bold border " +
+                                            (user?.role === "CREATOR"
+                                                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                                : user?.role === "ADMIN"
+                                                    ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                                    : "bg-blue-500/20 text-blue-400 border-blue-500/30")
+                                        }>
+                                            {user?.role === "CREATOR" ? "👑 CREATOR" : user?.role}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => { setUserMenuOpen(false); setShowChangePw(true); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                                                   text-slate-300 hover:text-white hover:bg-slate-700/60
+                                                   transition-colors text-left">
+                                        <span>🔒</span> Change Password
+                                    </button>
+                                    <button
+                                        onClick={() => { setUserMenuOpen(false); setShowRevealPw(true); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                                                   text-amber-400 hover:text-amber-300 hover:bg-amber-900/20
+                                                   transition-colors text-left border-t border-slate-700/30">
+                                        <span>🔓</span> View / Recover Password
+                                    </button>
+                                    <button
+                                        onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm
+                                                   text-red-400 hover:text-red-300 hover:bg-red-900/20
+                                                   transition-colors text-left border-t border-slate-700/50">
+                                        <span>🚪</span> Logout
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {showChangePw && (
+                            <ChangePasswordModal onClose={() => setShowChangePw(false)} />
+                        )}
+                        {showRevealPw && (
+                            <RevealPasswordModal onClose={() => setShowRevealPw(false)} />
                         )}
                     </div>
+                </header>
+            )}
 
-                    {showChangePw && (
-                        <ChangePasswordModal onClose={() => setShowChangePw(false)} />
-                    )}
-                    {showRevealPw && (
-                        <RevealPasswordModal onClose={() => setShowRevealPw(false)} />
-                    )}
+            {/* Index ticker — desktop only */}
+            {!isMobile && (
+                <div className="flex-shrink-0 bg-slate-900/80 border-b border-slate-700/40 overflow-x-auto scrollbar-hide">
+                    <SilentErrorBoundary>
+                        <IndexTicker />
+                    </SilentErrorBoundary>
                 </div>
-            </header>
-
-            {/* -- INDEX BAR   Indices -- */}
-            <div className="flex-shrink-0 bg-slate-900/80 border-b border-slate-700/40 overflow-x-auto scrollbar-hide">
-                <SilentErrorBoundary>
-                    <IndexTicker />
-                </SilentErrorBoundary>
-            </div>
+            )}
 
             {/* -- CONTENT AREA -- */}
             <div className="flex-1 flex overflow-hidden">
 
-                {/* Mobile backdrop */}
-                {sidebarOpen && (
+                {/* Mobile backdrop for sidebar (kept for desktop hamburger fallback) */}
+                {sidebarOpen && !isMobile && (
                     <div
-                        className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden"
+                        className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm"
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
 
-                {/* -- SIDEBAR -- */}
-                <aside className={
-                    "flex-col bg-slate-900 border-r border-slate-700/60 overflow-y-auto z-40 " +
-                    "transition-transform duration-200 " +
-                    "fixed inset-y-0 left-0 w-64 " +
-                    (sidebarOpen ? "flex translate-x-0" : "flex -translate-x-full ") +
-                    "md:relative md:flex md:translate-x-0 md:w-52 md:flex-shrink-0"
-                }>
-                    <nav className="flex-1 p-3 space-y-1">
-                        <SectionHeader icon="📈" label="Stocks"
-                                       expanded={stocksOpen}
-                                       onToggle={() => setStocksOpen(v => !v)} />
-                        {stocksOpen && (
-                            <div className="space-y-0.5 pl-1">
-                                {STOCKS_LINKS.map(l => <NavLink key={l.to} {...l} />)}
-                            </div>
-                        )}
-
-                        <div className="h-px bg-slate-700/40 my-2" />
-
-                        <SectionHeader icon="📊" label="Mutual Funds"
-                                       expanded={mfOpen}
-                                       onToggle={() => setMfOpen(v => !v)} />
-                        {mfOpen && (
-                            <div className="space-y-0.5 pl-1">
-                                {MF_LINKS.map(l => <NavLink key={l.to} {...l} />)}
-                            </div>
-                        )}
-
-                        <div className="h-px bg-slate-700/40 my-2" />
-
-                        <NavLink to="/portfolio" icon="⊞" label="Combined Portfolio" exact />
-
-                        {isAdmin && (
-                            <>
-                                <div className="h-px bg-slate-700/40 my-2" />
-                                <div className="px-3 py-1">
-                                    <p className="text-[10px] text-slate-600 font-semibold
-                                                  uppercase tracking-widest">
-                                        {isCreator ? "👑 Creator" : "Admin"}
-                                    </p>
-                                </div>
+                {/* -- SIDEBAR — desktop only -- */}
+                {!isMobile && (
+                    <aside className={
+                        "flex-col bg-slate-900 border-r border-slate-700/60 overflow-y-auto z-40 " +
+                        "transition-transform duration-200 " +
+                        "fixed inset-y-0 left-0 w-64 " +
+                        (sidebarOpen ? "flex translate-x-0" : "flex -translate-x-full ") +
+                        "md:relative md:flex md:translate-x-0 md:w-52 md:flex-shrink-0"
+                    }>
+                        <nav className="flex-1 p-3 space-y-1">
+                            <SectionHeader icon="📈" label="Stocks"
+                                           expanded={stocksOpen}
+                                           onToggle={() => setStocksOpen(v => !v)} />
+                            {stocksOpen && (
                                 <div className="space-y-0.5 pl-1">
-                                    <AdminNavLink to="/admin"           icon="🏠" label="Dashboard" exact />
-                                    <AdminNavLink to="/admin/clients"   icon="👥" label="Clients"   />
-                                    <AdminNavLink to="/admin/analytics" icon="📊" label="Analytics" />
-                                    {isCreator && CREATOR_LINKS.map(l => (
-                                        <AdminNavLink key={l.to} {...l} />
-                                    ))}
-                                    {isCreator && (
-                                        <AdminNavLink to="/admin/ai-report" icon="🤖" label="AI Report" />
-                                    )}
+                                    {STOCKS_LINKS.map(l => <NavLink key={l.to} {...l} />)}
                                 </div>
-                            </>
-                        )}
-                    </nav>
+                            )}
 
-                    <div className="p-3 border-t border-slate-700/40">
-                        <p className="text-xs text-slate-600 text-center">NSE · BSE · AMFI</p>
-                    </div>
-                </aside>
+                            <div className="h-px bg-slate-700/40 my-2" />
+
+                            <SectionHeader icon="📊" label="Mutual Funds"
+                                           expanded={mfOpen}
+                                           onToggle={() => setMfOpen(v => !v)} />
+                            {mfOpen && (
+                                <div className="space-y-0.5 pl-1">
+                                    {MF_LINKS.map(l => <NavLink key={l.to} {...l} />)}
+                                </div>
+                            )}
+
+                            <div className="h-px bg-slate-700/40 my-2" />
+
+                            <NavLink to="/portfolio" icon="⊞" label="Combined Portfolio" exact />
+
+                            {isAdmin && (
+                                <>
+                                    <div className="h-px bg-slate-700/40 my-2" />
+                                    <div className="px-3 py-1">
+                                        <p className="text-[10px] text-slate-600 font-semibold
+                                                      uppercase tracking-widest">
+                                            {isCreator ? "👑 Creator" : "Admin"}
+                                        </p>
+                                    </div>
+                                    <div className="space-y-0.5 pl-1">
+                                        <AdminNavLink to="/admin"           icon="🏠" label="Dashboard" exact />
+                                        <AdminNavLink to="/admin/clients"   icon="👥" label="Clients"   />
+                                        <AdminNavLink to="/admin/analytics" icon="📊" label="Analytics" />
+                                        {isCreator && CREATOR_LINKS.map(l => (
+                                            <AdminNavLink key={l.to} {...l} />
+                                        ))}
+                                        {isCreator && (
+                                            <AdminNavLink to="/admin/ai-report" icon="🤖" label="AI Report" />
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </nav>
+
+                        <div className="p-3 border-t border-slate-700/40">
+                            <p className="text-xs text-slate-600 text-center">NSE · BSE · AMFI</p>
+                        </div>
+                    </aside>
+                )}
 
                 {/* -- MAIN CONTENT -- */}
                 <main className="flex-1 overflow-y-auto bg-slate-950">
-                    <div className="p-3 sm:p-4 md:p-6">{children}</div>
+                    <div className={isMobile ? "p-3 pb-24" : "p-3 sm:p-4 md:p-6"}>
+                        {children}
+                    </div>
                 </main>
             </div>
 
@@ -619,12 +608,16 @@ export default function Layout({ children, portfolioSummary }) {
                     onUnreadChange={() => setInboxUnread(prev => Math.max(0, prev - 1))}
                 />
             )}
+
             <CommandPalette
                 open={searchOpen}
                 onClose={() => setSearchOpen(false)}
                 onStockSelect={(s) => { setSearchOpen(false); setSelectedStock(s); }}
                 onMfSelect={(m) => { setSearchOpen(false); setSelectedMf(m); }}
             />
+
+            {/* Mobile bottom navigation */}
+            {isMobile && <MobileBottomNav />}
         </div>
     );
 }
