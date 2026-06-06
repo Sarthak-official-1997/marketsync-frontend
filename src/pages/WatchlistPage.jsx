@@ -96,6 +96,7 @@ function WatchlistSparkline({ symbol, exchange, previousClose, changePercent }) 
 
 export default function WatchlistPage(props) {
     const [superTab, setSuperTab] = useState(props.defaultTab || "stocks");
+    const isMobile = useMobile();
     const toast = useToast();
     return (
         <div className="space-y-4">
@@ -254,7 +255,7 @@ function StocksWatchlist({ toast }) {
                 </div>
             ) : (
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                         <thead>
                         <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wide">
                             <th className="w-8 px-2 py-3"></th>
@@ -403,7 +404,7 @@ function StocksWatchlist({ toast }) {
                             );
                         })}
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
             )}
 
@@ -526,7 +527,7 @@ function MfWatchlist({ toast }) {
                 </div>
             ) : (
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                         <thead>
                         <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
                             <th className="text-left px-5 py-3">Scheme</th>
@@ -563,7 +564,7 @@ function MfWatchlist({ toast }) {
                             </tr>
                         ))}
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
             )}
 

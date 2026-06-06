@@ -1,25 +1,14 @@
-// src/hooks/useMobile.js
-// Single source of truth for mobile detection across the app.
-// Uses matchMedia so it's reactive — updates if user resizes window.
-// Breakpoint: < 768px = mobile (same as Tailwind's md breakpoint)
-
 import { useState, useEffect } from "react";
 
-const MOBILE_BREAKPOINT = 768;
-
 export function useMobile() {
-    const [isMobile, setIsMobile] = useState(
-        () => window.innerWidth < MOBILE_BREAKPOINT
-    );
-
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
     useEffect(() => {
-        const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-        const handler = (e) => setIsMobile(e.matches);
-        mq.addEventListener("change", handler);
+        const mq = window.matchMedia("(max-width: 767px)");
+        const h  = (e) => setIsMobile(e.matches);
+        mq.addEventListener("change", h);
         setIsMobile(mq.matches);
-        return () => mq.removeEventListener("change", handler);
+        return () => mq.removeEventListener("change", h);
     }, []);
-
     return isMobile;
 }
 

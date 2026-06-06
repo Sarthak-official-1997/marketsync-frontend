@@ -1,4 +1,5 @@
 import {useState, useEffect, useMemo, useRef} from "react";
+import { useMobile } from "../hooks/useMobile";
 import {
     getHoldings, getMfHoldings, getPortfolioHistory, getStockChart,
 } from "../api/portfolio";
@@ -480,6 +481,7 @@ export default function HoldingsPage(props) {
     const [activeMf,       setActiveMf]       = useState(null);
     const [quickMenuStock, setQuickMenuStock] = useState(null);
     const [chartStock,     setChartStock]     = useState(null);
+    const isMobile = useMobile();
     const toast    = useToast();
     const navigate = useNavigate();
     const { hidden: valuesHidden } = usePrivacy();
@@ -723,7 +725,7 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                 </div>
             )}
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
-                <table className="w-full text-sm">
+                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                     <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
                         <th className="text-left px-4 py-3">Stock</th>
@@ -826,7 +828,7 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                         );
                     })}
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
     );
@@ -845,7 +847,7 @@ function MfHoldingsTable({mfHoldings, onOpenPanel}) {
     }
     return (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
-            <table className="w-full text-sm">
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                 <thead>
                 <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
                     <th className="text-left px-4 py-3">Scheme</th>
@@ -897,7 +899,7 @@ function MfHoldingsTable({mfHoldings, onOpenPanel}) {
                     );
                 })}
                 </tbody>
-            </table>
+            </table></div>
         </div>
     );
 }
@@ -960,7 +962,7 @@ function CombinedHoldingsTable({holdings, mfHoldings, onStockClick, onOpenMfPane
                 ))}
             </div>
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
-                <table className="w-full text-sm">
+                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                     <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
                         <th className="text-left px-4 py-3">Type</th>
@@ -1022,7 +1024,7 @@ function CombinedHoldingsTable({holdings, mfHoldings, onStockClick, onOpenMfPane
                         );
                     })}
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
     );

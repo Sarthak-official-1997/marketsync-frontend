@@ -36,34 +36,85 @@ function useMobile() {
 
 
 // ── Inline MobileHeader ───────────────────────────────────────────────────────
-function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user }) {
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen }) {
     const initial = (user?.fullName || user?.username || "?")[0].toUpperCase();
     return (
-        <header className="flex items-center gap-2 px-3 py-2
-                            bg-slate-900 border-b border-slate-700/60
-                            sticky top-0 z-50 h-14 flex-shrink-0">
-            <Link to="/stocks" className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-white font-black text-lg tracking-tight">FOLYO</span>
+        <header style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 12px",
+            background: "#0f172a",
+            borderBottom: "1px solid rgba(51,65,85,0.6)",
+            position: "sticky", top: 0, zIndex: 50,
+            height: 56, flexShrink: 0,
+        }}>
+            {/* Logo */}
+            <Link to="/stocks" style={{ flexShrink: 0 }}>
+                <span style={{ color: "white", fontWeight: 900, fontSize: 18,
+                    letterSpacing: "-0.5px" }}>FOLYO</span>
             </Link>
-            <button onClick={onSearchOpen}
-                    className="flex-1 flex items-center gap-2 px-3 py-2
-                               bg-slate-800 border border-slate-700/60
-                               rounded-xl text-left min-w-0 mx-1">
-                <svg className="w-4 h-4 text-slate-500 flex-shrink-0"
-                     fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+
+            {/* Search — takes all available space */}
+            <button onClick={onSearchOpen} style={{
+                flex: 1, display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 12px", background: "#1e293b",
+                border: "1px solid rgba(51,65,85,0.6)",
+                borderRadius: 12, textAlign: "left", minWidth: 0,
+            }}>
+                <svg style={{ width: 16, height: 16, color: "#64748b", flexShrink: 0 }}
+                     fill="none" stroke="#64748b" strokeWidth="2" viewBox="0 0 24 24">
                     <circle cx="11" cy="11" r="8"/>
                     <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
                 </svg>
-                <span className="text-slate-500 text-sm truncate">Search...</span>
+                <span style={{ color: "#64748b", fontSize: 14, overflow: "hidden",
+                    textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Search stocks...
+                </span>
             </button>
-            <button onClick={onAiOpen}
-                    className="flex items-center justify-center w-9 h-9
-                               bg-purple-600/20 border border-purple-500/30
-                               rounded-xl flex-shrink-0">
-                <span className="text-base">✨</span>
+
+            {/* AI */}
+            <button onClick={onAiOpen} style={{
+                width: 36, height: 36, flexShrink: 0,
+                background: "rgba(147,51,234,0.2)",
+                border: "1px solid rgba(147,51,234,0.4)",
+                borderRadius: 10, display: "flex",
+                alignItems: "center", justifyContent: "center",
+                fontSize: 18, cursor: "pointer",
+            }}>✨</button>
+
+            {/* Inbox bell with badge */}
+            <button onClick={onInboxOpen} style={{
+                width: 36, height: 36, flexShrink: 0,
+                background: "transparent", border: "none",
+                borderRadius: 10, display: "flex",
+                alignItems: "center", justifyContent: "center",
+                cursor: "pointer", position: "relative",
+            }}>
+                <svg style={{ width: 20, height: 20 }} fill="none"
+                     stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                {pendingNotifs > 0 && (
+                    <span style={{
+                        position: "absolute", top: 2, right: 2,
+                        minWidth: 16, height: 16, background: "#ef4444",
+                        borderRadius: 8, fontSize: 9, fontWeight: 700,
+                        color: "white", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        padding: "0 3px",
+                    }}>
+                        {pendingNotifs > 9 ? "9+" : pendingNotifs}
+                    </span>
+                )}
             </button>
-            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center
-                            justify-center text-white font-bold text-sm flex-shrink-0">
+
+            {/* Profile */}
+            <div style={{
+                width: 32, height: 32, borderRadius: "50%",
+                background: "#7c3aed", display: "flex",
+                alignItems: "center", justifyContent: "center",
+                color: "white", fontWeight: 700, fontSize: 14, flexShrink: 0,
+            }}>
                 {initial}
             </div>
         </header>
@@ -393,18 +444,6 @@ export default function Layout({ children, portfolioSummary }) {
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
 
-            {/* DEBUG BANNER — remove after confirming mobile works */}
-            <div style={{
-                position: "fixed", top: 0, left: 0, right: 0,
-                zIndex: 99999, padding: "4px 8px",
-                background: isMobile ? "#16a34a" : "#dc2626",
-                color: "white", fontSize: "11px", textAlign: "center",
-                fontWeight: "bold",
-            }}>
-                {isMobile ? "✅ MOBILE MODE" : "🖥 DESKTOP MODE"} — width: {window.innerWidth}px
-            </div>
-            <div style={{ height: 24 }} />
-
             {/* ── Mobile header — shown only on small screens ── */}
             {isMobile && (
                 <MobileHeader
@@ -412,6 +451,7 @@ export default function Layout({ children, portfolioSummary }) {
                     onAiOpen={() => setShowAiChat(true)}
                     pendingNotifs={inboxUnread}
                     user={user}
+                    onInboxOpen={() => setShowInbox(true)}
                 />
             )}
 

@@ -8,6 +8,7 @@ import StockLogo         from "../components/StockLogo";
 import { useToast }      from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth }       from "../context/AuthContext";
+import { useMobile }      from "../hooks/useMobile";
 import { addToBoard, removeFromBoard } from "../components/Layout";
 import { getBoardApi } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
@@ -100,7 +101,7 @@ function makeDefaultSections(pinned) {
             title:   "Market Indices",
             // Removed ^NSESMCP (SMALLCAP) — Yahoo Finance symbol unreliable.
             // Use ^CNXIT (NIFTY IT) instead which works consistently.
-            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50"],
+            indices: ["^NSEI", "^BSESN", "^NSEBANK", "^NSEMDCP50", "^CNXIT"],
             x: col1w + gap, y: 0, w: col2w, h: 420,
             cardScale: 1,
         },
@@ -568,7 +569,8 @@ function BoardSection({
     const debRef         = useRef(null);
     const searchPanelRef = useRef(null);
     const sectionRef     = useRef(null);
-    const toast = useToast();
+    const toast    = useToast();
+    const isMobile = useMobile();
 
     const x = section.x || 0;
     const y = section.y || 0;
@@ -1266,7 +1268,8 @@ export default function StocksMarketPage() {
     const canvasRef     = useRef(null);
     const measureRef    = useRef(null); // always-mounted wrapper for width measurement
     const scalingDone   = useRef(false);
-    const toast = useToast();
+    const toast    = useToast();
+    const isMobile = useMobile();
 
     // -- Load board from API + initialize sections -----------------------------
     const loadBoard = (isUpdate = false) =>
@@ -1541,76 +1544,66 @@ export default function StocksMarketPage() {
             </div>
 
             {/* -- Board header -- */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-3">
+            <div className={isMobile
+                ? "flex items-center justify-between gap-2"
+                : "flex items-center justify-between flex-wrap gap-3"}>
+                <div className="flex items-center gap-2">
                     <span className="text-base">📌</span>
-                    <h1 className="text-xl font-bold text-white">My Board</h1>
+                    <h1 className={isMobile ? "text-base font-bold text-white" : "text-xl font-bold text-white"}>
+                        My Board
+                    </h1>
                     {totalStocks > 0 && (
                         <span className="text-xs bg-slate-700 text-slate-400
                                          px-2 py-0.5 rounded-full font-medium">
-                            {totalStocks} stock{totalStocks !== 1 ? "s" : ""}
+                            {totalStocks}
                         </span>
                     )}
                     {totalStocks > 0 && (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5
+                        <div className="flex items-center gap-1 px-2 py-0.5
                                         bg-green-900/20 border border-green-500/20 rounded-full">
                             <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>
                             <span className="text-green-400 text-[10px] font-semibold">LIVE</span>
                         </div>
                     )}
-                    <p className="text-xs text-slate-600 hidden sm:block">
-                        Drag section headers to move · Pull edges to resize
-                    </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* Zoom controls */}
-                    <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
-                                    rounded-xl px-2.5 py-1.5">
-                        <button
-                            onClick={() => setBoardZoom(z => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
-                            disabled={boardZoom <= 0.3}
-                            className="w-5 h-5 flex items-center justify-center text-slate-400
-                                       hover:text-white disabled:opacity-30 text-xs font-bold
-                                       transition-colors">
-                            −
-                        </button>
-                        <button
-                            onClick={() => setBoardZoom(1)}
-                            title="Reset zoom"
-                            className="text-[10px] text-slate-400 hover:text-white transition-colors
-                                       font-mono w-8 text-center">
-                            {Math.round(boardZoom * 100)}%
-                        </button>
-                        <button
-                            onClick={() => setBoardZoom(z => Math.min(1.5, parseFloat((z + 0.1).toFixed(1))))}
-                            disabled={boardZoom >= 1.5}
-                            className="w-5 h-5 flex items-center justify-center text-slate-400
-                                       hover:text-white disabled:opacity-30 text-xs font-bold
-                                       transition-colors">
-                            ＋
-                        </button>
-                    </div>
+                <div className="flex items-center gap-1.5">
+                    {/* Zoom controls — desktop only */}
+                    {!isMobile && (
+                        <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
+                                        rounded-xl px-2.5 py-1.5">
+                            <button
+                                onClick={() => setBoardZoom(z => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
+                                disabled={boardZoom <= 0.3}
+                                className="w-5 h-5 flex items-center justify-center text-slate-400
+                                           hover:text-white disabled:opacity-30 text-xs font-bold">
+                                −
+                            </button>
+                            <button onClick={() => setBoardZoom(1)}
+                                    className="text-[10px] text-slate-400 hover:text-white font-mono w-8 text-center">
+                                {Math.round(boardZoom * 100)}%
+                            </button>
+                            <button
+                                onClick={() => setBoardZoom(z => Math.min(1.5, parseFloat((z + 0.1).toFixed(1))))}
+                                disabled={boardZoom >= 1.5}
+                                className="w-5 h-5 flex items-center justify-center text-slate-400
+                                           hover:text-white disabled:opacity-30 text-xs font-bold">
+                                ＋
+                            </button>
+                        </div>
+                    )}
                     <button
                         onClick={addIndexSection}
-                        className="flex items-center gap-2 px-4 py-2
-                                   bg-slate-700/50 hover:bg-blue-600/20
-                                   text-slate-400 hover:text-blue-300
-                                   text-sm font-semibold rounded-xl
-                                   border border-slate-600 hover:border-blue-500/50
-                                   transition-all duration-200">
-                        📊 Add Index Section
+                        className={isMobile
+                            ? "flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/50 text-slate-300 text-xs font-semibold rounded-xl border border-slate-600"
+                            : "flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-slate-600 hover:border-blue-500/50 transition-all duration-200"}>
+                        📊 {isMobile ? "Index" : "Add Index Section"}
                     </button>
                     <button
                         onClick={addSection}
-                        className="flex items-center gap-2 px-4 py-2
-                                   bg-blue-600/20 hover:bg-blue-600/40
-                                   text-blue-400 hover:text-blue-300
-                                   text-sm font-semibold rounded-xl
-                                   border border-blue-500/50 hover:border-blue-400
-                                   shadow-[0_0_12px_rgba(59,130,246,0.35)]
-                                   hover:shadow-[0_0_20px_rgba(59,130,246,0.6)]
-                                   transition-all duration-200">
-                        ＋ Add Section
+                        className={isMobile
+                            ? "flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/20 text-blue-400 text-xs font-semibold rounded-xl border border-blue-500/50"
+                            : "flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-blue-500/50 hover:border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)] hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all duration-200"}>
+                        ＋ {isMobile ? "Section" : "Add Section"}
                     </button>
                 </div>
             </div>
