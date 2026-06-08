@@ -43,6 +43,8 @@ import { getPortfolioSummary, getMfPortfolioSummary } from "./api/portfolio";
 
 import AdminAiReportPage from "./pages/AdminAiReportPage";
 
+import { MfMarketProvider } from "./context/MfMarketContext";
+
 //PWA mobile app
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
 
@@ -317,16 +319,18 @@ export default function App() {
         <ThemeProvider>
             <AuthProvider>
                 <ToastProvider>
-                    <PwaInstallPrompt />   {/* ADDed THIS */}
-                    <ErrorBoundary>
-                        <Routes>
-                            <Route path="/login"    element={<LoginPage />} />
-                            <Route path="/register" element={<RegisterPage />} />
-                            <Route path="/*" element={
-                                <ProtectedRoute><AppShell /></ProtectedRoute>
-                            } />
-                        </Routes>
-                    </ErrorBoundary>
+                    <MfMarketProvider>
+                        <PwaInstallPrompt />   {/* ADDed THIS */}
+                        <ErrorBoundary>
+                            <Routes>
+                                <Route path="/login"    element={<LoginPage />} />
+                                <Route path="/register" element={<RegisterPage />} />
+                                <Route path="/*" element={
+                                    <ProtectedRoute><AppShell /></ProtectedRoute>
+                                } />
+                            </Routes>
+                        </ErrorBoundary>
+                    </MfMarketProvider>
                 </ToastProvider>
             </AuthProvider>
         </ThemeProvider>
