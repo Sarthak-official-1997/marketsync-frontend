@@ -1244,6 +1244,304 @@ function sectionsArray(sections) {
     return []; // _raw intermediate state — not an array yet
 }
 
+// ============================================================================
+//  MOBILE MARKET VIEW
+//  Dense list layout per FOLYO mobile spec. Replaces the freeform board
+//  canvas entirely on mobile — canvas drag/resize/zoom is desktop-only.
+//  Reuses the same `pinned`, `prices`, `holdingsMap`, `portfolioSummary`
+//  state already loaded by the parent — no separate data fetching for
+//  the Stocks tab. Indices are fetched lazily only when that tab opens.
+// ============================================================================
+
+const MOBILE_INDICES = [
+    { symbol: "^NSEI",      short: "N50",    name: "NIFTY 50"      },
+    { symbol: "^BSESN",     short: "SENSEX", name: "SENSEX"        },
+    { symbol: "^NSEBANK",   short: "BANK",   name: "BANK NIFTY"    },
+    { symbol: "^NSEMDCP50", short: "MID",    name: "MIDCAP SELECT" },
+    { symbol: "^INDIAVIX",  short: "VIX",    name: "India VIX"     },
+];
+
+function MobileStockRow({ stock, price, holding, onOpen }) {
+    const { hidden: valuesHidden } = usePrivacy();
+    const cp  = parseFloat(price?.currentPrice || price?.regularMarketPrice || 0);
+    const chg = parseFloat(price?.changePercent || price?.regularMarketChangePercent || 0);
+    const up  = chg >= 0;
+    const qty = holding ? parseFloat(holding.quantity || 0) : null;
+    const invested = holding ? parseFloat(holding.totalInvested || 0) : null;
+
+    return (
+        <div
+            onClick={() => onOpen(stock)}
+            className="grid items-center gap-2 px-3 py-[5px] border-b border-slate-800/60 active:bg-slate-800/40"
+            style={{ gridTemplateColumns: "14px 1fr 28px auto" }}
+        >
+            <StockLogo symbol={stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
+            <div className="min-w-0">
+                <div className="text-[11px] font-bold text-white truncate leading-tight">
+                    {stock.name || stock.symbol}
+                </div>
+                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                    {qty != null
+                        ? `${qty} qty · invested ${valuesHidden ? "••••" : "₹" + invested.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                        : stock.symbol}
+                </div>
+            </div>
+            <svg viewBox="0 0 28 16" className="w-7 h-4 flex-shrink-0">
+                <polyline
+                    points="0,11 5,9 10,12 14,6 18,8 23,3 28,5"
+                    fill="none"
+                    stroke={up ? "#10b981" : "#ef4444"}
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </svg>
+            <div className="text-right flex-shrink-0">
+                <div className="text-[11px] font-bold text-white tabular-nums">
+                    {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
+                </div>
+                <div className={"text-[9px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
+                    {cp ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function MobileMoverRow({ rank, stock, price }) {
+    const cp  = parseFloat(price?.currentPrice || price?.regularMarketPrice || 0);
+    const chg = parseFloat(price?.changePercent || price?.regularMarketChangePercent || 0);
+    const up  = chg >= 0;
+    return (
+        <div className="grid items-center gap-2 px-3 py-[5px] border-b border-slate-800/60"
+             style={{ gridTemplateColumns: "16px 14px 1fr auto" }}>
+            <div className="text-[8.5px] font-extrabold text-slate-500 tabular-nums">{rank}</div>
+            <StockLogo symbol={stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
+            <div className="min-w-0">
+                <div className="text-[11px] font-bold text-white truncate leading-tight">{stock.name || stock.symbol}</div>
+                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                    {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : stock.symbol}
+                </div>
+            </div>
+            <div className={"text-[9px] font-bold tabular-nums " + (up ? "text-green-400" : "text-red-400")}>
+                {cp ? (up ? "+" : "") + chg.toFixed(2) + "%" : "—"}
+            </div>
+        </div>
+    );
+}
+
+function MobileIndexPill({ idx, data, onClick }) {
+    const chg = parseFloat(data?.changePercent ?? 0);
+    const val = parseFloat(data?.price ?? data?.currentPrice ?? 0);
+    const up  = chg >= 0;
+    return (
+        <div onClick={onClick}
+             className="flex-shrink-0 bg-slate-800/80 border border-slate-700 rounded-md px-2 py-1 min-w-[54px] active:scale-95 transition-transform">
+            <div className="text-[7px] text-slate-500 font-bold tracking-wide">{idx.short}</div>
+            <div className="text-[9.5px] text-white font-bold tabular-nums mt-px">
+                {val ? val.toLocaleString("en-IN", { maximumFractionDigits: idx.short === "VIX" ? 2 : 0 }) : "—"}
+            </div>
+            <div className={"text-[7.5px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
+                {data ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
+            </div>
+        </div>
+    );
+}
+
+function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpenStock }) {
+    const { hidden: valuesHidden } = usePrivacy();
+    const [tab, setTab] = useState("stocks"); // stocks | indices | movers
+    const [indexData, setIndexData] = useState({});
+    const [indexLoading, setIndexLoading] = useState(false);
+
+    // Fetch indices only when the Indices tab is actually opened — avoids
+    // an extra DB-backed call on every Market page load for users who
+    // never check that tab. Matches the "reduce DB calls" caching work
+    // already done elsewhere in the app (Caffeine cache on the backend
+    // still applies once this hits getIndices()).
+    useEffect(() => {
+        if (tab !== "indices" || Object.keys(indexData).length > 0) return;
+        setIndexLoading(true);
+        getIndices()
+            .then(res => {
+                const map = {};
+                (res.data || []).forEach(d => { map[d.symbol] = d; });
+                setIndexData(map);
+            })
+            .catch(() => {})
+            .finally(() => setIndexLoading(false));
+    }, [tab]);
+
+    const totalValue = parseFloat(portfolioSummary?.currentValue || portfolioSummary?.totalValue || 0);
+    const dayPL      = parseFloat(portfolioSummary?.dayChange || portfolioSummary?.dayPL || 0);
+    const totalPL    = parseFloat(portfolioSummary?.unrealizedPL || portfolioSummary?.totalPL || 0);
+    const totalInv   = parseFloat(portfolioSummary?.totalInvested || 0);
+    const returnPct  = totalInv > 0 ? (totalPL / totalInv) * 100 : 0;
+    const dayPLPos   = dayPL >= 0;
+    const returnPos  = returnPct >= 0;
+
+    // Movers ranked from the user's own pinned/board stocks — there is no
+    // separate "all market movers" endpoint wired into this page today.
+    const withPrices = pinned.filter(s => prices[s.symbol]);
+    const sortedByChange = [...withPrices].sort((a, b) => {
+        const ca = parseFloat(prices[a.symbol]?.changePercent || prices[a.symbol]?.regularMarketChangePercent || 0);
+        const cb = parseFloat(prices[b.symbol]?.changePercent || prices[b.symbol]?.regularMarketChangePercent || 0);
+        return cb - ca;
+    });
+    const gainers = sortedByChange.filter(s => {
+        const c = parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0);
+        return c >= 0;
+    });
+    const losers = [...sortedByChange].reverse().filter(s => {
+        const c = parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0);
+        return c < 0;
+    });
+
+    return (
+        <div className="-mx-4 -mt-2">{/* bleed to screen edges on mobile */}
+
+            {/* 3-column stat strip */}
+            <div className="grid grid-cols-3 bg-slate-900 border-y border-slate-800">
+                <div className="px-2.5 py-[7px] border-r border-slate-800">
+                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Value</div>
+                    <div className="text-[12.5px] font-bold text-white tabular-nums mt-px">
+                        {valuesHidden ? "••••••" : (totalValue ? "₹" + totalValue.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—")}
+                    </div>
+                </div>
+                <div className="px-2.5 py-[7px] border-r border-slate-800">
+                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Day P&amp;L</div>
+                    <div className={"text-[12.5px] font-bold tabular-nums mt-px " + (dayPLPos ? "text-green-400" : "text-red-400")}>
+                        {valuesHidden ? "••••••" : (portfolioSummary ? (dayPLPos ? "+₹" : "-₹") + Math.abs(dayPL).toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—")}
+                    </div>
+                </div>
+                <div className="px-2.5 py-[7px]">
+                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Return</div>
+                    <div className={"text-[12.5px] font-bold tabular-nums mt-px " + (returnPos ? "text-green-400" : "text-red-400")}>
+                        {portfolioSummary ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%" : "—"}
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollable index pills row — always visible regardless of active tab */}
+            <div className="flex gap-1.5 px-3 py-[7px] overflow-x-auto border-b border-slate-800"
+                 style={{ scrollbarWidth: "none" }}>
+                {MOBILE_INDICES.map(idx => (
+                    <MobileIndexPill
+                        key={idx.symbol}
+                        idx={idx}
+                        data={indexData[idx.symbol]}
+                        onClick={() => setTab("indices")}
+                    />
+                ))}
+            </div>
+
+            {/* Tab row: Stocks | Indices | Movers */}
+            <div className="flex gap-4 px-3 border-b border-slate-800">
+                {[
+                    { key: "stocks",  label: "Stocks"  },
+                    { key: "indices", label: "Indices" },
+                    { key: "movers",  label: "Movers"  },
+                ].map(t => (
+                    <button
+                        key={t.key}
+                        onClick={() => setTab(t.key)}
+                        className={"py-2 text-[10.5px] font-bold border-b-2 -mb-px transition-colors " +
+                        (tab === t.key
+                            ? "text-white border-blue-500"
+                            : "text-slate-500 border-transparent")}>
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Stocks tab */}
+            {tab === "stocks" && (
+                pinned.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                        <p className="text-3xl mb-2">📌</p>
+                        <p className="text-slate-400 text-xs">No stocks on your board yet.</p>
+                    </div>
+                ) : (
+                    <div>
+                        {pinned.map(stock => (
+                            <MobileStockRow
+                                key={stock.symbol}
+                                stock={stock}
+                                price={prices[stock.symbol]}
+                                holding={holdingsMap[stock.symbol]}
+                                onOpen={onOpenStock}
+                            />
+                        ))}
+                    </div>
+                )
+            )}
+
+            {/* Indices tab */}
+            {tab === "indices" && (
+                indexLoading ? (
+                    <div className="px-6 py-10 text-center">
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    </div>
+                ) : (
+                    <div>
+                        {MOBILE_INDICES.map(idx => {
+                            const d = indexData[idx.symbol];
+                            const chg = parseFloat(d?.changePercent ?? 0);
+                            const val = parseFloat(d?.price ?? d?.currentPrice ?? 0);
+                            const up = chg >= 0;
+                            return (
+                                <div key={idx.symbol}
+                                     className="flex items-center justify-between px-3 py-2 border-b border-slate-800/60">
+                                    <div>
+                                        <div className="text-[11.5px] font-bold text-white">{idx.name}</div>
+                                        <div className="text-[8px] text-slate-500 mt-px">{idx.symbol.replace("^", "")}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[12px] font-bold text-white tabular-nums">
+                                            {val ? val.toLocaleString("en-IN", { maximumFractionDigits: idx.short === "VIX" ? 2 : 0 }) : "—"}
+                                        </div>
+                                        <div className={"text-[9px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
+                                            {d ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )
+            )}
+
+            {/* Movers tab — ranked from your board's own pinned stocks */}
+            {tab === "movers" && (
+                withPrices.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                        <p className="text-slate-400 text-xs">No live prices yet to rank movers.</p>
+                    </div>
+                ) : (
+                    <div>
+                        {gainers.length > 0 && (
+                            <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide px-3 pt-[6px] pb-1">
+                                Top Gainers
+                            </div>
+                        )}
+                        {gainers.map((s, i) => (
+                            <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]} />
+                        ))}
+                        {losers.length > 0 && (
+                            <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide px-3 pt-[10px] pb-1">
+                                Top Losers
+                            </div>
+                        )}
+                        {losers.map((s, i) => (
+                            <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]} />
+                        ))}
+                    </div>
+                )
+            )}
+        </div>
+    );
+}
+
 export default function StocksMarketPage() {
 // ====================================================================
 
@@ -1513,178 +1811,193 @@ export default function StocksMarketPage() {
     )].length;
 
     return (
-        <div className="space-y-4">
+        <div className={isMobile ? "" : "space-y-4"}>
 
             {/* -- Greeting + market status -- */}
             <GreetingBar portfolioSummary={portfolioSummary} />
 
-            {/* -- Recently viewed marquee -- */}
-            <div className="flex items-center bg-slate-900/60 border border-slate-800
+            {/* -- MOBILE: dense Stocks/Indices/Movers view, replaces canvas board -- */}
+            {isMobile && (
+                <MobileMarketView
+                    pinned={pinned}
+                    prices={prices}
+                    holdingsMap={holdingsMap}
+                    portfolioSummary={portfolioSummary}
+                    onOpenStock={openStock}
+                />
+            )}
+
+            {/* -- DESKTOP: recently viewed marquee + freeform canvas board, unchanged -- */}
+            {!isMobile && (
+                <>
+                    <div className="flex items-center bg-slate-900/60 border border-slate-800
                             rounded-xl overflow-hidden">
-                <div className="flex-shrink-0 flex items-center gap-2 px-4
+                        <div className="flex-shrink-0 flex items-center gap-2 px-4
                                 border-r border-slate-700/60 h-9 bg-slate-800/60">
                     <span className="text-slate-500 text-[10px] font-bold
                                      uppercase tracking-widest whitespace-nowrap">
                         🕐 Recently Viewed
                     </span>
-                </div>
-                <div className="flex-1 overflow-hidden min-w-0">
-                    <RecentStocksMarquee onStockClick={(stock) => {
-                        setChartStock(stock);
-                        trackStockView(stock);
-                    }} />
-                </div>
-            </div>
+                        </div>
+                        <div className="flex-1 overflow-hidden min-w-0">
+                            <RecentStocksMarquee onStockClick={(stock) => {
+                                setChartStock(stock);
+                                trackStockView(stock);
+                            }} />
+                        </div>
+                    </div>
 
-            {/* -- Board header -- */}
-            <div className={isMobile
-                ? "flex items-center justify-between gap-2"
-                : "flex items-center justify-between flex-wrap gap-3"}>
-                <div className="flex items-center gap-2">
-                    <span className="text-base">📌</span>
-                    <h1 className={isMobile
-                        ? "text-base font-bold text-white whitespace-nowrap"
-                        : "text-xl font-bold text-white"}>
-                        My Board
-                    </h1>
-                    {totalStocks > 0 && (
-                        <span className="text-xs bg-slate-700 text-slate-400
+                    {/* -- Board header -- */}
+                    <div className={isMobile
+                        ? "flex items-center justify-between gap-2"
+                        : "flex items-center justify-between flex-wrap gap-3"}>
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">📌</span>
+                            <h1 className={isMobile
+                                ? "text-base font-bold text-white whitespace-nowrap"
+                                : "text-xl font-bold text-white"}>
+                                My Board
+                            </h1>
+                            {totalStocks > 0 && (
+                                <span className="text-xs bg-slate-700 text-slate-400
                                          px-2 py-0.5 rounded-full font-medium">
                             {totalStocks}
                         </span>
-                    )}
-                    {totalStocks > 0 && (
-                        <div className="flex items-center gap-1 px-2 py-0.5
+                            )}
+                            {totalStocks > 0 && (
+                                <div className="flex items-center gap-1 px-2 py-0.5
                                         bg-green-900/20 border border-green-500/20 rounded-full">
-                            <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>
-                            <span className="text-green-400 text-[10px] font-semibold">LIVE</span>
+                                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>
+                                    <span className="text-green-400 text-[10px] font-semibold">LIVE</span>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                    {/* Zoom controls — desktop only */}
-                    {!isMobile && (
-                        <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
+                        <div className="flex items-center gap-1.5">
+                            {/* Zoom controls — desktop only */}
+                            {!isMobile && (
+                                <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700
                                         rounded-xl px-2.5 py-1.5">
-                            <button
-                                onClick={() => setBoardZoom(z => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
-                                disabled={boardZoom <= 0.3}
-                                className="w-5 h-5 flex items-center justify-center text-slate-400
+                                    <button
+                                        onClick={() => setBoardZoom(z => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
+                                        disabled={boardZoom <= 0.3}
+                                        className="w-5 h-5 flex items-center justify-center text-slate-400
                                            hover:text-white disabled:opacity-30 text-xs font-bold">
-                                −
-                            </button>
-                            <button onClick={() => setBoardZoom(1)}
-                                    className="text-[10px] text-slate-400 hover:text-white font-mono w-8 text-center">
-                                {Math.round(boardZoom * 100)}%
+                                        −
+                                    </button>
+                                    <button onClick={() => setBoardZoom(1)}
+                                            className="text-[10px] text-slate-400 hover:text-white font-mono w-8 text-center">
+                                        {Math.round(boardZoom * 100)}%
+                                    </button>
+                                    <button
+                                        onClick={() => setBoardZoom(z => Math.min(1.5, parseFloat((z + 0.1).toFixed(1))))}
+                                        disabled={boardZoom >= 1.5}
+                                        className="w-5 h-5 flex items-center justify-center text-slate-400
+                                           hover:text-white disabled:opacity-30 text-xs font-bold">
+                                        ＋
+                                    </button>
+                                </div>
+                            )}
+                            <button
+                                onClick={addIndexSection}
+                                className={isMobile
+                                    ? "flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/50 text-slate-300 text-xs font-semibold rounded-xl border border-slate-600"
+                                    : "flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-slate-600 hover:border-blue-500/50 transition-all duration-200"}>
+                                📊 {isMobile ? "Index" : "Add Index Section"}
                             </button>
                             <button
-                                onClick={() => setBoardZoom(z => Math.min(1.5, parseFloat((z + 0.1).toFixed(1))))}
-                                disabled={boardZoom >= 1.5}
-                                className="w-5 h-5 flex items-center justify-center text-slate-400
-                                           hover:text-white disabled:opacity-30 text-xs font-bold">
-                                ＋
+                                onClick={addSection}
+                                className={isMobile
+                                    ? "flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/20 text-blue-400 text-xs font-semibold rounded-xl border border-blue-500/50"
+                                    : "flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-blue-500/50 hover:border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)] hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all duration-200"}>
+                                ＋ {isMobile ? "Section" : "Add Section"}
                             </button>
                         </div>
-                    )}
-                    <button
-                        onClick={addIndexSection}
-                        className={isMobile
-                            ? "flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/50 text-slate-300 text-xs font-semibold rounded-xl border border-slate-600"
-                            : "flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-slate-600 hover:border-blue-500/50 transition-all duration-200"}>
-                        📊 {isMobile ? "Index" : "Add Index Section"}
-                    </button>
-                    <button
-                        onClick={addSection}
-                        className={isMobile
-                            ? "flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/20 text-blue-400 text-xs font-semibold rounded-xl border border-blue-500/50"
-                            : "flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-blue-300 text-sm font-semibold rounded-xl border border-blue-500/50 hover:border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)] hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all duration-200"}>
-                        ＋ {isMobile ? "Section" : "Add Section"}
-                    </button>
-                </div>
-            </div>
+                    </div>
 
-            {/* -- Freeform canvas board -- */}
-            {/* Persistent width-measurement wrapper — always mounted so
+                    {/* -- Freeform canvas board -- */}
+                    {/* Persistent width-measurement wrapper — always mounted so
                 ResizeObserver and measureRef.current always work */}
-            <div ref={measureRef} className="w-full">
-                {boardLoading ? (
-                    /* Board is loading — show skeleton so user knows it's coming */
-                    <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
+                    <div ref={measureRef} className="w-full">
+                        {boardLoading ? (
+                            /* Board is loading — show skeleton so user knows it's coming */
+                            <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
                                 flex flex-col items-center justify-center gap-4 min-h-[320px]">
-                        <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent
+                                <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent
                                     rounded-full animate-spin" />
-                        <p className="text-slate-500 text-sm">Loading your board...</p>
-                    </div>
-                ) : (!sections || sections.length === 0) ? (
-                    <div className="bg-slate-800 rounded-2xl border border-slate-700
-                                p-16 text-center">
-                        <p className="text-5xl mb-4">📌</p>
-                        <p className="text-white font-bold text-lg">Your board is empty</p>
-                        <p className="text-slate-400 text-sm mt-2 mb-6 max-w-sm mx-auto">
-                            Create sections to organise your watchlist, swing trades,
-                            sector plays, long-term holds, each with live prices and sparklines.
-                        </p>
-                        <button onClick={addSection}
-                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
-                                       text-sm font-semibold rounded-xl transition-colors">
-                            ＋ Add First Section
-                        </button>
-                    </div>
-                ) : sections._raw ? (
-                    /* Sections loaded but waiting for canvas width to scale — brief spinner */
-                    <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
-                                flex flex-col items-center justify-center gap-4 min-h-[320px]">
-                        <div className="w-8 h-8 border-2 border-blue-500/60 border-t-transparent
-                                    rounded-full animate-spin" />
-                        <p className="text-slate-600 text-xs">Applying layout...</p>
-                    </div>
-                ) : (() => {
-                    const canvasH = sections.reduce((max, s) =>
-                        Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
-                    return (
-                        <div ref={canvasRef} className="relative w-full select-none overflow-hidden"
-                             style={{ height: (canvasH * boardZoom) + "px" }}>
-                            <div style={{
-                                transform: `scale(${boardZoom})`,
-                                transformOrigin: "top left",
-                                width: `${(100 / boardZoom).toFixed(2)}%`,
-                                height: canvasH + "px",
-                            }}>
-                                {sections.map((section) =>
-                                    section.type === "index" ? (
-                                        <IndexSection
-                                            key={section.id}
-                                            section={section}
-                                            onUpdateSection={updateSection}
-                                            onRemoveSection={removeSection}
-                                            isOnlySection={sections.length === 1}
-                                        />
-                                    ) : (
-                                        <BoardSection
-                                            key={section.id}
-                                            section={section}
-                                            allPinned={pinned}
-                                            prices={prices}
-                                            holdingsMap={holdingsMap}
-                                            draggingSection={false}
-                                            overSection={false}
-                                            onSectionDragStart={() => {}}
-                                            onSectionDragEnd={() => {}}
-                                            onSectionDragOver={() => {}}
-                                            onSectionDrop={() => {}}
-                                            onUpdateSection={updateSection}
-                                            onRemoveSection={removeSection}
-                                            onOpenStock={openStock}
-                                            isOnlySection={sections.length === 1}
-                                        />
-                                    )
-                                )}
+                                <p className="text-slate-500 text-sm">Loading your board...</p>
                             </div>
-                        </div>
-                    );
-                })()}
+                        ) : (!sections || sections.length === 0) ? (
+                            <div className="bg-slate-800 rounded-2xl border border-slate-700
+                                p-16 text-center">
+                                <p className="text-5xl mb-4">📌</p>
+                                <p className="text-white font-bold text-lg">Your board is empty</p>
+                                <p className="text-slate-400 text-sm mt-2 mb-6 max-w-sm mx-auto">
+                                    Create sections to organise your watchlist, swing trades,
+                                    sector plays, long-term holds, each with live prices and sparklines.
+                                </p>
+                                <button onClick={addSection}
+                                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
+                                    ＋ Add First Section
+                                </button>
+                            </div>
+                        ) : sections._raw ? (
+                            /* Sections loaded but waiting for canvas width to scale — brief spinner */
+                            <div className="bg-slate-800/60 rounded-2xl border border-slate-700/60 p-12
+                                flex flex-col items-center justify-center gap-4 min-h-[320px]">
+                                <div className="w-8 h-8 border-2 border-blue-500/60 border-t-transparent
+                                    rounded-full animate-spin" />
+                                <p className="text-slate-600 text-xs">Applying layout...</p>
+                            </div>
+                        ) : (() => {
+                            const canvasH = sections.reduce((max, s) =>
+                                Math.max(max, (s.y || 0) + (s.h || 260) + 40), 360);
+                            return (
+                                <div ref={canvasRef} className="relative w-full select-none overflow-hidden"
+                                     style={{ height: (canvasH * boardZoom) + "px" }}>
+                                    <div style={{
+                                        transform: `scale(${boardZoom})`,
+                                        transformOrigin: "top left",
+                                        width: `${(100 / boardZoom).toFixed(2)}%`,
+                                        height: canvasH + "px",
+                                    }}>
+                                        {sections.map((section) =>
+                                            section.type === "index" ? (
+                                                <IndexSection
+                                                    key={section.id}
+                                                    section={section}
+                                                    onUpdateSection={updateSection}
+                                                    onRemoveSection={removeSection}
+                                                    isOnlySection={sections.length === 1}
+                                                />
+                                            ) : (
+                                                <BoardSection
+                                                    key={section.id}
+                                                    section={section}
+                                                    allPinned={pinned}
+                                                    prices={prices}
+                                                    holdingsMap={holdingsMap}
+                                                    draggingSection={false}
+                                                    overSection={false}
+                                                    onSectionDragStart={() => {}}
+                                                    onSectionDragEnd={() => {}}
+                                                    onSectionDragOver={() => {}}
+                                                    onSectionDrop={() => {}}
+                                                    onUpdateSection={updateSection}
+                                                    onRemoveSection={removeSection}
+                                                    onOpenStock={openStock}
+                                                    isOnlySection={sections.length === 1}
+                                                />
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
-            </div>{/* end measureRef wrapper */}
+                    </div>{/* end measureRef wrapper */}
+                </>
+            )}
 
             {/* -- Stock chart modal — portal so it renders above all layout layers -- */}
             {chartStock && createPortal(

@@ -420,12 +420,13 @@ export default function Layout({ children, portfolioSummary }) {
         if (!isCreator) return;
         const fetch = () => getAiCostSummary().then(setAiCost).catch(() => {});
         fetch();
-        const t = setInterval(fetch, 30_000);
+        const t = setInterval(fetch, 300_000);      // AI cost → every 5 min
         return () => clearInterval(t);
     }, [isCreator]);
 
     useEffect(() => {
         const poll = async () => {
+            if (document.visibilityState !== 'visible') return;  // ADDed THIS
             try {
                 const pend = await getPendingNotifications().catch(() => []);
                 let count  = (pend || []).length;
@@ -437,7 +438,7 @@ export default function Layout({ children, portfolioSummary }) {
             } catch {}
         };
         poll();
-        const t = setInterval(poll, 30_000);
+        const t = setInterval(poll, 60_000);   // inbox unread → every 60s is still fine
         return () => clearInterval(t);
     }, [isCreator]);
 
