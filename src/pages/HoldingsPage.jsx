@@ -13,6 +13,7 @@ import StockDetailModal from "../components/StockDetailModal";
 import {useToast} from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import {useNavigate} from "react-router-dom";
+import HoldingsBreakdownBar from "../components/HoldingsBreakdownBar";
 
 import StockLogo from "../components/StockLogo";
 import {
@@ -469,6 +470,277 @@ function StockAllocationMap({holdings, onStockClick}) {
 
 // --─ Main page ----------------------------------------------------------------
 
+// ============================================================================
+//  MOBILE HOLDINGS VIEW
+//  Dense two-column P&L layout. Desktop views (PortfolioPerformanceCard,
+//  treemap, full table) stay completely untouched behind {!isMobile && ...}.
+//  Uses the same holdings/mfHoldings state from the parent — no extra fetches.
+// ============================================================================
+
+function MobileStatStrip({ holdings, mfHoldings, seg, valuesHidden }) {
+    const stocks = seg === "stocks";
+
+    const invested = stocks
+        ? holdings.reduce((s, h) => s + parseFloat(h.totalInvested || 0), 0)
+        : mfHoldings.reduce((s, h) => s + parseFloat(h.totalInvested || 0), 0);
+
+    const current = stocks
+        ? holdings.reduce((s, h) =>
+            s + (h.currentPrice != null
+                ? parseFloat(h.currentPrice) * parseFloat(h.quantity || 0)
+                : parseFloat(h.totalInvested || 0)), 0)
+        : mfHoldings.reduce((s, h) => s + parseFloat(h.currentValue || 0), 0);
+
+    const pl    = current - invested;
+    const plPct = invested > 0 ? (pl / invested) * 100 : 0;
+    const pos   = pl >= 0;
+
+    const fmt2 = (v) => {
+        if (valuesHidden) return "••••••";
+        const n = parseFloat(v || 0);
+        if (n >= 1e7) return "₹" + (n / 1e7).toFixed(2) + "Cr";
+        if (n >= 1e5) return "₹" + (n / 1e5).toFixed(2) + "L";
+        return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+    };
+
+    return (
+        <div className="grid grid-cols-3 border-b border-slate-800" style={{ background: "#0d1117" }}>
+            <div className="px-3 py-[7px] border-r border-slate-800">
+                <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Invested</div>
+                <div className="text-[12px] font-bold text-white tabular-nums mt-px">{fmt2(invested)}</div>
+            </div>
+            <div className="px-3 py-[7px] border-r border-slate-800">
+                <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Current</div>
+                <div className="text-[12px] font-bold text-white tabular-nums mt-px">{fmt2(current)}</div>
+            </div>
+            <div className="px-3 py-[7px]">
+                <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">P&amp;L</div>
+                <div className={"text-[12px] font-bold tabular-nums mt-px " + (pos ? "text-green-400" : "text-red-400")}>
+                    {valuesHidden ? "••••••" : (pos ? "+" : "") + fmt2(Math.abs(pl)).replace("₹", "") && (pos ? "+₹" : "-₹") + Math.abs(pl).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                </div>
+                <div className={"text-[8px] font-bold tabular-nums " + (pos ? "text-green-400" : "text-red-400")}>
+                    {(pos ? "+" : "") + plPct.toFixed(2) + "%"}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function MobileStockHoldingRow({ h, onTap, valuesHidden }) {
+    const cp     = parseFloat(h.currentPrice || 0);
+    const avg    = parseFloat(h.averageBuyPrice || 0);
+    const qty    = parseFloat(h.quantity || 0);
+    const plPct  = parseFloat(h.unrealizedPLPercent || 0);
+    const dayPct = parseFloat(h.dayChangePercent || 0);
+    const hasP   = h.currentPrice != null;
+    const plPos  = plPct >= 0;
+    const dayPos = dayPct >= 0;
+
+    return (
+        <div
+            onClick={() => onTap(h.stock)}
+            className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
+            style={{ gridTemplateColumns: "14px 1fr 50px 50px" }}
+        >
+            <StockLogo symbol={h.stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
+            <div className="min-w-0">
+                <div className="text-[11px] font-bold text-white truncate leading-tight">
+                    {h.stock.symbol}
+                </div>
+                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                    avg {valuesHidden ? "••••" : "₹" + avg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                    {" · "}{qty % 1 === 0 ? qty : qty.toFixed(2)} qty
+                </div>
+            </div>
+            {/* Overall % */}
+            <div className="text-right">
+                {hasP ? (
+                    <>
+                        <div className={"text-[10.5px] font-bold tabular-nums " + (plPos ? "text-green-400" : "text-red-400")}>
+                            {(plPos ? "+" : "") + plPct.toFixed(1) + "%"}
+                        </div>
+                        <div className="text-[7.5px] text-slate-500 tabular-nums mt-px">overall</div>
+                    </>
+                ) : (
+                    <div className="text-[10px] text-slate-600">—</div>
+                )}
+            </div>
+            {/* Today % */}
+            <div className="text-right">
+                {hasP && h.dayChangePercent != null ? (
+                    <>
+                        <div className={"text-[10.5px] font-bold tabular-nums " + (dayPos ? "text-green-400" : "text-red-400")}>
+                            {(dayPos ? "+" : "") + dayPct.toFixed(2) + "%"}
+                        </div>
+                        <div className="text-[7.5px] text-slate-500 tabular-nums mt-px">today</div>
+                    </>
+                ) : (
+                    <div className="text-[10px] text-slate-600">—</div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function MobileMfHoldingRow({ h, onTap }) {
+    const pl    = parseFloat(h.unrealizedPnl || 0);
+    const plPct = parseFloat(h.unrealizedPnlPercent || 0);
+    const pos   = plPct >= 0;
+
+    return (
+        <div
+            onClick={() => onTap({ schemeCode: h.schemeCode, schemeName: h.schemeName, fundHouse: h.fundHouse, nav: h.currentNav })}
+            className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
+            style={{ gridTemplateColumns: "14px 1fr 50px 50px" }}
+        >
+            {/* Coloured letter box in place of stock logo for MF */}
+            <div className="w-[14px] h-[14px] rounded-[3px] flex-shrink-0 flex items-center justify-center
+                            text-[6px] font-black text-white"
+                 style={{ background: "#7c3aed" }}>
+                {(h.fundHouse || "M").slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+                <div className="text-[11px] font-bold text-white truncate leading-tight">
+                    {h.schemeName?.length > 22 ? h.schemeName.slice(0, 21) + "…" : h.schemeName}
+                </div>
+                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                    {h.fundHouse} · {parseFloat(h.units || 0).toFixed(2)} units
+                </div>
+            </div>
+            <div className="text-right">
+                <div className={"text-[10.5px] font-bold tabular-nums " + (pos ? "text-green-400" : "text-red-400")}>
+                    {(pos ? "+" : "") + plPct.toFixed(1) + "%"}
+                </div>
+                <div className="text-[7.5px] text-slate-500 tabular-nums mt-px">overall</div>
+            </div>
+            <div className="text-right">
+                <div className="text-[10px] text-slate-600">—</div>
+            </div>
+        </div>
+    );
+}
+
+function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
+                                onStockTap, onMfTap, valuesHidden }) {
+    const [seg, setSeg] = useState("stocks"); // stocks | mf
+
+    // Build byStock for HoldingsBreakdownBar from whichever segment is active
+    const byStock = useMemo(() => {
+        if (seg === "stocks") {
+            const total = holdings.reduce((s, h) =>
+                s + parseFloat(h.currentValue || h.totalInvested || 0), 0);
+            if (total === 0) return [];
+            return holdings
+                .map(h => ({
+                    label:      h.stock.symbol,
+                    percentage: (parseFloat(h.currentValue || h.totalInvested || 0) / total) * 100,
+                }))
+                .filter(r => r.percentage > 0.5)
+                .sort((a, b) => b.percentage - a.percentage);
+        } else {
+            const total = mfHoldings.reduce((s, h) =>
+                s + parseFloat(h.currentValue || h.totalInvested || 0), 0);
+            if (total === 0) return [];
+            return mfHoldings
+                .map(h => ({
+                    label:      h.schemeName?.split(" ").slice(0, 2).join(" ") || "MF",
+                    percentage: (parseFloat(h.currentValue || h.totalInvested || 0) / total) * 100,
+                }))
+                .filter(r => r.percentage > 0.5)
+                .sort((a, b) => b.percentage - a.percentage);
+        }
+    }, [seg, holdings, mfHoldings]);
+
+    return (
+        <div className="-mx-4 -mt-2">
+
+            {/* Segment control: Stocks | MF */}
+            <div className="flex mx-3 my-[7px] rounded-[7px] p-[2px] border border-slate-700"
+                 style={{ background: "#161d31" }}>
+                {[{ k: "stocks", l: "Stocks" }, { k: "mf", l: "Mutual Funds" }].map(({ k, l }) => (
+                    <button key={k} onClick={() => setSeg(k)}
+                            className={"flex-1 text-center text-[9.5px] font-bold py-[5px] rounded-[5px] transition-colors " +
+                            (seg === k ? "text-white" : "text-slate-500")}
+                            style={seg === k ? { background: "#7c3aed" } : {}}>
+                        {l}
+                    </button>
+                ))}
+            </div>
+
+            {/* 3-col stat strip */}
+            <MobileStatStrip
+                holdings={holdings}
+                mfHoldings={mfHoldings}
+                seg={seg}
+                valuesHidden={valuesHidden}
+            />
+
+            {/* Allocation breakdown bar */}
+            {byStock.length > 1 && (
+                <div className="mx-0 border-b border-slate-800 px-3 py-3">
+                    <HoldingsBreakdownBar byStock={byStock} />
+                </div>
+            )}
+
+            {/* Column headers */}
+            <div className="grid gap-2 px-3 py-[5px] border-b border-slate-700"
+                 style={{ gridTemplateColumns: "14px 1fr 50px 50px", background: "#0d1117" }}>
+                <div />
+                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">
+                    {seg === "stocks" ? "Stock · avg · qty" : "Scheme · fund"}
+                </div>
+                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Overall%</div>
+                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Today%</div>
+            </div>
+
+            {/* Rows */}
+            {seg === "stocks" && (
+                holdings.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                        <p className="text-2xl mb-2">💼</p>
+                        <p className="text-slate-400 text-xs">No stock holdings yet.</p>
+                    </div>
+                ) : (
+                    holdings.map(h => (
+                        <MobileStockHoldingRow
+                            key={h.id}
+                            h={h}
+                            onTap={onStockTap}
+                            valuesHidden={valuesHidden}
+                        />
+                    ))
+                )
+            )}
+
+            {seg === "mf" && (
+                mfHoldings.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                        <p className="text-2xl mb-2">📊</p>
+                        <p className="text-slate-400 text-xs">No MF holdings yet.</p>
+                    </div>
+                ) : (
+                    mfHoldings.map(h => (
+                        <MobileMfHoldingRow
+                            key={h.id}
+                            h={h}
+                            onTap={onMfTap}
+                        />
+                    ))
+                )
+            )}
+
+            {/* Refresh hint at bottom */}
+            <div className="flex items-center justify-center py-3 gap-2">
+                <button onClick={onRefresh} disabled={refreshing}
+                        className="text-[9px] text-slate-600 flex items-center gap-1.5 active:text-slate-400">
+                    <span className={refreshing ? "animate-spin inline-block" : ""}>🔄</span>
+                    {refreshing ? "Refreshing…" : "Tap to refresh"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function HoldingsPage(props) {
     const [holdings,       setHoldings]       = useState([]);
     const [mfHoldings,     setMfHoldings]     = useState([]);
@@ -521,83 +793,102 @@ export default function HoldingsPage(props) {
     const hasTodayData = holdings.some(h => h.dayChange != null);
 
     return (
-        <div className="space-y-5">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold text-white">Holdings</h1>
-                    <p className="text-xs text-slate-500 mt-1">
-                        Click any stock name to view chart or add transactions
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
-                        {tabs.map(t => (
-                            <button key={t.id} onClick={() => setView(t.id)}
-                                    className={
-                                        "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors " +
-                                        (view === t.id
-                                            ? "bg-blue-600 text-white"
-                                            : "text-slate-400 hover:text-white")
-                                    }>
-                                {t.label}
-                            </button>
-                        ))}
-                    </div>
-                    <button onClick={() => loadHoldings(true)} disabled={refreshing}
-                            className="p-2 text-slate-400 hover:text-white rounded-lg
-                                       hover:bg-slate-700 transition-colors disabled:opacity-40">
-                        <span className={refreshing ? "animate-spin inline-block" : ""}>🔄</span>
-                    </button>
-                </div>
-            </div>
+        <div className={isMobile ? "" : "space-y-5"}>
 
-            {/* -- STOCKS TAB -- */}
-            {view === "stocks" && (
-                <div className="space-y-4">
-                    {holdings.length > 0 && (
-                        <PortfolioPerformanceCard
-                            holdings={holdings}
-                            todayPL={todayPL}
-                            todayPct={todayPct}
-                            todayUp={todayUp}
-                            hasTodayData={hasTodayData}
-                        />
-                    )}
-                    {holdings.length > 0 && (
-                        <ViewToggle value={stockView} onChange={setStockView}/>
-                    )}
-                    {stockView === "list" ? (
-                        <StockHoldingsTable
-                            holdings={holdings}
-                            onStockClick={setQuickMenuStock}
-                            onTransact={setActiveStock}
-                            onNavigate={() => navigate("/stocks/transactions")}
-                        />
-                    ) : (
-                        <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-5">
-                            <StockAllocationMap
-                                holdings={holdings}
-                                onStockClick={setQuickMenuStock}
-                            />
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {view === "mf" && (
-                <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setActiveMf}/>
-            )}
-
-            {view === "combined" && (
-                <CombinedHoldingsTable
+            {/* ── MOBILE ─────────────────────────────────────────────────── */}
+            {isMobile && (
+                <MobileHoldingsView
                     holdings={holdings}
                     mfHoldings={mfHoldings}
-                    onStockClick={setQuickMenuStock}
-                    onOpenMfPanel={setActiveMf}
+                    refreshing={refreshing}
+                    onRefresh={() => loadHoldings(true)}
+                    onStockTap={setQuickMenuStock}
+                    onMfTap={setActiveMf}
+                    valuesHidden={valuesHidden}
                 />
             )}
 
-            {/* -- Overlays -- */}
+            {/* ── DESKTOP — completely unchanged ──────────────────────────── */}
+            {!isMobile && (
+                <>
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                            <h1 className="text-2xl font-bold text-white">Holdings</h1>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Click any stock name to view chart or add transactions
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
+                                {tabs.map(t => (
+                                    <button key={t.id} onClick={() => setView(t.id)}
+                                            className={
+                                                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors " +
+                                                (view === t.id
+                                                    ? "bg-blue-600 text-white"
+                                                    : "text-slate-400 hover:text-white")
+                                            }>
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <button onClick={() => loadHoldings(true)} disabled={refreshing}
+                                    className="p-2 text-slate-400 hover:text-white rounded-lg
+                                       hover:bg-slate-700 transition-colors disabled:opacity-40">
+                                <span className={refreshing ? "animate-spin inline-block" : ""}>🔄</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* -- STOCKS TAB -- */}
+                    {view === "stocks" && (
+                        <div className="space-y-4">
+                            {holdings.length > 0 && (
+                                <PortfolioPerformanceCard
+                                    holdings={holdings}
+                                    todayPL={todayPL}
+                                    todayPct={todayPct}
+                                    todayUp={todayUp}
+                                    hasTodayData={hasTodayData}
+                                />
+                            )}
+                            {holdings.length > 0 && (
+                                <ViewToggle value={stockView} onChange={setStockView}/>
+                            )}
+                            {stockView === "list" ? (
+                                <StockHoldingsTable
+                                    holdings={holdings}
+                                    onStockClick={setQuickMenuStock}
+                                    onTransact={setActiveStock}
+                                    onNavigate={() => navigate("/stocks/transactions")}
+                                />
+                            ) : (
+                                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-5">
+                                    <StockAllocationMap
+                                        holdings={holdings}
+                                        onStockClick={setQuickMenuStock}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {view === "mf" && (
+                        <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setActiveMf}/>
+                    )}
+
+                    {view === "combined" && (
+                        <CombinedHoldingsTable
+                            holdings={holdings}
+                            mfHoldings={mfHoldings}
+                            onStockClick={setQuickMenuStock}
+                            onOpenMfPanel={setActiveMf}
+                        />
+                    )}
+                </>
+            )}
+
+            {/* -- Overlays — shared, outside mobile/desktop guard -- */}
             {quickMenuStock && (
                 <StockQuickMenu
                     stock={quickMenuStock}

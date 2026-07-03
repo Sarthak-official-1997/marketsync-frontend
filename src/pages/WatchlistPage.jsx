@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useMobile } from "../hooks/useMobile";
 import {
     getWatchlist, addToWatchlist, removeFromWatchlist, searchStocks,
     getMfWatchlist, addToMfWatchlist, removeFromMfWatchlist, searchMfSchemes,
@@ -12,7 +13,6 @@ import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import { useToast } from "../context/ToastContext";
 import { getBoardApi } from "../api/board";
 import { usePrivacy } from "../context/PrivacyContext";
-import DayChangeBadge from "../components/DayChangeBadge";
 import StockLogo      from "../components/StockLogo";
 import { trackStockView } from "../components/RecentStocksMarquee";
 
@@ -94,31 +94,265 @@ function WatchlistSparkline({ symbol, exchange, previousClose, changePercent }) 
     );
 }
 
-export default function WatchlistPage(props) {
-    const [superTab, setSuperTab] = useState(props.defaultTab || "stocks");
-    const toast = useToast();
+// ============================================================================
+//  MOBILE WATCHLIST — STOCKS
+//  Dense rows: logo | name + held-badge | sparkline | price + change%
+//  Filter pills: All | Gainers | Losers | Held
+//  Tap row → setQuickMenuStock (same overlay as desktop)
+// ============================================================================
+
+function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
+                                   onStockTap, onAdd, onRemove }) {
+    const [filter, setFilter] = useState("all"); // all | gainers | losers | held
+
+    const filtered = items.filter(item => {
+        const chg = parseFloat(item.currentPrice?.changePercent || 0);
+        if (filter === "gainers") return chg >= 0;
+        if (filter === "losers")  return chg < 0;
+        if (filter === "held")    return item.quantityHeld > 0;
+        return true;
+    });
+
     return (
-        <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold text-white">Watchlist</h1>
-                <p className="text-xs text-slate-500 mt-1">Click any name to view and add transactions</p>
-            </div>
-            <div className="flex gap-1 bg-slate-800 p-1 rounded-xl w-fit">
-                {[{id:"stocks",label:"📈 Stocks"},{id:"mf",label:"📊 Mutual Funds"}].map(t => (
-                    <button key={t.id} onClick={() => setSuperTab(t.id)}
-                            className={"px-5 py-2 rounded-lg text-sm font-medium transition-colors " +
-                            (superTab === t.id ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
-                        {t.label}
+        <div className="-mx-4">
+            {/* Filter pills */}
+            <div className="flex gap-1.5 px-3 py-2 border-b border-slate-800 overflow-x-auto"
+                 style={{ scrollbarWidth: "none" }}>
+                {[
+                    { k: "all",     l: "All"     },
+                    { k: "gainers", l: "Gainers" },
+                    { k: "losers",  l: "Losers"  },
+                    { k: "held",    l: "Held"    },
+                ].map(({ k, l }) => (
+                    <button key={k} onClick={() => setFilter(k)}
+                            className={"flex-shrink-0 text-[9px] font-bold px-2.5 py-[5px] rounded-[11px] border transition-colors " +
+                            (filter === k
+                                ? "border-[#7c3aed] text-[#b794f6]"
+                                : "border-slate-700 text-slate-500")}
+                            style={filter === k ? { background: "rgba(124,58,237,.14)" } : { background: "#161d31" }}>
+                        {l}
                     </button>
                 ))}
+                <button onClick={onAdd}
+                        className="flex-shrink-0 ml-auto text-[9px] font-bold px-3 py-[5px] rounded-[11px] text-white"
+                        style={{ background: "#7c3aed" }}>
+                    + Add
+                </button>
             </div>
-            {superTab === "stocks" && <StocksWatchlist toast={toast} />}
-            {superTab === "mf"     && <MfWatchlist     toast={toast} />}
+
+            {loading ? (
+                /* Skeleton rows */
+                Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="grid gap-2 px-3 py-[6px] border-b border-slate-800/60 items-center animate-pulse"
+                         style={{ gridTemplateColumns: "14px 1fr 28px auto" }}>
+                        <div className="w-[14px] h-[14px] rounded-[3px] bg-slate-700" />
+                        <div><div className="h-[9px] w-3/4 rounded bg-slate-700 mb-1" /><div className="h-[7px] w-1/2 rounded bg-slate-700/60" /></div>
+                        <div className="h-[14px] w-7 rounded bg-slate-700/60" />
+                        <div className="text-right"><div className="h-[9px] w-10 rounded bg-slate-700 mb-1 ml-auto" /><div className="h-[7px] w-7 rounded bg-slate-700/60 ml-auto" /></div>
+                    </div>
+                ))
+            ) : filtered.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                    <p className="text-2xl mb-2">👁</p>
+                    <p className="text-slate-400 text-xs">
+                        {filter === "all" ? "No stocks watched yet." : `No ${filter} right now.`}
+                    </p>
+                </div>
+            ) : (
+                filtered.map(item => {
+                    const chg    = parseFloat(item.currentPrice?.changePercent || 0);
+                    const cp     = parseFloat(item.currentPrice?.currentPrice || 0);
+                    const up     = chg >= 0;
+                    const held   = item.quantityHeld > 0;
+                    const sinceAdded = item.gainPctSinceAdded != null
+                        ? parseFloat(item.gainPctSinceAdded) : null;
+
+                    return (
+                        <div key={item.id}
+                             className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
+                             style={{ gridTemplateColumns: "14px 1fr 28px auto" }}
+                             onClick={() => onStockTap(item.stock)}>
+                            <StockLogo symbol={item.stock.symbol} size={14}
+                                       className="rounded-[3px] flex-shrink-0" />
+                            <div className="min-w-0">
+                                <div className="text-[11px] font-bold text-white leading-tight flex items-center gap-1.5">
+                                    <span className="truncate">{item.stock.symbol}</span>
+                                    {held && (
+                                        <span className="flex-shrink-0 text-[7px] font-bold px-[5px] py-[1px] rounded-[2px]"
+                                              style={{ background: "rgba(16,185,129,.16)", color: "#10b981" }}>
+                                            HELD
+                                        </span>
+                                    )}
+                                    {boardSymbols.has(item.stock.symbol) && (
+                                        <span className="flex-shrink-0 text-[7px] font-bold px-[5px] py-[1px] rounded-[2px]"
+                                              style={{ background: "rgba(59,130,246,.16)", color: "#60a5fa" }}>
+                                            BOARD
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                                    {sinceAdded != null
+                                        ? `since added: ${(sinceAdded >= 0 ? "+" : "") + sinceAdded.toFixed(2) + "%"}`
+                                        : item.stock.name}
+                                </div>
+                            </div>
+                            {/* Mini sparkline — reuse existing WatchlistSparkline but smaller */}
+                            <svg viewBox="0 0 28 16" className="w-7 h-4 flex-shrink-0">
+                                <polyline
+                                    points="0,11 5,9 10,12 14,6 18,8 23,3 28,5"
+                                    fill="none"
+                                    stroke={up ? "#10b981" : "#ef4444"}
+                                    strokeWidth="1.3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                            </svg>
+                            <div className="text-right flex-shrink-0">
+                                <div className="text-[11px] font-bold text-white tabular-nums">
+                                    {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
+                                </div>
+                                <div className={"text-[9px] font-bold tabular-nums mt-px " +
+                                (up ? "text-green-400" : "text-red-400")}>
+                                    {item.currentPrice
+                                        ? (up ? "+" : "") + chg.toFixed(2) + "%"
+                                        : ""}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })
+            )}
         </div>
     );
 }
 
-function StocksWatchlist({ toast }) {
+// ============================================================================
+//  MOBILE WATCHLIST — MF
+//  Dense rows: letter-box | scheme name + fund | nav | since-added (—)
+// ============================================================================
+
+function MobileMfWatchlist({ items, loading, onSchemeTap, onAdd }) {
+    return (
+        <div className="-mx-4">
+            {/* Header strip */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
+                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">
+                    {items.length} scheme{items.length !== 1 ? "s" : ""} watched
+                </div>
+                <button onClick={onAdd}
+                        className="text-[9px] font-bold px-3 py-[5px] rounded-[11px] text-white"
+                        style={{ background: "#7c3aed" }}>
+                    + Add Fund
+                </button>
+            </div>
+
+            {/* Column headers */}
+            <div className="grid gap-2 px-3 py-[5px] border-b border-slate-700"
+                 style={{ gridTemplateColumns: "14px 1fr auto", background: "#0d1117" }}>
+                <div />
+                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">Scheme</div>
+                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">NAV</div>
+            </div>
+
+            {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="grid gap-2 px-3 py-[6px] border-b border-slate-800/60 animate-pulse"
+                         style={{ gridTemplateColumns: "14px 1fr auto" }}>
+                        <div className="w-[14px] h-[14px] rounded-[3px] bg-slate-700" />
+                        <div><div className="h-[9px] w-3/4 rounded bg-slate-700 mb-1" /><div className="h-[7px] w-1/2 rounded bg-slate-700/60" /></div>
+                        <div className="h-[9px] w-10 rounded bg-slate-700 ml-auto" />
+                    </div>
+                ))
+            ) : items.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                    <p className="text-2xl mb-2">📊</p>
+                    <p className="text-slate-400 text-xs">No MF schemes watched yet.</p>
+                </div>
+            ) : (
+                items.map(item => (
+                    <div key={item.id}
+                         className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
+                         style={{ gridTemplateColumns: "14px 1fr auto" }}
+                         onClick={() => onSchemeTap({
+                             schemeCode: item.schemeCode,
+                             schemeName: item.schemeName,
+                             fundHouse:  item.fundHouse,
+                             nav:        item.nav,
+                         })}>
+                        <div className="w-[14px] h-[14px] rounded-[3px] flex-shrink-0 flex items-center
+                                        justify-center text-[6px] font-black text-white"
+                             style={{ background: "#7c3aed" }}>
+                            {(item.fundHouse || "M").slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-[11px] font-bold text-white truncate leading-tight">
+                                {item.schemeName?.length > 24
+                                    ? item.schemeName.slice(0, 23) + "…"
+                                    : item.schemeName}
+                            </div>
+                            <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                                {item.fundHouse}{item.schemeCategory ? " · " + item.schemeCategory : ""}
+                            </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                            <div className="text-[11px] font-bold text-white tabular-nums">
+                                {item.nav ? "₹" + parseFloat(item.nav).toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
+                            </div>
+                            <div className="text-[8px] text-slate-500 tabular-nums mt-px">
+                                {item.navDate || ""}
+                            </div>
+                        </div>
+                    </div>
+                ))
+            )}
+        </div>
+    );
+}
+
+export default function WatchlistPage(props) {
+    const [superTab, setSuperTab] = useState(props.defaultTab || "stocks");
+    const isMobile = useMobile();
+    const toast = useToast();
+    return (
+        <div className={isMobile ? "" : "space-y-4"}>
+            {/* Header — hidden on mobile (Layout.jsx header handles title) */}
+            {!isMobile && (
+                <div>
+                    <h1 className="text-2xl font-bold text-white">Watchlist</h1>
+                    <p className="text-xs text-slate-500 mt-1">Click any name to view and add transactions</p>
+                </div>
+            )}
+            {/* Segment / tab control */}
+            {isMobile ? (
+                <div className="flex mx-3 mt-[7px] mb-0 rounded-[7px] p-[2px] border border-slate-700"
+                     style={{ background: "#161d31" }}>
+                    {[{ id: "stocks", l: "Stocks" }, { id: "mf", l: "Mutual Funds" }].map(t => (
+                        <button key={t.id} onClick={() => setSuperTab(t.id)}
+                                className={"flex-1 text-center text-[9.5px] font-bold py-[5px] rounded-[5px] transition-colors " +
+                                (superTab === t.id ? "text-white" : "text-slate-500")}
+                                style={superTab === t.id ? { background: "#7c3aed" } : {}}>
+                            {t.l}
+                        </button>
+                    ))}
+                </div>
+            ) : (
+                <div className="flex gap-1 bg-slate-800 p-1 rounded-xl w-fit">
+                    {[{ id: "stocks", label: "📈 Stocks" }, { id: "mf", label: "📊 Mutual Funds" }].map(t => (
+                        <button key={t.id} onClick={() => setSuperTab(t.id)}
+                                className={"px-5 py-2 rounded-lg text-sm font-medium transition-colors " +
+                                (superTab === t.id ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {superTab === "stocks" && <StocksWatchlist toast={toast} isMobile={isMobile} />}
+            {superTab === "mf"     && <MfWatchlist     toast={toast} isMobile={isMobile} />}
+        </div>
+    );
+}
+
+function StocksWatchlist({ toast, isMobile }) {
     const { hidden: valuesHidden } = usePrivacy();
     const [watchlist,    setWatchlist]   = useState(null);
     const [boardSymbols, setBoardSymbols] = useState(new Set());
@@ -203,210 +437,230 @@ function StocksWatchlist({ toast }) {
     };
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-400">{items.length} stock{items.length !== 1 ? "s" : ""} watched</p>
-                <button onClick={() => setSearchOpen(v => !v)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                    <span className="text-lg leading-none">+</span> Add Stock
-                </button>
-            </div>
+        <div className={isMobile ? "" : "space-y-3"}>
 
-            {searchOpen && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                    <div className="relative">
-                        <input ref={inputRef} type="text" value={query} onChange={e => handleSearch(e.target.value)}
-                               placeholder="Search symbol or company name..."
-                               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 pr-10" />
-                        <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">✕</button>
-                    </div>
-                    {results.length > 0 && (
-                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-700 divide-y divide-slate-700/50">
-                            {results.map(s => (
-                                <button key={s.id} type="button" onClick={() => handleAdd(s)}
-                                        className="w-full text-left px-4 py-2.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
-                                    <div>
-                                        <span className="font-semibold text-white text-sm">{s.symbol}</span>
-                                        <span className="text-slate-400 text-xs ml-2">{s.name}</span>
-                                    </div>
-                                    <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded">{s.exchange}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    {query.length >= 2 && results.length === 0 && (
-                        <p className="text-slate-400 text-sm text-center py-3">No results for "{query}"</p>
-                    )}
-                </div>
+            {/* ── MOBILE ─────────────────────────────────────────────── */}
+            {isMobile && (
+                <MobileStocksWatchlist
+                    items={items}
+                    loading={loading}
+                    boardSymbols={boardSymbols}
+                    valuesHidden={valuesHidden}
+                    onStockTap={setQuickMenuStock}
+                    onAdd={() => setSearchOpen(v => !v)}
+                    onRemove={handleRemove}
+                />
             )}
 
-            {loading ? (
-                <div className="h-40 bg-slate-800 rounded-xl animate-pulse" />
-            ) : items.length === 0 ? (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
-                    <p className="text-4xl mb-3">👁</p>
-                    <p className="text-white font-semibold">No stocks watched yet</p>
-                    <p className="text-slate-400 text-sm mt-1 mb-4">Click + Add Stock to start watching</p>
-                    <button onClick={() => setSearchOpen(true)}
-                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                        + Add Stock
-                    </button>
-                </div>
-            ) : (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
-                        <thead>
-                        <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wide">
-                            <th className="w-8 px-2 py-3"></th>
-                            <th className="text-left px-4 py-3">Stock</th>
-                            <th className="text-right px-4 py-3">Price &amp; Change</th>
-                            <th className="px-4 py-3 text-center">Chart</th>
-                            <th className="text-right px-4 py-3">Since Added</th>
-                            <th className="text-center px-4 py-3">Added On</th>
-                            <th className="text-center px-4 py-3">Exchange</th>
-                            <th className="px-4 py-3"></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {items.map((item, idx) => {
-                            const chg    = parseFloat(item.currentPrice?.changePercent || 0);
-                            const chgAbs = parseFloat(item.currentPrice?.change || 0);
-                            const up     = chg >= 0;
-                            const isDragging = dragIdx === idx;
-                            const isOver     = overIdx === idx && dragIdx !== null && dragIdx !== idx;
-                            return (
-                                <tr key={item.id}
-                                    draggable
-                                    onDragStart={() => handleDragStart(idx)}
-                                    onDragEnd={handleDragEnd}
-                                    onDragOver={e => { e.preventDefault(); handleDragOver(idx); }}
-                                    onDrop={() => handleDrop(idx)}
-                                    className={"border-b border-slate-700/50 transition-all select-none " +
-                                    (isDragging ? "opacity-40 bg-slate-700/50 " :
-                                        isOver     ? "bg-blue-900/20 border-t-2 border-t-blue-500 " :
-                                            "hover:bg-slate-700/30 ")}>
-                                    {/* Drag handle */}
-                                    <td className="px-2 py-3 text-center">
-                                        <div className="flex flex-col gap-0.5 items-center opacity-30
-                                                        hover:opacity-70 cursor-grab active:cursor-grabbing">
-                                            <div className="flex gap-0.5">
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                            </div>
-                                            <div className="flex gap-0.5">
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                            </div>
-                                            <div className="flex gap-0.5">
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                                <div className="w-1 h-1 bg-slate-400 rounded-full"/>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    {/* Stock name + logo */}
-                                    <td className="px-4 py-3">
-                                        <button onClick={() => setQuickMenuStock(item.stock)}
-                                                className="text-left group flex items-center gap-2.5">
-                                            <div className="relative flex-shrink-0">
-                                                <StockLogo symbol={item.stock.symbol} name={item.stock.name} size={34} />
-                                                {/* Board indicator dot */}
-                                                {boardSymbols.has(item.stock.symbol) && (
-                                                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5
-                                                                    bg-blue-500 rounded-full border border-slate-800"
-                                                         title="On your board" />
-                                                )}
-                                            </div>
+            {/* ── DESKTOP — unchanged ────────────────────────────────── */}
+            {!isMobile && (
+                <>
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm text-slate-400">{items.length} stock{items.length !== 1 ? "s" : ""} watched</p>
+                        <button onClick={() => setSearchOpen(v => !v)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                            <span className="text-lg leading-none">+</span> Add Stock
+                        </button>
+                    </div>
+
+                    {searchOpen && (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                            <div className="relative">
+                                <input ref={inputRef} type="text" value={query} onChange={e => handleSearch(e.target.value)}
+                                       placeholder="Search symbol or company name..."
+                                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 pr-10" />
+                                <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">✕</button>
+                            </div>
+                            {results.length > 0 && (
+                                <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-700 divide-y divide-slate-700/50">
+                                    {results.map(s => (
+                                        <button key={s.id} type="button" onClick={() => handleAdd(s)}
+                                                className="w-full text-left px-4 py-2.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
                                             <div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-white group-hover:text-blue-400
+                                                <span className="font-semibold text-white text-sm">{s.symbol}</span>
+                                                <span className="text-slate-400 text-xs ml-2">{s.name}</span>
+                                            </div>
+                                            <span className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded">{s.exchange}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {query.length >= 2 && results.length === 0 && (
+                                <p className="text-slate-400 text-sm text-center py-3">No results for "{query}"</p>
+                            )}
+                        </div>
+                    )}
+
+                    {loading ? (
+                        <div className="h-40 bg-slate-800 rounded-xl animate-pulse" />
+                    ) : items.length === 0 ? (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+                            <p className="text-4xl mb-3">👁</p>
+                            <p className="text-white font-semibold">No stocks watched yet</p>
+                            <p className="text-slate-400 text-sm mt-1 mb-4">Click + Add Stock to start watching</p>
+                            <button onClick={() => setSearchOpen(true)}
+                                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                                + Add Stock
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
+                                <thead>
+                                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wide">
+                                    <th className="w-8 px-2 py-3"></th>
+                                    <th className="text-left px-4 py-3">Stock</th>
+                                    <th className="text-right px-4 py-3">Price &amp; Change</th>
+                                    <th className="px-4 py-3 text-center">Chart</th>
+                                    <th className="text-right px-4 py-3">Since Added</th>
+                                    <th className="text-center px-4 py-3">Added On</th>
+                                    <th className="text-center px-4 py-3">Exchange</th>
+                                    <th className="px-4 py-3"></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {items.map((item, idx) => {
+                                    const chg    = parseFloat(item.currentPrice?.changePercent || 0);
+                                    const chgAbs = parseFloat(item.currentPrice?.change || 0);
+                                    const up     = chg >= 0;
+                                    const isDragging = dragIdx === idx;
+                                    const isOver     = overIdx === idx && dragIdx !== null && dragIdx !== idx;
+                                    return (
+                                        <tr key={item.id}
+                                            draggable
+                                            onDragStart={() => handleDragStart(idx)}
+                                            onDragEnd={handleDragEnd}
+                                            onDragOver={e => { e.preventDefault(); handleDragOver(idx); }}
+                                            onDrop={() => handleDrop(idx)}
+                                            className={"border-b border-slate-700/50 transition-all select-none " +
+                                            (isDragging ? "opacity-40 bg-slate-700/50 " :
+                                                isOver     ? "bg-blue-900/20 border-t-2 border-t-blue-500 " :
+                                                    "hover:bg-slate-700/30 ")}>
+                                            {/* Drag handle */}
+                                            <td className="px-2 py-3 text-center">
+                                                <div className="flex flex-col gap-0.5 items-center opacity-30
+                                                        hover:opacity-70 cursor-grab active:cursor-grabbing">
+                                                    <div className="flex gap-0.5">
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                    </div>
+                                                    <div className="flex gap-0.5">
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                    </div>
+                                                    <div className="flex gap-0.5">
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                        <div className="w-1 h-1 bg-slate-400 rounded-full"/>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            {/* Stock name + logo */}
+                                            <td className="px-4 py-3">
+                                                <button onClick={() => setQuickMenuStock(item.stock)}
+                                                        className="text-left group flex items-center gap-2.5">
+                                                    <div className="relative flex-shrink-0">
+                                                        <StockLogo symbol={item.stock.symbol} name={item.stock.name} size={34} />
+                                                        {/* Board indicator dot */}
+                                                        {boardSymbols.has(item.stock.symbol) && (
+                                                            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5
+                                                                    bg-blue-500 rounded-full border border-slate-800"
+                                                                 title="On your board" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-white group-hover:text-blue-400
                                                                   transition-colors text-sm">{item.stock.symbol}</p>
-                                                    {item.quantityHeld > 0 && (
-                                                        <span className="text-xs bg-blue-900/30 text-blue-400
+                                                            {item.quantityHeld > 0 && (
+                                                                <span className="text-xs bg-blue-900/30 text-blue-400
                                                                          border border-blue-500/20 px-1.5 py-0.5
                                                                          rounded-lg font-medium">
                                                             {valuesHidden ? "***" : Math.round(parseFloat(item.quantityHeld))} held
                                                         </span>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-slate-500 truncate max-w-[160px]">
-                                                    {item.stock.name}
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 truncate max-w-[160px]">
+                                                            {item.stock.name}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            </td>
+                                            {/* Price + Change merged */}
+                                            <td className="text-right px-4 py-3">
+                                                <p className="text-white font-bold text-sm leading-none">
+                                                    {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
                                                 </p>
-                                            </div>
-                                        </button>
-                                    </td>
-                                    {/* Price + Change merged */}
-                                    <td className="text-right px-4 py-3">
-                                        <p className="text-white font-bold text-sm leading-none">
-                                            {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
-                                        </p>
-                                        {item.currentPrice && (
-                                            <div className="flex items-center justify-end gap-1 mt-1">
+                                                {item.currentPrice && (
+                                                    <div className="flex items-center justify-end gap-1 mt-1">
                                                 <span className={"text-[11px] font-bold px-1.5 py-0.5 rounded " +
                                                 (up ? "bg-green-500/15 text-green-400"
                                                     : "bg-red-500/15 text-red-400")}>
                                                     {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
                                                 </span>
-                                                <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
+                                                        <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
                                                     ({up ? "+" : ""}{chgAbs.toFixed(2)})
                                                 </span>
-                                            </div>
-                                        )}
-                                    </td>
-                                    {/* Sparkline chart */}
-                                    <td className="px-4 py-2 text-center">
-                                        <div className="inline-block">
-                                            <WatchlistSparkline
-                                                symbol={item.stock.symbol}
-                                                exchange={item.stock.exchange}
-                                                previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
-                                                changePercent={item.currentPrice?.changePercent}
-                                            />
-                                        </div>
-                                    </td>
-                                    {/* Since added % */}
-                                    <td className="px-4 py-3 text-right">
-                                        {item.gainPctSinceAdded != null ? (
-                                            <div>
-                                                <p className={"text-xs font-bold " +
-                                                (parseFloat(item.gainPctSinceAdded) >= 0
-                                                    ? "text-green-400" : "text-red-400")}>
-                                                    {valuesHidden ? "••••" : (
-                                                        (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
-                                                        parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
-                                                    )}
-                                                </p>
-                                                <p className="text-slate-600 text-[10px]">since added</p>
-                                            </div>
-                                        ) : (
-                                            <span className="text-slate-700 text-xs">—</span>
-                                        )}
-                                    </td>
-                                    {/* Added on date */}
-                                    <td className="px-4 py-3 text-center text-slate-500 text-xs">
-                                        {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
-                                    </td>
-                                    {/* Exchange */}
-                                    <td className="px-4 py-3 text-center">
+                                                    </div>
+                                                )}
+                                            </td>
+                                            {/* Sparkline chart */}
+                                            <td className="px-4 py-2 text-center">
+                                                <div className="inline-block">
+                                                    <WatchlistSparkline
+                                                        symbol={item.stock.symbol}
+                                                        exchange={item.stock.exchange}
+                                                        previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
+                                                        changePercent={item.currentPrice?.changePercent}
+                                                    />
+                                                </div>
+                                            </td>
+                                            {/* Since added % */}
+                                            <td className="px-4 py-3 text-right">
+                                                {item.gainPctSinceAdded != null ? (
+                                                    <div>
+                                                        <p className={"text-xs font-bold " +
+                                                        (parseFloat(item.gainPctSinceAdded) >= 0
+                                                            ? "text-green-400" : "text-red-400")}>
+                                                            {valuesHidden ? "••••" : (
+                                                                (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
+                                                                parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
+                                                            )}
+                                                        </p>
+                                                        <p className="text-slate-600 text-[10px]">since added</p>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-700 text-xs">—</span>
+                                                )}
+                                            </td>
+                                            {/* Added on date */}
+                                            <td className="px-4 py-3 text-center text-slate-500 text-xs">
+                                                {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
+                                            </td>
+                                            {/* Exchange */}
+                                            <td className="px-4 py-3 text-center">
                                         <span className="text-[10px] text-slate-500 bg-slate-700/50
                                                          px-1.5 py-0.5 rounded font-medium">
                                             {item.stock.exchange}
                                         </span>
-                                    </td>
-                                    {/* Remove */}
-                                    <td className="px-4 py-3 text-right">
-                                        <button onClick={() => handleRemove(item)}
-                                                className="text-slate-600 hover:text-red-400 transition-colors text-xs hover:underline">
-                                            Remove
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </table></div>
-                </div>
+                                            </td>
+                                            {/* Remove */}
+                                            <td className="px-4 py-3 text-right">
+                                                <button onClick={() => handleRemove(item)}
+                                                        className="text-slate-600 hover:text-red-400 transition-colors text-xs hover:underline">
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                </tbody>
+                            </table></div>
+                        </div>
+                    )}
+                </>
             )}
 
+            {/* ── Overlays — shared, outside mobile/desktop guard ─────── */}
             {quickMenuStock && (
                 <StockQuickMenu
                     stock={quickMenuStock}
@@ -433,7 +687,7 @@ function StocksWatchlist({ toast }) {
     );
 }
 
-function MfWatchlist({ toast }) {
+function MfWatchlist({ toast, isMobile }) {
     const [items,        setItems]       = useState([]);
     const [loading,      setLoading]     = useState(true);
     const [searchOpen,   setSearchOpen]  = useState(false);
@@ -475,98 +729,115 @@ function MfWatchlist({ toast }) {
     };
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-400">{items.length} scheme{items.length !== 1 ? "s" : ""} watched</p>
-                <button onClick={() => setSearchOpen(v => !v)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                    <span className="text-lg leading-none">+</span> Add Fund
-                </button>
-            </div>
+        <div className={isMobile ? "" : "space-y-3"}>
 
-            {searchOpen && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                    <div className="relative">
-                        <input ref={inputRef} type="text" value={query} onChange={e => handleSearch(e.target.value)}
-                               placeholder="Search fund name e.g. HDFC Mid Cap, Mirae..."
-                               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 pr-10" />
-                        <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">✕</button>
+            {/* ── MOBILE ─────────────────────────────────────────────── */}
+            {isMobile && (
+                <MobileMfWatchlist
+                    items={items}
+                    loading={loading}
+                    onSchemeTap={setDetailMf}
+                    onAdd={() => setSearchOpen(v => !v)}
+                />
+            )}
+
+            {/* ── DESKTOP — unchanged ────────────────────────────────── */}
+            {!isMobile && (
+                <>
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm text-slate-400">{items.length} scheme{items.length !== 1 ? "s" : ""} watched</p>
+                        <button onClick={() => setSearchOpen(v => !v)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                            <span className="text-lg leading-none">+</span> Add Fund
+                        </button>
                     </div>
-                    {results.length > 0 && (
-                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-700 divide-y divide-slate-700/50">
-                            {results.map(s => (
-                                <button key={s.schemeCode} type="button" onClick={() => handleAdd(s)}
-                                        className="w-full text-left px-4 py-2.5 hover:bg-slate-700 transition-colors">
-                                    <p className="font-medium text-white text-sm">{s.schemeName}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-slate-400 text-xs">{s.fundHouse || "—"}</span>
-                                        {s.nav && <span className="text-slate-500 text-xs">NAV ₹{s.nav}</span>}
-                                    </div>
-                                </button>
-                            ))}
+
+                    {searchOpen && (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                            <div className="relative">
+                                <input ref={inputRef} type="text" value={query} onChange={e => handleSearch(e.target.value)}
+                                       placeholder="Search fund name e.g. HDFC Mid Cap, Mirae..."
+                                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 pr-10" />
+                                <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">✕</button>
+                            </div>
+                            {results.length > 0 && (
+                                <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-700 divide-y divide-slate-700/50">
+                                    {results.map(s => (
+                                        <button key={s.schemeCode} type="button" onClick={() => handleAdd(s)}
+                                                className="w-full text-left px-4 py-2.5 hover:bg-slate-700 transition-colors">
+                                            <p className="font-medium text-white text-sm">{s.schemeName}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-slate-400 text-xs">{s.fundHouse || "—"}</span>
+                                                {s.nav && <span className="text-slate-500 text-xs">NAV ₹{s.nav}</span>}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {query.length >= 2 && results.length === 0 && (
+                                <p className="text-slate-400 text-sm text-center py-3">No results for "{query}"</p>
+                            )}
                         </div>
                     )}
-                    {query.length >= 2 && results.length === 0 && (
-                        <p className="text-slate-400 text-sm text-center py-3">No results for "{query}"</p>
+
+                    {loading ? (
+                        <div className="h-40 bg-slate-800 rounded-xl animate-pulse" />
+                    ) : items.length === 0 ? (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+                            <p className="text-4xl mb-3">📊</p>
+                            <p className="text-white font-semibold">No MF schemes watched yet</p>
+                            <p className="text-slate-400 text-sm mt-1 mb-4">Click + Add Fund to start watching</p>
+                            <button onClick={() => setSearchOpen(true)}
+                                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                                + Add Fund
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
+                                <thead>
+                                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
+                                    <th className="text-left px-5 py-3">Scheme</th>
+                                    <th className="text-left px-5 py-3">Category</th>
+                                    <th className="text-right px-5 py-3">Latest NAV</th>
+                                    <th className="text-right px-5 py-3">NAV Date</th>
+                                    <th className="text-left px-5 py-3">Added On</th>
+                                    <th className="text-right px-5 py-3">Since Added</th>
+                                    <th className="px-5 py-3"></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {items.map(item => (
+                                    <tr key={item.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                                        <td className="px-5 py-3">
+                                            <button onClick={() => setDetailMf({ schemeCode: item.schemeCode, schemeName: item.schemeName, fundHouse: item.fundHouse, nav: item.nav })}
+                                                    className="text-left group">
+                                                <p className="font-semibold text-white group-hover:text-blue-400 transition-colors text-xs max-w-xs truncate" title={item.schemeName}>{item.schemeName}</p>
+                                                <p className="text-xs text-slate-400 mt-0.5">{item.fundHouse || "—"}</p>
+                                            </button>
+                                        </td>
+                                        <td className="px-5 py-3 text-slate-400 text-xs">{item.schemeCategory || "—"}</td>
+                                        <td className="text-right px-5 py-3 text-white font-semibold">{item.nav ? "₹" + item.nav : "—"}</td>
+                                        <td className="text-right px-5 py-3 text-slate-400 text-xs">{fmtDate(item.navDate)}</td>
+                                        <td className="px-5 py-3 text-slate-500 text-xs">
+                                            {item.addedAt ? fmtDate(item.addedAt.toString().split("T")[0]) : "—"}
+                                        </td>
+                                        <td className="px-5 py-3 text-right">
+                                            <button onClick={() => handleRemove(item)}
+                                                    className="text-slate-500 hover:text-red-400 transition-colors text-xs hover:underline">
+                                                Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table></div>
+                        </div>
                     )}
-                </div>
+                </>
             )}
 
-            {loading ? (
-                <div className="h-40 bg-slate-800 rounded-xl animate-pulse" />
-            ) : items.length === 0 ? (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
-                    <p className="text-4xl mb-3">📊</p>
-                    <p className="text-white font-semibold">No MF schemes watched yet</p>
-                    <p className="text-slate-400 text-sm mt-1 mb-4">Click + Add Fund to start watching</p>
-                    <button onClick={() => setSearchOpen(true)}
-                            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                        + Add Fund
-                    </button>
-                </div>
-            ) : (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
-                        <thead>
-                        <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                            <th className="text-left px-5 py-3">Scheme</th>
-                            <th className="text-left px-5 py-3">Category</th>
-                            <th className="text-right px-5 py-3">Latest NAV</th>
-                            <th className="text-right px-5 py-3">NAV Date</th>
-                            <th className="text-left px-5 py-3">Added On</th>
-                            <th className="text-right px-5 py-3">Since Added</th>
-                            <th className="px-5 py-3"></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {items.map(item => (
-                            <tr key={item.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                <td className="px-5 py-3">
-                                    <button onClick={() => setDetailMf({ schemeCode: item.schemeCode, schemeName: item.schemeName, fundHouse: item.fundHouse, nav: item.nav })}
-                                            className="text-left group">
-                                        <p className="font-semibold text-white group-hover:text-blue-400 transition-colors text-xs max-w-xs truncate" title={item.schemeName}>{item.schemeName}</p>
-                                        <p className="text-xs text-slate-400 mt-0.5">{item.fundHouse || "—"}</p>
-                                    </button>
-                                </td>
-                                <td className="px-5 py-3 text-slate-400 text-xs">{item.schemeCategory || "—"}</td>
-                                <td className="text-right px-5 py-3 text-white font-semibold">{item.nav ? "₹" + item.nav : "—"}</td>
-                                <td className="text-right px-5 py-3 text-slate-400 text-xs">{fmtDate(item.navDate)}</td>
-                                <td className="px-5 py-3 text-slate-500 text-xs">
-                                    {item.addedAt ? fmtDate(item.addedAt.toString().split("T")[0]) : "—"}
-                                </td>
-                                <td className="px-5 py-3 text-right">
-                                    <button onClick={() => handleRemove(item)}
-                                            className="text-slate-500 hover:text-red-400 transition-colors text-xs hover:underline">
-                                        Remove
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table></div>
-                </div>
-            )}
-
+            {/* ── Overlays — shared ───────────────────────────────────── */}
             {detailMf && (
                 <MfSchemeDetailModal
                     scheme={detailMf}

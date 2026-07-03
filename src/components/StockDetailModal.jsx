@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useMobile } from "../hooks/useMobile";
 import StockTransactionPanel from "./StockTransactionPanel";
 import PriceAlertModal       from "./PriceAlertModal";
 import { getHoldings }       from "../api/portfolio";
@@ -98,6 +99,7 @@ export default function StockDetailModal({ stock, onClose }) {
     const [verticalPadding, setVerticalPadding] = useState(0.01);
 
     const toast = useToast();
+    const isMobile = useMobile();
 
     // Default: Intraday when market is open (Mon-Fri 09:15-15:30 IST), else 1D
     const [tf, setTf] = useState(() => {
@@ -266,7 +268,7 @@ export default function StockDetailModal({ stock, onClose }) {
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
                 <div
-                    className="relative z-50 bg-slate-900 flex flex-col"
+                    className="relative z-50 bg-slate-900 flex flex-col overflow-y-auto"
                     style={{
                         width: "calc(100vw - 32px)",
                         height: "calc(100vh - 32px)",
@@ -279,214 +281,331 @@ export default function StockDetailModal({ stock, onClose }) {
                     onClick={e => e.stopPropagation()}
                 >
                     {/* ── TOP BAR ── */}
-                    <div className="flex items-center justify-between
-                        px-4 sm:px-7 py-3 sm:py-4 border-b border-slate-700/60
-                        flex-shrink-0 gap-2">
-                        {/* Left: symbol badge + name */}
-                        <div className="flex items-center gap-4">
-                            <StockLogo symbol={stock.symbol} name={stock.name} size={48} />
-                            <div>
-                                <p className="text-xl font-bold text-white leading-none">
-                                    {stock.symbol}
-                                </p>
-                                <span className="text-xs text-blue-400 font-semibold mt-0.5 block">
-                                    {stock.exchange}
-                                </span>
-                            </div>
-                            <div>
-                                <p className="text-white font-semibold text-lg">{stock.name}</p>
-                                {stock.sector && (
-                                    <p className="text-xs text-slate-400 mt-0.5">{stock.sector}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Right: price + action buttons */}
-                        <div className="flex items-center gap-3">
-                            {quoteLoading ? (
-                                <div className="h-9 w-36 bg-slate-700 rounded animate-pulse" />
-                            ) : quote ? (
-                                <div className="text-right mr-2">
-                                    <p className="text-3xl font-bold text-white tracking-tight">
-                                        {fmt(quote.currentPrice, quote.currency)}
+                    {isMobile ? (
+                        /* Mobile top bar — 2 rows */
+                        <div className="flex-shrink-0 border-b border-slate-700/60 px-3 py-3">
+                            {/* Row 1: logo + symbol + name + close */}
+                            <div className="flex items-center gap-2 mb-2">
+                                <StockLogo symbol={stock.symbol} name={stock.name} size={32} />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-bold text-sm leading-tight">
+                                        {stock.symbol}
+                                        <span className="text-blue-400 text-xs font-semibold ml-2">
+                                            {stock.exchange}
+                                        </span>
                                     </p>
-                                    <p className={"text-sm font-medium " + plClr}>
-                                        {isPos ? "▲" : "▼"}{" "}
-                                        {fmt(Math.abs(quote.change || 0), quote.currency)}{" "}
-                                        ({isPos ? "+" : ""}{pl.toFixed(2)}%) today
-                                    </p>
+                                    <p className="text-slate-400 text-xs truncate">{stock.name}</p>
                                 </div>
-                            ) : null}
-
-                            {/* Watchlist toggle — green=watchlisted, hover→red to remove */}
-                            <button
-                                onClick={async () => {
-                                    setAddingWatch(true);
-                                    try {
-                                        if (inWatchlist && watchlistItemId) {
-                                            await removeFromWatchlist(watchlistItemId);
-                                            setInWatchlist(false); setWatchlistItemId(null);
-                                            toast.success(`${stock.symbol} removed from watchlist`);
-                                        } else {
-                                            if (!stock?.id) { toast.error("Missing stock ID"); return; }
-                                            const res = await addToWatchlist({ stockId: stock.id });
-                                            setInWatchlist(true);
-                                            setWatchlistItemId(res.data?.id || null);
-                                            toast.success(`${stock.symbol} added to watchlist`);
-                                        }
-                                    } catch (err) {
-                                        const msg = err.response?.data?.message || "";
-                                        if (msg.toLowerCase().includes("already")) {
-                                            setInWatchlist(true); toast.info("Already in watchlist");
-                                        } else { toast.error(msg || "Failed"); }
-                                    } finally { setAddingWatch(false); }
-                                }}
-                                disabled={addingWatch}
-                                className={
-                                    "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
-                                    "rounded-xl transition-all whitespace-nowrap disabled:opacity-50 " +
-                                    (inWatchlist
-                                        ? "bg-green-700 hover:bg-red-700 text-white ring-1 ring-green-500/40"
-                                        : "bg-slate-700 hover:bg-slate-600 text-white")
-                                }>
-                                {addingWatch ? "…" : inWatchlist ? "✓ Watchlisted" : "👁 Watchlist"}
-                            </button>
-
-                            {/* Add to Board */}
-                            <div className="relative">
-                                {/* Section picker dropdown */}
-                                {showSectionPicker && !onBoard && (
-                                    <div className="absolute top-full right-0 mt-1 bg-slate-800
-                                                border border-slate-700 rounded-xl shadow-xl
-                                                z-10 min-w-[180px] overflow-hidden">
-                                        <p className="text-[10px] text-slate-500 uppercase
-                                                  tracking-wide px-3 py-2 border-b border-slate-700">
-                                            Add to section
+                                {quote && !quoteLoading && (
+                                    <div className="text-right flex-shrink-0 mr-1">
+                                        <p className="text-white font-bold text-base tabular-nums leading-tight">
+                                            {fmt(quote.currentPrice, quote.currency)}
                                         </p>
-                                        {boardSections.map(sec => (
-                                            <button key={sec.id}
-                                                    onClick={async e => {
-                                                        e.stopPropagation();
-                                                        setShowSectionPicker(false);
-                                                        // Add to board API (pinned list)
-                                                        await addToBoard({
-                                                            id: stock.id, symbol: stock.symbol,
-                                                            name: stock.name, exchange: stock.exchange,
-                                                        });
-                                                        // Dispatch with target section info
-                                                        window.dispatchEvent(new CustomEvent(
-                                                            "ms_board_add_to_section",
-                                                            { detail: { symbol: stock.symbol, sectionId: sec.id } }
-                                                        ));
-                                                        setOnBoard(true);
-                                                        toast.success(`${stock.symbol} added to "${sec.title}"`);
-                                                    }}
-                                                    className="w-full text-left px-3 py-2.5 text-sm
-                                                           text-slate-300 hover:bg-slate-700
-                                                           transition-colors">
-                                                {sec.title}
-                                            </button>
-                                        ))}
+                                        <p className={"text-xs font-semibold " + plClr}>
+                                            {isPos ? "+" : ""}{pl.toFixed(2)}% today
+                                        </p>
                                     </div>
                                 )}
                                 <button
-                                    onClick={async e => {
+                                    onClick={onClose}
+                                    style={{
+                                        width: 28, height: 28, borderRadius: 8,
+                                        background: "#1e293b", border: "none",
+                                        color: "#94a3b8", cursor: "pointer", flexShrink: 0,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        fontSize: 14,
+                                    }}>✕</button>
+                            </div>
+                            {/* Row 2: action buttons — scrollable row */}
+                            <div className="flex gap-2 overflow-x-auto pb-1"
+                                 style={{ scrollbarWidth: "none" }}>
+                                <button
+                                    onClick={async () => {
+                                        setAddingWatch(true);
+                                        try {
+                                            if (inWatchlist && watchlistItemId) {
+                                                await removeFromWatchlist(watchlistItemId);
+                                                setInWatchlist(false); setWatchlistItemId(null);
+                                                toast.success(`${stock.symbol} removed from watchlist`);
+                                            } else {
+                                                if (!stock?.id) { toast.error("Missing stock ID"); return; }
+                                                const res = await addToWatchlist({ stockId: stock.id });
+                                                setInWatchlist(true);
+                                                setWatchlistItemId(res.data?.id || null);
+                                                toast.success(`${stock.symbol} added to watchlist`);
+                                            }
+                                        } catch (err) {
+                                            const msg = err.response?.data?.message || "";
+                                            if (msg.toLowerCase().includes("already")) {
+                                                setInWatchlist(true); toast.info("Already in watchlist");
+                                            } else { toast.error(msg || "Failed"); }
+                                        } finally { setAddingWatch(false); }
+                                    }}
+                                    disabled={addingWatch}
+                                    className={"flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg transition-all " +
+                                    (inWatchlist
+                                        ? "bg-green-700 text-white"
+                                        : "bg-slate-700 text-white")}>
+                                    {addingWatch ? "…" : inWatchlist ? "✓ Watchlist" : "👁 Watch"}
+                                </button>
+                                <button
+                                    onClick={async (e) => {
                                         e.stopPropagation();
                                         if (onBoard) {
                                             await removeFromBoard(stock.symbol);
                                             setOnBoard(false);
                                             toast.success(`${stock.symbol} removed from board`);
-                                        } else if (boardSections.length > 1) {
-                                            // Multiple sections — show picker
-                                            setShowSectionPicker(v => !v);
                                         } else {
-                                            // Single section or no sections — add directly
                                             const added = await addToBoard({
                                                 id: stock.id, symbol: stock.symbol,
                                                 name: stock.name, exchange: stock.exchange,
                                             });
-                                            if (added) {
-                                                setOnBoard(true);
-                                                toast.success(`${stock.symbol} added to board`);
-                                            } else {
-                                                toast.error(`${stock.symbol} already on board`);
-                                            }
+                                            if (added) { setOnBoard(true); toast.success(`${stock.symbol} added to board`); }
+                                            else { toast.error(`${stock.symbol} already on board`); }
                                         }
                                     }}
-                                    className={
-                                        "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
-                                        "rounded-xl transition-all whitespace-nowrap " +
-                                        (onBoard
-                                            ? "bg-purple-700 hover:bg-red-700 text-white ring-1 ring-purple-500/40"
-                                            : "bg-slate-700 hover:bg-purple-600 text-white")
-                                    }>
-                                    {onBoard ? "✓ On Board" : boardSections.length > 1 && !onBoard ? "📌 Board ▾" : "📌 Board"}
+                                    className={"flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg transition-all " +
+                                    (onBoard ? "bg-purple-700 text-white" : "bg-slate-700 text-white")}>
+                                    {onBoard ? "✓ Board" : "📌 Board"}
+                                </button>
+                                <a href={tvUrl} target="_blank" rel="noopener noreferrer"
+                                   className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg
+                                              bg-blue-600 text-white">
+                                    TradingView ↗
+                                </a>
+                                <button
+                                    onClick={e => { e.stopPropagation(); setAlertModal(true); }}
+                                    className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg
+                                               bg-slate-700 text-amber-400">
+                                    🔔 Alert
+                                </button>
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
+                                    className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-lg
+                                               bg-green-600 text-white">
+                                    BUY
+                                </button>
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
+                                    className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-lg
+                                               bg-red-600 text-white">
+                                    SELL
                                 </button>
                             </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between
+                        px-4 sm:px-7 py-3 sm:py-4 border-b border-slate-700/60
+                        flex-shrink-0 gap-2">
+                            {/* Left: symbol badge + name */}
+                            <div className="flex items-center gap-4">
+                                <StockLogo symbol={stock.symbol} name={stock.name} size={48} />
+                                <div>
+                                    <p className="text-xl font-bold text-white leading-none">
+                                        {stock.symbol}
+                                    </p>
+                                    <span className="text-xs text-blue-400 font-semibold mt-0.5 block">
+                                    {stock.exchange}
+                                </span>
+                                </div>
+                                <div>
+                                    <p className="text-white font-semibold text-lg">{stock.name}</p>
+                                    {stock.sector && (
+                                        <p className="text-xs text-slate-400 mt-0.5">{stock.sector}</p>
+                                    )}
+                                </div>
+                            </div>
 
-                            {/* TradingView */}
-                            <a href={tvUrl} target="_blank" rel="noopener noreferrer"
-                               className="flex items-center gap-2 px-4 py-2.5
+                            {/* Right: price + action buttons */}
+                            <div className="flex items-center gap-3">
+                                {quoteLoading ? (
+                                    <div className="h-9 w-36 bg-slate-700 rounded animate-pulse" />
+                                ) : quote ? (
+                                    <div className="text-right mr-2">
+                                        <p className="text-3xl font-bold text-white tracking-tight">
+                                            {fmt(quote.currentPrice, quote.currency)}
+                                        </p>
+                                        <p className={"text-sm font-medium " + plClr}>
+                                            {isPos ? "▲" : "▼"}{" "}
+                                            {fmt(Math.abs(quote.change || 0), quote.currency)}{" "}
+                                            ({isPos ? "+" : ""}{pl.toFixed(2)}%) today
+                                        </p>
+                                    </div>
+                                ) : null}
+
+                                {/* Watchlist toggle — green=watchlisted, hover→red to remove */}
+                                <button
+                                    onClick={async () => {
+                                        setAddingWatch(true);
+                                        try {
+                                            if (inWatchlist && watchlistItemId) {
+                                                await removeFromWatchlist(watchlistItemId);
+                                                setInWatchlist(false); setWatchlistItemId(null);
+                                                toast.success(`${stock.symbol} removed from watchlist`);
+                                            } else {
+                                                if (!stock?.id) { toast.error("Missing stock ID"); return; }
+                                                const res = await addToWatchlist({ stockId: stock.id });
+                                                setInWatchlist(true);
+                                                setWatchlistItemId(res.data?.id || null);
+                                                toast.success(`${stock.symbol} added to watchlist`);
+                                            }
+                                        } catch (err) {
+                                            const msg = err.response?.data?.message || "";
+                                            if (msg.toLowerCase().includes("already")) {
+                                                setInWatchlist(true); toast.info("Already in watchlist");
+                                            } else { toast.error(msg || "Failed"); }
+                                        } finally { setAddingWatch(false); }
+                                    }}
+                                    disabled={addingWatch}
+                                    className={
+                                        "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
+                                        "rounded-xl transition-all whitespace-nowrap disabled:opacity-50 " +
+                                        (inWatchlist
+                                            ? "bg-green-700 hover:bg-red-700 text-white ring-1 ring-green-500/40"
+                                            : "bg-slate-700 hover:bg-slate-600 text-white")
+                                    }>
+                                    {addingWatch ? "…" : inWatchlist ? "✓ Watchlisted" : "👁 Watchlist"}
+                                </button>
+
+                                {/* Add to Board */}
+                                <div className="relative">
+                                    {/* Section picker dropdown */}
+                                    {showSectionPicker && !onBoard && (
+                                        <div className="absolute top-full right-0 mt-1 bg-slate-800
+                                                border border-slate-700 rounded-xl shadow-xl
+                                                z-10 min-w-[180px] overflow-hidden">
+                                            <p className="text-[10px] text-slate-500 uppercase
+                                                  tracking-wide px-3 py-2 border-b border-slate-700">
+                                                Add to section
+                                            </p>
+                                            {boardSections.map(sec => (
+                                                <button key={sec.id}
+                                                        onClick={async e => {
+                                                            e.stopPropagation();
+                                                            setShowSectionPicker(false);
+                                                            // Add to board API (pinned list)
+                                                            await addToBoard({
+                                                                id: stock.id, symbol: stock.symbol,
+                                                                name: stock.name, exchange: stock.exchange,
+                                                            });
+                                                            // Dispatch with target section info
+                                                            window.dispatchEvent(new CustomEvent(
+                                                                "ms_board_add_to_section",
+                                                                { detail: { symbol: stock.symbol, sectionId: sec.id } }
+                                                            ));
+                                                            setOnBoard(true);
+                                                            toast.success(`${stock.symbol} added to "${sec.title}"`);
+                                                        }}
+                                                        className="w-full text-left px-3 py-2.5 text-sm
+                                                           text-slate-300 hover:bg-slate-700
+                                                           transition-colors">
+                                                    {sec.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={async e => {
+                                            e.stopPropagation();
+                                            if (onBoard) {
+                                                await removeFromBoard(stock.symbol);
+                                                setOnBoard(false);
+                                                toast.success(`${stock.symbol} removed from board`);
+                                            } else if (boardSections.length > 1) {
+                                                // Multiple sections — show picker
+                                                setShowSectionPicker(v => !v);
+                                            } else {
+                                                // Single section or no sections — add directly
+                                                const added = await addToBoard({
+                                                    id: stock.id, symbol: stock.symbol,
+                                                    name: stock.name, exchange: stock.exchange,
+                                                });
+                                                if (added) {
+                                                    setOnBoard(true);
+                                                    toast.success(`${stock.symbol} added to board`);
+                                                } else {
+                                                    toast.error(`${stock.symbol} already on board`);
+                                                }
+                                            }
+                                        }}
+                                        className={
+                                            "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
+                                            "rounded-xl transition-all whitespace-nowrap " +
+                                            (onBoard
+                                                ? "bg-purple-700 hover:bg-red-700 text-white ring-1 ring-purple-500/40"
+                                                : "bg-slate-700 hover:bg-purple-600 text-white")
+                                        }>
+                                        {onBoard ? "✓ On Board" : boardSections.length > 1 && !onBoard ? "📌 Board ▾" : "📌 Board"}
+                                    </button>
+                                </div>
+
+                                {/* TradingView */}
+                                <a href={tvUrl} target="_blank" rel="noopener noreferrer"
+                                   className="flex items-center gap-2 px-4 py-2.5
                                           bg-blue-600 hover:bg-blue-700 text-white
                                           text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     className="w-4 h-4" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor"
-                                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M18 13v6a2 2 0 0 1-2 2H5 a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                                    <polyline points="15 3 21 3 21 9"/>
-                                    <line x1="10" y1="14" x2="21" y2="3"/>
-                                </svg>
-                                TradingView
-                            </a>
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         className="w-4 h-4" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor"
+                                         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5 a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                        <polyline points="15 3 21 3 21 9"/>
+                                        <line x1="10" y1="14" x2="21" y2="3"/>
+                                    </svg>
+                                    TradingView
+                                </a>
 
-                            {/* Alert bell — glows on hover */}
-                            <button
-                                onClick={e => { e.stopPropagation(); setAlertModal(true); }}
-                                title="Set price alert"
-                                className="p-2.5 bg-slate-700/60 hover:bg-amber-500
+                                {/* Alert bell — glows on hover */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); setAlertModal(true); }}
+                                    title="Set price alert"
+                                    className="p-2.5 bg-slate-700/60 hover:bg-amber-500
                                            text-amber-400 hover:text-white rounded-xl transition-all
                                            hover:ring-2 hover:ring-amber-400/60
                                            hover:shadow-lg hover:shadow-amber-500/30 text-base">
-                                🔔
-                            </button>
+                                    🔔
+                                </button>
 
-                            {/* BUY — always visible */}
-                            <button
-                                onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
-                                className="px-4 py-2.5 bg-green-600 hover:bg-green-700
+                                {/* BUY — always visible */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
+                                    className="px-4 py-2.5 bg-green-600 hover:bg-green-700
                                            text-white font-bold text-sm rounded-xl transition-colors">
-                                BUY
-                            </button>
+                                    BUY
+                                </button>
 
-                            {/* SELL — always visible; panel shows holding hint */}
-                            <button
-                                onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
-                                className="px-4 py-2.5 bg-red-600 hover:bg-red-700
+                                {/* SELL — always visible; panel shows holding hint */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
+                                    className="px-4 py-2.5 bg-red-600 hover:bg-red-700
                                            text-white font-bold text-sm rounded-xl transition-colors">
-                                SELL
-                            </button>
+                                    SELL
+                                </button>
 
-                            {/* Close */}
-                            <button
-                                onClick={onClose}
-                                className="p-2 text-slate-400 hover:text-white
+                                {/* Close */}
+                                <button
+                                    onClick={onClose}
+                                    className="p-2 text-slate-400 hover:text-white
                                            hover:bg-slate-700 rounded-xl transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     className="w-5 h-5" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor"
-                                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18"/>
-                                    <line x1="6" y1="6" x2="18" y2="18"/>
-                                </svg>
-                            </button>
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         className="w-5 h-5" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor"
+                                         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
+                    {/* ── end TOP BAR ── */}
 
                     {/* ── STATS STRIP ── */}
                     {quote && !quoteLoading && (
-                        <div className="grid grid-cols-6 gap-px bg-slate-800/40
-                                        flex-shrink-0 border-b border-slate-700/40">
+                        <div className={
+                            "gap-px bg-slate-800/40 flex-shrink-0 border-b border-slate-700/40 " +
+                            (isMobile ? "grid grid-cols-3" : "grid grid-cols-6")
+                        }>
                             {[
                                 ["Day High",   fmt(quote.dayHigh,       quote.currency)],
                                 ["Day Low",    fmt(quote.dayLow,        quote.currency)],
@@ -494,12 +613,15 @@ export default function StockDetailModal({ stock, onClose }) {
                                 ["52W High",   fmt(quote.weekHigh52,    quote.currency)],
                                 ["52W Low",    fmt(quote.weekLow52,     quote.currency)],
                                 ["Data",       quote.dataSource || "—"],
-                            ].map(([label, value]) => (
-                                <div key={label} className="bg-slate-900 px-5 py-3">
-                                    <p className="text-xs text-slate-500">{label}</p>
-                                    <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
-                                </div>
-                            ))}
+                            ]
+                                /* On mobile show only the first 3 — Day High/Low/Prev Close */
+                                .filter((_, i) => !isMobile || i < 3)
+                                .map(([label, value]) => (
+                                    <div key={label} className="bg-slate-900 px-5 py-3">
+                                        <p className="text-xs text-slate-500">{label}</p>
+                                        <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
+                                    </div>
+                                ))}
                         </div>
                     )}
 
@@ -522,35 +644,41 @@ export default function StockDetailModal({ stock, onClose }) {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-4">
-                                {/* NEW Slider Control for Vertical Padding */}
-                                <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
-                                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vertical View:</span>
-                                    <input
-                                        type="range"
-                                        min="0.002"
-                                        max="0.08"
-                                        step="0.002"
-                                        value={verticalPadding}
-                                        onChange={(e) => setVerticalPadding(parseFloat(e.target.value))}
-                                        className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                        title="Drag to adjust vertical padding"
-                                    />
-                                    <span className="text-[11px] font-mono text-slate-400 w-9 text-right">
+                            <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}>
+                                {/* Vertical slider — desktop only, takes up too much mobile width */}
+                                {!isMobile && (
+                                    <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
+                                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vertical View:</span>
+                                        <input
+                                            type="range"
+                                            min="0.002"
+                                            max="0.08"
+                                            step="0.002"
+                                            value={verticalPadding}
+                                            onChange={(e) => setVerticalPadding(parseFloat(e.target.value))}
+                                            className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                            title="Drag to adjust vertical padding"
+                                        />
+                                        <span className="text-[11px] font-mono text-slate-400 w-9 text-right">
                 {verticalPadding === 0.002 ? "Tight" : verticalPadding >= 0.05 ? "Wide" : "Mid"}
             </span>
-                                </div>
+                                    </div>
+                                )}
 
                                 {/* Original Timeframe Selectors */}
-                                <div className="flex flex-col items-end gap-1">
-                                    <div className="flex gap-1 bg-slate-800 p-1 rounded-xl">
+                                <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
+                                    <div className={
+                                        "flex gap-1 bg-slate-800 p-1 rounded-xl " +
+                                        (isMobile ? "overflow-x-auto" : "")
+                                    }
+                                         style={isMobile ? { scrollbarWidth: "none" } : {}}>
                                         {TIMEFRAMES.map(t => (
                                             <button
                                                 key={t.label}
                                                 onClick={() => setTf(t)}
                                                 title={t.desc}
                                                 className={
-                                                    "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
+                                                    "flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
                                                     (tf.label === t.label
                                                         ? (t.intraday
                                                             ? "bg-teal-600 text-white shadow"
@@ -755,50 +883,52 @@ export default function StockDetailModal({ stock, onClose }) {
                                 ) : !returnsOk ? (
                                     <p className="text-slate-400 text-sm text-center p-5">Not available</p>
                                 ) : (
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                        <tr className="text-slate-500 text-xs uppercase border-b border-slate-700/40">
-                                            <th className="text-left px-5 py-2.5">Period</th>
-                                            <th className="text-right px-5 py-2.5">Start Price</th>
-                                            <th className="text-right px-5 py-2.5">Absolute</th>
-                                            <th className="text-right px-5 py-2.5">CAGR (p.a.)</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {RETURN_PERIODS.map(({ key }) => {
-                                            const r = returns.returns?.[key];
-                                            if (!r) return null;
-                                            return (
-                                                <tr key={key}
-                                                    className="border-b border-slate-700/30 hover:bg-slate-700/20">
-                                                    <td className="px-5 py-2.5">
-                                                        <p className="text-white font-medium">
-                                                            {key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
-                                                                : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
-                                                                    : key === "3Y" ? "3 Years" : "5 Years"}
-                                                        </p>
-                                                        <p className="text-xs text-slate-500">since {r.startDate}</p>
-                                                    </td>
-                                                    <td className="text-right px-5 py-2.5 text-slate-400 text-xs">
-                                                        {fmt(r.priceAtPeriodStart, returns.currency)}
-                                                    </td>
-                                                    <td className={"text-right px-5 py-2.5 font-semibold " + clr(r.absoluteReturn)}>
-                                                        {fmtPct(r.absoluteReturn)}
-                                                    </td>
-                                                    <td className="text-right px-5 py-2.5 font-medium">
-                                                        {r.annualizedReturn != null ? (
-                                                            <span className={clr(r.annualizedReturn)}>
+                                    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                                        <table className="w-full text-sm" style={{ minWidth: isMobile ? 480 : undefined }}>
+                                            <thead>
+                                            <tr className="text-slate-500 text-xs uppercase border-b border-slate-700/40">
+                                                <th className="text-left px-5 py-2.5">Period</th>
+                                                <th className="text-right px-5 py-2.5">Start Price</th>
+                                                <th className="text-right px-5 py-2.5">Absolute</th>
+                                                <th className="text-right px-5 py-2.5">CAGR (p.a.)</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {RETURN_PERIODS.map(({ key }) => {
+                                                const r = returns.returns?.[key];
+                                                if (!r) return null;
+                                                return (
+                                                    <tr key={key}
+                                                        className="border-b border-slate-700/30 hover:bg-slate-700/20">
+                                                        <td className="px-5 py-2.5">
+                                                            <p className="text-white font-medium">
+                                                                {key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
+                                                                    : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
+                                                                        : key === "3Y" ? "3 Years" : "5 Years"}
+                                                            </p>
+                                                            <p className="text-xs text-slate-500">since {r.startDate}</p>
+                                                        </td>
+                                                        <td className="text-right px-5 py-2.5 text-slate-400 text-xs">
+                                                            {fmt(r.priceAtPeriodStart, returns.currency)}
+                                                        </td>
+                                                        <td className={"text-right px-5 py-2.5 font-semibold " + clr(r.absoluteReturn)}>
+                                                            {fmtPct(r.absoluteReturn)}
+                                                        </td>
+                                                        <td className="text-right px-5 py-2.5 font-medium">
+                                                            {r.annualizedReturn != null ? (
+                                                                <span className={clr(r.annualizedReturn)}>
                                                                 {fmtPct(r.annualizedReturn)}
                                                             </span>
-                                                        ) : (
-                                                            <span className="text-slate-500 text-xs">= absolute</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                        </tbody>
-                                    </table>
+                                                            ) : (
+                                                                <span className="text-slate-500 text-xs">= absolute</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         )}

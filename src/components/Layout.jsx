@@ -36,8 +36,20 @@ function useMobile() {
 
 
 // ── Inline MobileHeader ───────────────────────────────────────────────────────
-function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen }) {
-    const initial = (user?.fullName || user?.username || "?")[0].toUpperCase();
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary }) {
+    const initial    = (user?.fullName || user?.username || "?")[0].toUpperCase();
+    const totalValue = parseFloat(portfolioSummary?.totalValue || 0);
+    const totalPL    = parseFloat(portfolioSummary?.totalPL    || 0);
+    const plPos      = totalPL >= 0;
+
+    const fmtShort = (v) => {
+        if (!v) return null;
+        const n = parseFloat(v);
+        if (n >= 1e7) return "₹" + (n / 1e7).toFixed(2) + "Cr";
+        if (n >= 1e5) return "₹" + (n / 1e5).toFixed(2) + "L";
+        return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+    };
+
     return (
         <header style={{
             display: "flex", alignItems: "center", gap: 8,
@@ -47,11 +59,31 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
             position: "sticky", top: 0, zIndex: 50,
             height: 56, flexShrink: 0,
         }}>
-            {/* Logo */}
-            <Link to="/stocks" style={{ flexShrink: 0 }}>
+            {/* Logo + portfolio value */}
+            <Link to="/stocks" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
                 <span style={{ color: "white", fontWeight: 900, fontSize: 18,
                     letterSpacing: "-0.5px" }}>FOLYO</span>
             </Link>
+
+            {/* Portfolio value strip — shown only when data is loaded */}
+            {totalValue > 0 && (
+                <div style={{
+                    marginLeft: 4, paddingLeft: 8,
+                    borderLeft: "1px solid rgba(51,65,85,0.6)",
+                    flexShrink: 0,
+                }}>
+                    <div style={{ color: "white", fontSize: 11, fontWeight: 700,
+                        fontVariantNumeric: "tabular-nums", lineHeight: 1.2,
+                        whiteSpace: "nowrap" }}>
+                        {fmtShort(totalValue)}
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.2,
+                        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
+                        color: plPos ? "#10b981" : "#ef4444" }}>
+                        {plPos ? "+" : ""}{fmtShort(Math.abs(totalPL))}
+                    </div>
+                </div>
+            )}
 
             {/* Search — takes all available space */}
             <button onClick={onSearchOpen} style={{
@@ -420,13 +452,12 @@ export default function Layout({ children, portfolioSummary }) {
         if (!isCreator) return;
         const fetch = () => getAiCostSummary().then(setAiCost).catch(() => {});
         fetch();
-        const t = setInterval(fetch, 300_000);      // AI cost → every 5 min
+        const t = setInterval(fetch, 30_000);
         return () => clearInterval(t);
     }, [isCreator]);
 
     useEffect(() => {
         const poll = async () => {
-            if (document.visibilityState !== 'visible') return;  // ADDed THIS
             try {
                 const pend = await getPendingNotifications().catch(() => []);
                 let count  = (pend || []).length;
@@ -438,7 +469,7 @@ export default function Layout({ children, portfolioSummary }) {
             } catch {}
         };
         poll();
-        const t = setInterval(poll, 60_000);   // inbox unread → every 60s is still fine
+        const t = setInterval(poll, 30_000);
         return () => clearInterval(t);
     }, [isCreator]);
 
@@ -453,6 +484,7 @@ export default function Layout({ children, portfolioSummary }) {
                     pendingNotifs={inboxUnread}
                     user={user}
                     onInboxOpen={() => setShowInbox(true)}
+                    portfolioSummary={portfolioSummary}
                 />
             )}
 
