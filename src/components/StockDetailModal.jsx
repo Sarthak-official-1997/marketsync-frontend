@@ -940,7 +940,7 @@ export default function StockDetailModal({ stock, onClose }) {
             {/* Transaction panel — own portal so it renders above StockDetailModal (z-[300]) */}
             {txPanel && createPortal(
                 <StockTransactionPanel
-                    stock={stock}
+                    stock={stock }
                     defaultType={txPanel}
                     onClose={() => setTxPanel(null)}
                     onChanged={() => setTxPanel(null)}
