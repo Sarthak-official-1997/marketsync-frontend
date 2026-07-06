@@ -1263,41 +1263,84 @@ const MOBILE_INDICES = [
 
 function MobileStockRow({ stock, price, holding, onOpen }) {
     const { hidden: valuesHidden } = usePrivacy();
+    const [chart, setChart] = useState([]);
+
+    useEffect(() => {
+        const parse = (res) =>
+            (res?.dataPoints || [])
+                .filter(p => p.close != null)
+                .map(p => ({ v: parseFloat(p.close) }))
+                .filter(p => p.v > 0);
+
+        getStockChart(stock.symbol, stock.exchange || "NSE", "5m", "1d")
+            .then(res => {
+                const pts = parse(res.data);
+                if (pts.length > 3) {
+                    setChart(pts);
+                } else {
+                    return getStockChart(stock.symbol, stock.exchange || "NSE", "1d", "5d")
+                        .then(r => setChart(parse(r.data)))
+                        .catch(() => {});
+                }
+            })
+            .catch(() => {});
+    }, [stock.symbol]);
+
     const cp  = parseFloat(price?.currentPrice || price?.regularMarketPrice || 0);
     const chg = parseFloat(price?.changePercent || price?.regularMarketChangePercent || 0);
     const up  = chg >= 0;
     const qty = holding ? parseFloat(holding.quantity || 0) : null;
     const invested = holding ? parseFloat(holding.totalInvested || 0) : null;
 
+    // Build SVG polyline points from real chart data
+    const chartPoints = (() => {
+        if (chart.length < 2) return null;
+        const vals = chart.map(p => p.v);
+        const minV = Math.min(...vals);
+        const maxV = Math.max(...vals);
+        const range = maxV - minV || 1;
+        const W = 52, H = 20;
+        return chart.map((p, i) => {
+            const x = (i / (chart.length - 1)) * W;
+            const y = H - ((p.v - minV) / range) * (H - 2) - 1;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(" ");
+    })();
+
     return (
         <div
             onClick={() => onOpen(stock)}
-            className="grid items-center gap-2 px-3 py-[5px] border-b border-slate-800/60 active:bg-slate-800/40"
-            style={{ gridTemplateColumns: "14px 1fr 28px auto" }}
+            className="grid items-center gap-2 px-3 py-[7px] border-b border-slate-800/60 active:bg-slate-800/40"
+            style={{ gridTemplateColumns: "20px 1fr 52px auto" }}
         >
-            <StockLogo symbol={stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
+            <StockLogo symbol={stock.symbol} size={18} className="rounded-[3px] flex-shrink-0" />
             <div className="min-w-0">
-                <div className="text-[11px] font-bold text-white truncate leading-tight">
+                <div className="text-[12px] font-bold text-white truncate leading-tight">
                     {stock.name || stock.symbol}
                 </div>
-                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                <div className="text-[9px] text-slate-500 truncate leading-tight mt-px">
                     {qty != null
                         ? `${qty} qty · invested ${valuesHidden ? "••••" : "₹" + invested.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
                         : stock.symbol}
                 </div>
             </div>
-            <svg viewBox="0 0 28 16" className="w-7 h-4 flex-shrink-0">
-                <polyline
-                    points="0,11 5,9 10,12 14,6 18,8 23,3 28,5"
-                    fill="none"
-                    stroke={up ? "#10b981" : "#ef4444"}
-                    strokeWidth="1.3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
+            <svg viewBox="0 0 52 20" className="w-[52px] h-5 flex-shrink-0">
+                {chartPoints ? (
+                    <polyline
+                        points={chartPoints}
+                        fill="none"
+                        stroke={up ? "#10b981" : "#ef4444"}
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                ) : (
+                    <line x1="0" y1="10" x2="52" y2="10"
+                          stroke="#334155" strokeWidth="1" strokeDasharray="3 2" />
+                )}
             </svg>
             <div className="text-right flex-shrink-0">
-                <div className="text-[11px] font-bold text-white tabular-nums">
+                <div className="text-[12px] font-bold text-white tabular-nums">
                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                 </div>
                 <div className={"text-[9px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
@@ -1332,7 +1375,7 @@ function MobileMoverRow({ rank, stock, price }) {
 
 function MobileIndexPill({ idx, data, onClick }) {
     const chg = parseFloat(data?.changePercent ?? 0);
-    const val = parseFloat(data?.price ?? data?.currentPrice ?? 0);
+    const val = parseFloat(data?.value ?? data?.price ?? data?.currentPrice ?? 0);
     const up  = chg >= 0;
     return (
         <div onClick={onClick}
@@ -1360,7 +1403,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
     // already done elsewhere in the app (Caffeine cache on the backend
     // still applies once this hits getIndices()).
     useEffect(() => {
-        if (tab !== "indices" || Object.keys(indexData).length > 0) return;
+        if (Object.keys(indexData).length > 0) return;
         setIndexLoading(true);
         getIndices()
             .then(res => {
@@ -1370,7 +1413,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
             })
             .catch(() => {})
             .finally(() => setIndexLoading(false));
-    }, [tab]);
+    }, []);
 
     const totalValue = parseFloat(portfolioSummary?.currentValue || portfolioSummary?.totalValue || 0);
     const dayPL      = parseFloat(portfolioSummary?.dayChange || portfolioSummary?.dayPL || 0);
@@ -1487,7 +1530,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
                         {MOBILE_INDICES.map(idx => {
                             const d = indexData[idx.symbol];
                             const chg = parseFloat(d?.changePercent ?? 0);
-                            const val = parseFloat(d?.price ?? d?.currentPrice ?? 0);
+                            const val = parseFloat(d?.value ?? d?.price ?? d?.currentPrice ?? 0);
                             const up = chg >= 0;
                             return (
                                 <div key={idx.symbol}
