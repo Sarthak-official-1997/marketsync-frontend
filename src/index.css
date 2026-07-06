@@ -44,6 +44,13 @@
 }
 .ai-glow { animation: ai-pulse 2.5s ease-in-out infinite; }
 
+/* Prevent Chrome pull-to-refresh from triggering a hard page reload.
+   Without this, dragging down reloads the page and wipes all React state
+   (active tab, modal state, etc). contain = handle scroll boundary in JS. */
+body {
+    overscroll-behavior-y: contain;
+}
+
 /* Light mode */
 html.light-mode {
     filter: invert(1) hue-rotate(180deg);

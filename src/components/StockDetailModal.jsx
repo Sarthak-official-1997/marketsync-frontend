@@ -261,15 +261,33 @@ export default function StockDetailModal({ stock, onClose }) {
     // the main modal div within the same return statement.
     return createPortal(
         <>
+            {/* On mobile: align to bottom so it feels like a sheet, not a floating dialog.
+                On desktop: center it. items-end on mobile allows the sheet to sit flush
+                at the bottom edge (though we use 100dvh so it covers everything anyway). */}
             <div
-                className="fixed inset-0 z-[300] flex items-center justify-center"
+                className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center"
                 onClick={onClose}
             >
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
                 <div
                     className="relative z-50 bg-slate-900 flex flex-col overflow-y-auto"
-                    style={{
+                    style={isMobile ? {
+                        // Full-screen on mobile: no 16px gaps on sides that cause the
+                        // chart container to be ~350px wide instead of ~390px, which
+                        // made the Recharts ResponsiveContainer think it had less space
+                        // and rendered the chart clipped/bleeding outside its box.
+                        // 100dvh = dynamic viewport height (accounts for browser chrome).
+                        // safe-area-inset-* = notch/home-bar padding on iPhone.
+                        width: "100vw",
+                        height: "100dvh",
+                        maxWidth: "100vw",
+                        maxHeight: "100dvh",
+                        borderRadius: 0,
+                        border: "none",
+                        paddingTop: "env(safe-area-inset-top, 0px)",
+                        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                    } : {
                         width: "calc(100vw - 32px)",
                         height: "calc(100vh - 32px)",
                         maxWidth: "1200px",
@@ -617,7 +635,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                 /* On mobile show only the first 3 — Day High/Low/Prev Close */
                                 .filter((_, i) => !isMobile || i < 3)
                                 .map(([label, value]) => (
-                                    <div key={label} className="bg-slate-900 px-5 py-3">
+                                    <div key={label} className={`bg-slate-900 py-3 ${isMobile ? "px-3" : "px-5"}`}>
                                         <p className="text-xs text-slate-500">{label}</p>
                                         <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
                                     </div>
@@ -626,7 +644,11 @@ export default function StockDetailModal({ stock, onClose }) {
                     )}
 
                     {/* ── CHART SECTION ── */}
-                    <div className="flex flex-col flex-shrink-0 px-6 pt-4 pb-2">
+                    {/* px-2 on mobile: the YAxis needs ~48px, chart line needs the rest.
+                        px-6 on desktop was fine because the modal is wider.
+                        On a 390px phone: px-6 = 48px total side padding → chart only 342px.
+                        px-2 = 16px total → chart gets 374px. Meaningful difference for Recharts. */}
+                    <div className={`flex flex-col flex-shrink-0 pt-4 pb-2 ${isMobile ? "px-2" : "px-6"}`}>
 
                         {/* Chart controls */}
                         <div className="flex items-center justify-between mb-3 flex-shrink-0">
@@ -710,7 +732,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart
                                         data={chartData}
-                                        margin={{ top: 16, right: 24, bottom: 8, left: 0 }}
+                                        margin={{ top: 16, right: isMobile ? 4 : 24, bottom: 8, left: 0 }}
                                         onMouseMove={e => {
                                             if (e && e.activeTooltipIndex != null)
                                                 setActiveIdx(e.activeTooltipIndex);
@@ -754,7 +776,9 @@ export default function StockDetailModal({ stock, onClose }) {
                                             // Intraday: compute domain from real points only
                                             // (null future slots would collapse the axis to 0)
                                             domain={yDomain}
-                                            width={64}
+                                            // On mobile: 48px is enough for "₹2.7k" labels.
+                                            // 64px on desktop for full "₹2,678" style labels.
+                                            width={isMobile ? 48 : 64}
                                             axisLine={false}
                                             tickLine={false}
                                         />
@@ -830,7 +854,7 @@ export default function StockDetailModal({ stock, onClose }) {
                     </div>
 
                     {/* ── HISTORICAL RETURNS (collapsible) ── */}
-                    <div className="px-6 pb-5 flex-shrink-0">
+                    <div className={`pb-5 flex-shrink-0 ${isMobile ? "px-2" : "px-6"}`}>
                         <button
                             onClick={() => setShowReturns(v => !v)}
                             className="w-full flex items-center justify-between

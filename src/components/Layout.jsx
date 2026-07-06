@@ -36,7 +36,7 @@ function useMobile() {
 
 
 // ── Inline MobileHeader ───────────────────────────────────────────────────────
-function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary }) {
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary, onMoreOpen }) {
     const initial    = (user?.fullName || user?.username || "?")[0].toUpperCase();
     const totalValue = parseFloat(portfolioSummary?.totalValue || 0);
     const totalPL    = parseFloat(portfolioSummary?.totalPL    || 0);
@@ -140,15 +140,20 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                 )}
             </button>
 
-            {/* Profile */}
-            <div style={{
-                width: 32, height: 32, borderRadius: "50%",
-                background: "#7c3aed", display: "flex",
-                alignItems: "center", justifyContent: "center",
-                color: "white", fontWeight: 700, fontSize: 14, flexShrink: 0,
-            }}>
+            {/* Profile — tapping opens the More drawer (same as tapping More tab).
+                Was a dead <div> before; changed to <button> so it's tappable,
+                keyboard-accessible, and semantically correct. */}
+            <button
+                onClick={onMoreOpen}
+                style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: "#7c3aed", display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    color: "white", fontWeight: 700, fontSize: 14, flexShrink: 0,
+                    border: "none", cursor: "pointer",
+                }}>
                 {initial}
-            </div>
+            </button>
         </header>
     );
 }
@@ -485,6 +490,7 @@ export default function Layout({ children, portfolioSummary }) {
                     user={user}
                     onInboxOpen={() => setShowInbox(true)}
                     portfolioSummary={portfolioSummary}
+                    onMoreOpen={() => setShowMore(true)}
                 />
             )}
 
