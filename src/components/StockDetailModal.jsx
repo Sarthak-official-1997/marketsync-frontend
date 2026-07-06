@@ -271,7 +271,7 @@ export default function StockDetailModal({ stock, onClose }) {
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
                 <div
-                    className="relative z-50 bg-slate-900 flex flex-col overflow-y-auto"
+                    className="relative z-50 bg-slate-900 flex flex-col"
                     style={isMobile ? {
                         // Full-screen on mobile: no 16px gaps on sides that cause the
                         // chart container to be ~350px wide instead of ~390px, which
@@ -300,42 +300,63 @@ export default function StockDetailModal({ stock, onClose }) {
                 >
                     {/* ── TOP BAR ── */}
                     {isMobile ? (
-                        /* Mobile top bar — 2 rows */
-                        <div className="flex-shrink-0 border-b border-slate-700/60 px-3 py-3">
-                            {/* Row 1: logo + symbol + name + close */}
-                            <div className="flex items-center gap-2 mb-2">
-                                <StockLogo symbol={stock.symbol} name={stock.name} size={32} />
+                        /* ── Mobile top bar — FIXED, never scrolls ──
+                           Row 1: logo · symbol · price · BUY · SELL · ✕
+                           Row 2: secondary actions (Watch, Board, TradingView, Alert) — scrollable
+                           BUY and SELL are in row 1 so they are ALWAYS visible regardless of
+                           how far the user has scrolled the chart/returns below. */
+                        <div className="flex-shrink-0 border-b border-slate-700/60 px-3 pt-3 pb-2">
+
+                            {/* Row 1: identity + price + primary CTAs + close */}
+                            <div className="flex items-center gap-2 mb-2.5">
+                                <StockLogo symbol={stock.symbol} name={stock.name} size={30} />
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-white font-bold text-sm leading-tight">
-                                        {stock.symbol}
-                                        <span className="text-blue-400 text-xs font-semibold ml-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-white font-bold text-sm leading-none">
+                                            {stock.symbol}
+                                        </span>
+                                        <span className="text-blue-400 text-[10px] font-semibold
+                                                         bg-blue-500/10 px-1 rounded">
                                             {stock.exchange}
                                         </span>
-                                    </p>
-                                    <p className="text-slate-400 text-xs truncate">{stock.name}</p>
-                                </div>
-                                {quote && !quoteLoading && (
-                                    <div className="text-right flex-shrink-0 mr-1">
-                                        <p className="text-white font-bold text-base tabular-nums leading-tight">
-                                            {fmt(quote.currentPrice, quote.currency)}
-                                        </p>
-                                        <p className={"text-xs font-semibold " + plClr}>
-                                            {isPos ? "+" : ""}{pl.toFixed(2)}% today
-                                        </p>
                                     </div>
-                                )}
+                                    {quote && !quoteLoading && (
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-white font-bold text-sm tabular-nums">
+                                                {fmt(quote.currentPrice, quote.currency)}
+                                            </span>
+                                            <span className={"text-[11px] font-semibold tabular-nums " + plClr}>
+                                                {isPos ? "+" : ""}{pl.toFixed(2)}%
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* BUY — always visible, never in a scroll row */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
+                                    className="flex-shrink-0 text-xs font-bold px-3.5 py-2 rounded-lg
+                                               bg-green-600 active:bg-green-700 text-white">
+                                    BUY
+                                </button>
+                                {/* SELL — always visible */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
+                                    className="flex-shrink-0 text-xs font-bold px-3.5 py-2 rounded-lg
+                                               bg-red-600 active:bg-red-700 text-white">
+                                    SELL
+                                </button>
+                                {/* Close */}
                                 <button
                                     onClick={onClose}
-                                    style={{
-                                        width: 28, height: 28, borderRadius: 8,
-                                        background: "#1e293b", border: "none",
-                                        color: "#94a3b8", cursor: "pointer", flexShrink: 0,
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                        fontSize: 14,
-                                    }}>✕</button>
+                                    className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-800
+                                               flex items-center justify-center text-slate-400
+                                               active:bg-slate-700 text-sm">
+                                    ✕
+                                </button>
                             </div>
-                            {/* Row 2: action buttons — scrollable row */}
-                            <div className="flex gap-2 overflow-x-auto pb-1"
+
+                            {/* Row 2: secondary actions — scrollable horizontally, that's fine */}
+                            <div className="flex gap-1.5 overflow-x-auto pb-1"
                                  style={{ scrollbarWidth: "none" }}>
                                 <button
                                     onClick={async () => {
@@ -360,11 +381,9 @@ export default function StockDetailModal({ stock, onClose }) {
                                         } finally { setAddingWatch(false); }
                                     }}
                                     disabled={addingWatch}
-                                    className={"flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg transition-all " +
-                                    (inWatchlist
-                                        ? "bg-green-700 text-white"
-                                        : "bg-slate-700 text-white")}>
-                                    {addingWatch ? "…" : inWatchlist ? "✓ Watchlist" : "👁 Watch"}
+                                    className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
+                                    (inWatchlist ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
+                                    {addingWatch ? "…" : inWatchlist ? "✓ Watch" : "👁 Watch"}
                                 </button>
                                 <button
                                     onClick={async (e) => {
@@ -382,32 +401,20 @@ export default function StockDetailModal({ stock, onClose }) {
                                             else { toast.error(`${stock.symbol} already on board`); }
                                         }
                                     }}
-                                    className={"flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg transition-all " +
-                                    (onBoard ? "bg-purple-700 text-white" : "bg-slate-700 text-white")}>
+                                    className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
+                                    (onBoard ? "bg-purple-700 text-white" : "bg-slate-700/80 text-slate-300")}>
                                     {onBoard ? "✓ Board" : "📌 Board"}
                                 </button>
                                 <a href={tvUrl} target="_blank" rel="noopener noreferrer"
-                                   className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg
-                                              bg-blue-600 text-white">
-                                    TradingView ↗
+                                   className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
+                                              bg-blue-600/80 text-white">
+                                    TV ↗
                                 </a>
                                 <button
                                     onClick={e => { e.stopPropagation(); setAlertModal(true); }}
-                                    className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-lg
-                                               bg-slate-700 text-amber-400">
+                                    className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
+                                               bg-slate-700/80 text-amber-400">
                                     🔔 Alert
-                                </button>
-                                <button
-                                    onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
-                                    className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-lg
-                                               bg-green-600 text-white">
-                                    BUY
-                                </button>
-                                <button
-                                    onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
-                                    className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-lg
-                                               bg-red-600 text-white">
-                                    SELL
                                 </button>
                             </div>
                         </div>
@@ -618,346 +625,350 @@ export default function StockDetailModal({ stock, onClose }) {
                     )}
                     {/* ── end TOP BAR ── */}
 
-                    {/* ── STATS STRIP ── */}
-                    {quote && !quoteLoading && (
-                        <div className={
-                            "gap-px bg-slate-800/40 flex-shrink-0 border-b border-slate-700/40 " +
-                            (isMobile ? "grid grid-cols-3" : "grid grid-cols-6")
-                        }>
-                            {[
-                                ["Day High",   fmt(quote.dayHigh,       quote.currency)],
-                                ["Day Low",    fmt(quote.dayLow,        quote.currency)],
-                                ["Prev Close", fmt(quote.previousClose, quote.currency)],
-                                ["52W High",   fmt(quote.weekHigh52,    quote.currency)],
-                                ["52W Low",    fmt(quote.weekLow52,     quote.currency)],
-                                ["Data",       quote.dataSource || "—"],
-                            ]
-                                /* On mobile show only the first 3 — Day High/Low/Prev Close */
-                                .filter((_, i) => !isMobile || i < 3)
-                                .map(([label, value]) => (
-                                    <div key={label} className={`bg-slate-900 py-3 ${isMobile ? "px-3" : "px-5"}`}>
-                                        <p className="text-xs text-slate-500">{label}</p>
-                                        <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
+                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. */}
+                    <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
 
-                    {/* ── CHART SECTION ── */}
-                    {/* px-2 on mobile: the YAxis needs ~48px, chart line needs the rest.
+                        {/* ── STATS STRIP ── */}
+                        {quote && !quoteLoading && (
+                            <div className={
+                                "gap-px bg-slate-800/40 flex-shrink-0 border-b border-slate-700/40 " +
+                                (isMobile ? "grid grid-cols-3" : "grid grid-cols-6")
+                            }>
+                                {[
+                                    ["Day High",   fmt(quote.dayHigh,       quote.currency)],
+                                    ["Day Low",    fmt(quote.dayLow,        quote.currency)],
+                                    ["Prev Close", fmt(quote.previousClose, quote.currency)],
+                                    ["52W High",   fmt(quote.weekHigh52,    quote.currency)],
+                                    ["52W Low",    fmt(quote.weekLow52,     quote.currency)],
+                                    ["Data",       quote.dataSource || "—"],
+                                ]
+                                    /* On mobile show only the first 3 — Day High/Low/Prev Close */
+                                    .filter((_, i) => !isMobile || i < 3)
+                                    .map(([label, value]) => (
+                                        <div key={label} className={`bg-slate-900 py-3 ${isMobile ? "px-3" : "px-5"}`}>
+                                            <p className="text-xs text-slate-500">{label}</p>
+                                            <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+
+                        {/* ── CHART SECTION ── */}
+                        {/* px-2 on mobile: the YAxis needs ~48px, chart line needs the rest.
                         px-6 on desktop was fine because the modal is wider.
                         On a 390px phone: px-6 = 48px total side padding → chart only 342px.
                         px-2 = 16px total → chart gets 374px. Meaningful difference for Recharts. */}
-                    <div className={`flex flex-col flex-shrink-0 pt-4 pb-2 ${isMobile ? "px-2" : "px-6"}`}>
+                        <div className={`flex flex-col flex-shrink-0 pt-4 pb-2 ${isMobile ? "px-2" : "px-6"}`}>
 
-                        {/* Chart controls */}
-                        <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                            <div className="flex items-center gap-3">
-                                <p className="text-sm font-semibold text-white">Price Chart</p>
-                                {periodChange && !chartLoading && (
-                                    <span className={
-                                        "text-xs font-semibold px-2.5 py-1 rounded-full " +
-                                        (parseFloat(periodChange) >= 0
-                                            ? "bg-green-900/40 text-green-400"
-                                            : "bg-red-900/40 text-red-400")
-                                    }>
+                            {/* Chart controls */}
+                            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <p className="text-sm font-semibold text-white">Price Chart</p>
+                                    {periodChange && !chartLoading && (
+                                        <span className={
+                                            "text-xs font-semibold px-2.5 py-1 rounded-full " +
+                                            (parseFloat(periodChange) >= 0
+                                                ? "bg-green-900/40 text-green-400"
+                                                : "bg-red-900/40 text-red-400")
+                                        }>
                 {parseFloat(periodChange) >= 0 ? "+" : ""}{periodChange}% this period
             </span>
-                                )}
-                            </div>
+                                    )}
+                                </div>
 
-                            <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}>
-                                {/* Vertical slider — desktop only, takes up too much mobile width */}
-                                {!isMobile && (
-                                    <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
-                                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vertical View:</span>
-                                        <input
-                                            type="range"
-                                            min="0.002"
-                                            max="0.08"
-                                            step="0.002"
-                                            value={verticalPadding}
-                                            onChange={(e) => setVerticalPadding(parseFloat(e.target.value))}
-                                            className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                            title="Drag to adjust vertical padding"
-                                        />
-                                        <span className="text-[11px] font-mono text-slate-400 w-9 text-right">
+                                <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}>
+                                    {/* Vertical slider — desktop only, takes up too much mobile width */}
+                                    {!isMobile && (
+                                        <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
+                                            <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vertical View:</span>
+                                            <input
+                                                type="range"
+                                                min="0.002"
+                                                max="0.08"
+                                                step="0.002"
+                                                value={verticalPadding}
+                                                onChange={(e) => setVerticalPadding(parseFloat(e.target.value))}
+                                                className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                                title="Drag to adjust vertical padding"
+                                            />
+                                            <span className="text-[11px] font-mono text-slate-400 w-9 text-right">
                 {verticalPadding === 0.002 ? "Tight" : verticalPadding >= 0.05 ? "Wide" : "Mid"}
             </span>
-                                    </div>
-                                )}
+                                        </div>
+                                    )}
 
-                                {/* Original Timeframe Selectors */}
-                                <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
-                                    <div className={
-                                        "flex gap-1 bg-slate-800 p-1 rounded-xl " +
-                                        (isMobile ? "overflow-x-auto" : "")
-                                    }
-                                         style={isMobile ? { scrollbarWidth: "none" } : {}}>
-                                        {TIMEFRAMES.map(t => (
-                                            <button
-                                                key={t.label}
-                                                onClick={() => setTf(t)}
-                                                title={t.desc}
-                                                className={
-                                                    "flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
-                                                    (tf.label === t.label
-                                                        ? (t.intraday
-                                                            ? "bg-teal-600 text-white shadow"
-                                                            : "bg-blue-600 text-white shadow")
-                                                        : "text-slate-400 hover:text-white hover:bg-slate-700")
-                                                }>
-                                                {t.label}
-                                            </button>
-                                        ))}
+                                    {/* Original Timeframe Selectors */}
+                                    <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
+                                        <div className={
+                                            "flex gap-1 bg-slate-800 p-1 rounded-xl " +
+                                            (isMobile ? "overflow-x-auto" : "")
+                                        }
+                                             style={isMobile ? { scrollbarWidth: "none" } : {}}>
+                                            {TIMEFRAMES.map(t => (
+                                                <button
+                                                    key={t.label}
+                                                    onClick={() => setTf(t)}
+                                                    title={t.desc}
+                                                    className={
+                                                        "flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all " +
+                                                        (tf.label === t.label
+                                                            ? (t.intraday
+                                                                ? "bg-teal-600 text-white shadow"
+                                                                : "bg-blue-600 text-white shadow")
+                                                            : "text-slate-400 hover:text-white hover:bg-slate-700")
+                                                    }>
+                                                    {t.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {/* Active timeframe description */}
+                                        <p className="text-xs text-white/70 pr-1 font-medium tracking-wide">
+                                            {tf.desc}
+                                        </p>
                                     </div>
-                                    {/* Active timeframe description */}
-                                    <p className="text-xs text-white/70 pr-1 font-medium tracking-wide">
-                                        {tf.desc}
-                                    </p>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Chart canvas */}
-                        <div className="bg-slate-800/40 rounded-2xl border border-slate-700/40
+                            {/* Chart canvas */}
+                            <div className="bg-slate-800/40 rounded-2xl border border-slate-700/40
                                     overflow-hidden" style={{height: "clamp(220px, 45vh, 560px)"}}>
-                            {chartLoading ? (
-                                <div className="h-full flex flex-col items-center justify-center gap-3">
-                                    <div className="w-8 h-8 border-2 border-blue-400
+                                {chartLoading ? (
+                                    <div className="h-full flex flex-col items-center justify-center gap-3">
+                                        <div className="w-8 h-8 border-2 border-blue-400
                                                     border-t-transparent rounded-full animate-spin" />
-                                    <p className="text-slate-500 text-sm">Loading chart...</p>
-                                </div>
-                            ) : chartData.length > 1 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart
-                                        data={chartData}
-                                        margin={{ top: 16, right: isMobile ? 4 : 24, bottom: 8, left: 0 }}
-                                        onMouseMove={e => {
-                                            if (e && e.activeTooltipIndex != null)
-                                                setActiveIdx(e.activeTooltipIndex);
-                                        }}
-                                        onMouseLeave={() => setActiveIdx(null)}>
-                                        <defs>
-                                            <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%"   stopColor={lineColor} stopOpacity={0.35}/>
-                                                <stop offset="100%" stopColor={lineColor} stopOpacity={0.02}/>
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid
-                                            strokeDasharray="3 3"
-                                            stroke="rgba(30,41,59,0.8)"
-                                            vertical={false}
-                                        />
-                                        <XAxis
-                                            dataKey="date"
-                                            tick={{ fill: "#475569", fontSize: 11 }}
-                                            tickFormatter={d => {
-                                                if (!d) return "";
-                                                // Intraday: already "HH:mm" — pass through
-                                                if (tf.intraday) return d;
-                                                const p = d.toString().split("T")[0].split("-");
-                                                return p.length >= 2 ? p[2] + "/" + p[1] : d;
+                                        <p className="text-slate-500 text-sm">Loading chart...</p>
+                                    </div>
+                                ) : chartData.length > 1 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart
+                                            data={chartData}
+                                            margin={{ top: 16, right: isMobile ? 4 : 24, bottom: 8, left: 0 }}
+                                            onMouseMove={e => {
+                                                if (e && e.activeTooltipIndex != null)
+                                                    setActiveIdx(e.activeTooltipIndex);
                                             }}
-                                            // Intraday: fixed 30-min marks covering full 09:15-15:30 session
-                                            ticks={tf.intraday ? INTRADAY_TICKS : undefined}
-                                            interval={tf.intraday ? 0 : "preserveStartEnd"}
-                                            axisLine={false}
-                                            tickLine={false}
-                                            dy={8}
-                                        />
-                                        <YAxis
-                                            tick={{ fill: "#475569", fontSize: 11 }}
-                                            tickFormatter={v =>
-                                                "₹" + (v >= 1000
-                                                    ? (v / 1000).toFixed(1) + "k"
-                                                    : v.toFixed(0))
-                                            }
-                                            // Intraday: compute domain from real points only
-                                            // (null future slots would collapse the axis to 0)
-                                            domain={yDomain}
-                                            // On mobile: 48px is enough for "₹2.7k" labels.
-                                            // 64px on desktop for full "₹2,678" style labels.
-                                            width={isMobile ? 48 : 64}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <Tooltip
-                                            content={<CustomTooltip currency={quote?.currency || "INR"} />}
-                                            cursor={false}
-                                        />
-                                        {firstPrice && (
-                                            <ReferenceLine
-                                                y={firstPrice}
-                                                stroke="#334155"
-                                                strokeDasharray="6 4"
-                                                strokeWidth={1.5}
+                                            onMouseLeave={() => setActiveIdx(null)}>
+                                            <defs>
+                                                <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%"   stopColor={lineColor} stopOpacity={0.35}/>
+                                                    <stop offset="100%" stopColor={lineColor} stopOpacity={0.02}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid
+                                                strokeDasharray="3 3"
+                                                stroke="rgba(30,41,59,0.8)"
+                                                vertical={false}
                                             />
-                                        )}
-                                        <Area
-                                            type="monotone"
-                                            dataKey="close"
-                                            stroke={lineColor}
-                                            strokeWidth={2.5}
-                                            fill="url(#priceGrad)"
-                                            dot={false}
-                                            connectNulls={false}
-                                            isAnimationActive={false}
-                                            activeDot={false}
-                                        />
-                                        {/* Snapped crosshair: line and dot both snap to nearest data point.
+                                            <XAxis
+                                                dataKey="date"
+                                                tick={{ fill: "#475569", fontSize: 11 }}
+                                                tickFormatter={d => {
+                                                    if (!d) return "";
+                                                    // Intraday: already "HH:mm" — pass through
+                                                    if (tf.intraday) return d;
+                                                    const p = d.toString().split("T")[0].split("-");
+                                                    return p.length >= 2 ? p[2] + "/" + p[1] : d;
+                                                }}
+                                                // Intraday: fixed 30-min marks covering full 09:15-15:30 session
+                                                ticks={tf.intraday ? INTRADAY_TICKS : undefined}
+                                                interval={tf.intraday ? 0 : "preserveStartEnd"}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                dy={8}
+                                            />
+                                            <YAxis
+                                                tick={{ fill: "#475569", fontSize: 11 }}
+                                                tickFormatter={v =>
+                                                    "₹" + (v >= 1000
+                                                        ? (v / 1000).toFixed(1) + "k"
+                                                        : v.toFixed(0))
+                                                }
+                                                // Intraday: compute domain from real points only
+                                                // (null future slots would collapse the axis to 0)
+                                                domain={yDomain}
+                                                // On mobile: 48px is enough for "₹2.7k" labels.
+                                                // 64px on desktop for full "₹2,678" style labels.
+                                                width={isMobile ? 48 : 64}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <Tooltip
+                                                content={<CustomTooltip currency={quote?.currency || "INR"} />}
+                                                cursor={false}
+                                            />
+                                            {firstPrice && (
+                                                <ReferenceLine
+                                                    y={firstPrice}
+                                                    stroke="#334155"
+                                                    strokeDasharray="6 4"
+                                                    strokeWidth={1.5}
+                                                />
+                                            )}
+                                            <Area
+                                                type="monotone"
+                                                dataKey="close"
+                                                stroke={lineColor}
+                                                strokeWidth={2.5}
+                                                fill="url(#priceGrad)"
+                                                dot={false}
+                                                connectNulls={false}
+                                                isAnimationActive={false}
+                                                activeDot={false}
+                                            />
+                                            {/* Snapped crosshair: line and dot both snap to nearest data point.
                                             cursor=false on Tooltip disables Recharts free-moving line.
                                             activeIdx from onMouseMove gives the exact data-point index.
                                             Both the ReferenceLine and the dot use the same date/value. */}
-                                        {activeIdx != null && chartData[activeIdx]?.close != null && (
-                                            <ReferenceLine
-                                                x={chartData[activeIdx].date}
-                                                stroke="rgba(255,255,255,0.25)"
-                                                strokeWidth={1.5}
+                                            {activeIdx != null && chartData[activeIdx]?.close != null && (
+                                                <ReferenceLine
+                                                    x={chartData[activeIdx].date}
+                                                    stroke="rgba(255,255,255,0.25)"
+                                                    strokeWidth={1.5}
+                                                />
+                                            )}
+                                            <Area
+                                                type="monotone"
+                                                dataKey="close"
+                                                stroke="none"
+                                                fill="none"
+                                                dot={(props) => {
+                                                    if (props.index !== activeIdx) return null;
+                                                    if (props.payload?.close == null) return null;
+                                                    return (
+                                                        <circle
+                                                            key={props.index}
+                                                            cx={props.cx}
+                                                            cy={props.cy}
+                                                            r={6}
+                                                            fill={lineColor}
+                                                            stroke="#0f172a"
+                                                            strokeWidth={2}
+                                                        />
+                                                    );
+                                                }}
+                                                activeDot={false}
+                                                connectNulls={false}
+                                                isAnimationActive={false}
                                             />
-                                        )}
-                                        <Area
-                                            type="monotone"
-                                            dataKey="close"
-                                            stroke="none"
-                                            fill="none"
-                                            dot={(props) => {
-                                                if (props.index !== activeIdx) return null;
-                                                if (props.payload?.close == null) return null;
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center gap-2">
+                                        <p className="text-slate-400">No data for this timeframe</p>
+                                        <p className="text-slate-600 text-sm">
+                                            Try a different range or open TradingView
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ── HISTORICAL RETURNS (collapsible) ── */}
+                        <div className={`pb-5 flex-shrink-0 ${isMobile ? "px-2" : "px-6"}`}>
+                            <button
+                                onClick={() => setShowReturns(v => !v)}
+                                className="w-full flex items-center justify-between
+                                       px-5 py-3 bg-slate-800/60 hover:bg-slate-800
+                                       rounded-2xl border border-slate-700/40 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <p className="text-sm font-semibold text-white">Historical Returns</p>
+                                    {returns?.dataReliable === false && (
+                                        <span className="text-xs bg-amber-900/40 text-amber-400 px-2 py-0.5 rounded-full">
+                                        ⚠ Data unreliable
+                                    </span>
+                                    )}
+                                    {returnsOk && (
+                                        <div className="flex gap-2">
+                                            {RETURN_PERIODS.map(({ key, label }) => {
+                                                const r = returns.returns?.[key];
+                                                if (!r) return null;
+                                                const v = parseFloat(r.absoluteReturn);
                                                 return (
-                                                    <circle
-                                                        key={props.index}
-                                                        cx={props.cx}
-                                                        cy={props.cy}
-                                                        r={6}
-                                                        fill={lineColor}
-                                                        stroke="#0f172a"
-                                                        strokeWidth={2}
-                                                    />
+                                                    <span key={key}
+                                                          className={
+                                                              "text-xs font-medium px-2 py-0.5 rounded-full " +
+                                                              (v >= 0
+                                                                  ? "bg-green-900/30 text-green-400"
+                                                                  : "bg-red-900/30 text-red-400")
+                                                          }>
+                                                    {label}: {fmtPct(r.absoluteReturn)}
+                                                </span>
                                                 );
-                                            }}
-                                            activeDot={false}
-                                            connectNulls={false}
-                                            isAnimationActive={false}
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center gap-2">
-                                    <p className="text-slate-400">No data for this timeframe</p>
-                                    <p className="text-slate-600 text-sm">
-                                        Try a different range or open TradingView
-                                    </p>
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                                <span className={"text-slate-400 transition-transform " + (showReturns ? "rotate-180" : "")}>▼</span>
+                            </button>
+
+                            {showReturns && (
+                                <div className="mt-2 bg-slate-800/60 rounded-2xl border border-slate-700/40 overflow-hidden">
+                                    {returns?.dataReliable === false ? (
+                                        <div className="p-5 text-center space-y-2">
+                                            <p className="text-slate-300 text-sm font-medium">
+                                                Historical data unreliable — split-adjusted prices
+                                            </p>
+                                            <a href={tvUrl} target="_blank" rel="noopener noreferrer"
+                                               className="inline-flex items-center gap-1 text-blue-400
+                                                      hover:text-blue-300 text-xs underline">
+                                                View on TradingView →
+                                            </a>
+                                        </div>
+                                    ) : !returnsOk ? (
+                                        <p className="text-slate-400 text-sm text-center p-5">Not available</p>
+                                    ) : (
+                                        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                                            <table className="w-full text-sm" style={{ minWidth: isMobile ? 480 : undefined }}>
+                                                <thead>
+                                                <tr className="text-slate-500 text-xs uppercase border-b border-slate-700/40">
+                                                    <th className="text-left px-5 py-2.5">Period</th>
+                                                    <th className="text-right px-5 py-2.5">Start Price</th>
+                                                    <th className="text-right px-5 py-2.5">Absolute</th>
+                                                    <th className="text-right px-5 py-2.5">CAGR (p.a.)</th>
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                {RETURN_PERIODS.map(({ key }) => {
+                                                    const r = returns.returns?.[key];
+                                                    if (!r) return null;
+                                                    return (
+                                                        <tr key={key}
+                                                            className="border-b border-slate-700/30 hover:bg-slate-700/20">
+                                                            <td className="px-5 py-2.5">
+                                                                <p className="text-white font-medium">
+                                                                    {key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
+                                                                        : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
+                                                                            : key === "3Y" ? "3 Years" : "5 Years"}
+                                                                </p>
+                                                                <p className="text-xs text-slate-500">since {r.startDate}</p>
+                                                            </td>
+                                                            <td className="text-right px-5 py-2.5 text-slate-400 text-xs">
+                                                                {fmt(r.priceAtPeriodStart, returns.currency)}
+                                                            </td>
+                                                            <td className={"text-right px-5 py-2.5 font-semibold " + clr(r.absoluteReturn)}>
+                                                                {fmtPct(r.absoluteReturn)}
+                                                            </td>
+                                                            <td className="text-right px-5 py-2.5 font-medium">
+                                                                {r.annualizedReturn != null ? (
+                                                                    <span className={clr(r.annualizedReturn)}>
+                                                                {fmtPct(r.annualizedReturn)}
+                                                            </span>
+                                                                ) : (
+                                                                    <span className="text-slate-500 text-xs">= absolute</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
-                    </div>
 
-                    {/* ── HISTORICAL RETURNS (collapsible) ── */}
-                    <div className={`pb-5 flex-shrink-0 ${isMobile ? "px-2" : "px-6"}`}>
-                        <button
-                            onClick={() => setShowReturns(v => !v)}
-                            className="w-full flex items-center justify-between
-                                       px-5 py-3 bg-slate-800/60 hover:bg-slate-800
-                                       rounded-2xl border border-slate-700/40 transition-colors">
-                            <div className="flex items-center gap-3">
-                                <p className="text-sm font-semibold text-white">Historical Returns</p>
-                                {returns?.dataReliable === false && (
-                                    <span className="text-xs bg-amber-900/40 text-amber-400 px-2 py-0.5 rounded-full">
-                                        ⚠ Data unreliable
-                                    </span>
-                                )}
-                                {returnsOk && (
-                                    <div className="flex gap-2">
-                                        {RETURN_PERIODS.map(({ key, label }) => {
-                                            const r = returns.returns?.[key];
-                                            if (!r) return null;
-                                            const v = parseFloat(r.absoluteReturn);
-                                            return (
-                                                <span key={key}
-                                                      className={
-                                                          "text-xs font-medium px-2 py-0.5 rounded-full " +
-                                                          (v >= 0
-                                                              ? "bg-green-900/30 text-green-400"
-                                                              : "bg-red-900/30 text-red-400")
-                                                      }>
-                                                    {label}: {fmtPct(r.absoluteReturn)}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            <span className={"text-slate-400 transition-transform " + (showReturns ? "rotate-180" : "")}>▼</span>
-                        </button>
-
-                        {showReturns && (
-                            <div className="mt-2 bg-slate-800/60 rounded-2xl border border-slate-700/40 overflow-hidden">
-                                {returns?.dataReliable === false ? (
-                                    <div className="p-5 text-center space-y-2">
-                                        <p className="text-slate-300 text-sm font-medium">
-                                            Historical data unreliable — split-adjusted prices
-                                        </p>
-                                        <a href={tvUrl} target="_blank" rel="noopener noreferrer"
-                                           className="inline-flex items-center gap-1 text-blue-400
-                                                      hover:text-blue-300 text-xs underline">
-                                            View on TradingView →
-                                        </a>
-                                    </div>
-                                ) : !returnsOk ? (
-                                    <p className="text-slate-400 text-sm text-center p-5">Not available</p>
-                                ) : (
-                                    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                                        <table className="w-full text-sm" style={{ minWidth: isMobile ? 480 : undefined }}>
-                                            <thead>
-                                            <tr className="text-slate-500 text-xs uppercase border-b border-slate-700/40">
-                                                <th className="text-left px-5 py-2.5">Period</th>
-                                                <th className="text-right px-5 py-2.5">Start Price</th>
-                                                <th className="text-right px-5 py-2.5">Absolute</th>
-                                                <th className="text-right px-5 py-2.5">CAGR (p.a.)</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {RETURN_PERIODS.map(({ key }) => {
-                                                const r = returns.returns?.[key];
-                                                if (!r) return null;
-                                                return (
-                                                    <tr key={key}
-                                                        className="border-b border-slate-700/30 hover:bg-slate-700/20">
-                                                        <td className="px-5 py-2.5">
-                                                            <p className="text-white font-medium">
-                                                                {key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
-                                                                    : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
-                                                                        : key === "3Y" ? "3 Years" : "5 Years"}
-                                                            </p>
-                                                            <p className="text-xs text-slate-500">since {r.startDate}</p>
-                                                        </td>
-                                                        <td className="text-right px-5 py-2.5 text-slate-400 text-xs">
-                                                            {fmt(r.priceAtPeriodStart, returns.currency)}
-                                                        </td>
-                                                        <td className={"text-right px-5 py-2.5 font-semibold " + clr(r.absoluteReturn)}>
-                                                            {fmtPct(r.absoluteReturn)}
-                                                        </td>
-                                                        <td className="text-right px-5 py-2.5 font-medium">
-                                                            {r.annualizedReturn != null ? (
-                                                                <span className={clr(r.annualizedReturn)}>
-                                                                {fmtPct(r.annualizedReturn)}
-                                                            </span>
-                                                            ) : (
-                                                                <span className="text-slate-500 text-xs">= absolute</span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
+                    </div>{/* end scrollable body */}
                 </div>{/* end modal card */}
             </div>{/* end backdrop */}
 
