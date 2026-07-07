@@ -1752,11 +1752,14 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
                                                 holding={holdingsMap[stock.symbol]}
                                                 onOpen={onOpenStock}/>
                             ))}
-                            {pinned.some(s => !holdingsMap[s.symbol]) && (
-                                <div style={{ padding: "8px 12px 3px", fontSize: 8, fontWeight: 800,
+                            {/* Always render board stocks — don't gate on holdingsMap being loaded.
+    A stock with no holding entry is board-only, show it immediately. */}
+                            {pinned.filter(s => !holdingsMap[s.symbol]).length > 0 && (
+                                <div style={{ padding: pinned.some(s => holdingsMap[s.symbol]) ? "8px 12px 3px" : "5px 12px 3px",
+                                    fontSize: 8, fontWeight: 800,
                                     letterSpacing: "0.1em", textTransform: "uppercase",
                                     color: "#334155", background: "#060d1a" }}>
-                                    On Your Board
+                                    {holdingsMap && Object.keys(holdingsMap).length > 0 ? "On Your Board" : "Your Stocks"}
                                 </div>
                             )}
                             {pinned.filter(s => !holdingsMap[s.symbol]).map(stock => (
@@ -2102,8 +2105,8 @@ export default function StocksMarketPage() {
     return (
         <div className={isMobile ? "" : "space-y-4"}>
 
-            {/* -- Greeting + market status -- */}
-            <GreetingBar portfolioSummary={portfolioSummary} />
+            {{/* GreetingBar desktop only — mobile has its own greeting inside MobileMarketView */}
+            {!isMobile && <GreetingBar portfolioSummary={portfolioSummary} />}
 
             {/* -- MOBILE: dense Stocks/Indices/Movers view, replaces canvas board -- */}
             {isMobile && (
