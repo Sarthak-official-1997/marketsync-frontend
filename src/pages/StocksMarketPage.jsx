@@ -2105,7 +2105,7 @@ export default function StocksMarketPage() {
     return (
         <div className={isMobile ? "" : "space-y-4"}>
 
-            {{/* GreetingBar desktop only — mobile has its own greeting inside MobileMarketView */}
+            {/* GreetingBar desktop only — mobile has its own greeting inside MobileMarketView */}
             {!isMobile && <GreetingBar portfolioSummary={portfolioSummary} />}
 
             {/* -- MOBILE: dense Stocks/Indices/Movers view, replaces canvas board -- */}
