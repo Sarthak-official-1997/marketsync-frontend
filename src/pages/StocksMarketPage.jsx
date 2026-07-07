@@ -1570,7 +1570,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
     };
 
     return (
-        <div className="-mx-4 -mt-2" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="-mx-4 -mt-2">
 
             {/* ── GREETING CARD (Option 3) ──────────────────────────────────────
                 Index pills are embedded here — no separate pill strip row.
@@ -1727,8 +1727,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
             </div>
 
             {/* ── SCROLLABLE CONTENT — onScroll drives greeting card collapse ── */}
-            <div ref={scrollRef} onScroll={handleScroll}
-                 style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+            <div>
 
                 {/* Stocks tab — Idea 2 rows with section headers */}
                 {tab === "stocks" && (
