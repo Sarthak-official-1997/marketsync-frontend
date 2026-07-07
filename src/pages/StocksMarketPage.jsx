@@ -1261,8 +1261,82 @@ const MOBILE_INDICES = [
     { symbol: "^INDIAVIX",  short: "VIX",    name: "India VIX"     },
 ];
 
+// ── Idea 2 stock row: colour dot + symbol + filled sparkline + price/% ──────
+// Used on BOTH Stocks tab and Movers tab for visual consistency.
+// The dot uses a generated colour from the symbol string so it's stable
+// across renders without needing to fetch the logo image.
+function symbolColour(symbol) {
+    const palette = ["#f97316","#7c3aed","#dc2626","#0891b2","#059669",
+        "#d97706","#1d4ed8","#0f766e","#be185d","#854d0e"];
+    let h = 0;
+    for (let i = 0; i < symbol.length; i++) h = (h * 31 + symbol.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
+}
+
+// Filled-area sparkline — the key visual element of Idea 2.
+// Points are normalised to a 100×32 viewBox so they fill whatever width
+// the flex container gives. gradient fill uses the up/dn colour at 25% opacity.
+function SparkArea({ up, points }) {
+    if (!points || points.length < 2) {
+        // dashed flat line while data loads / unavailable
+        return (
+            <svg style={{ flex: 1 }} height="32" viewBox="0 0 100 32" preserveAspectRatio="none">
+                <line x1="0" y1="16" x2="100" y2="16"
+                      stroke="#1e293b" strokeWidth="1.5" strokeDasharray="4 3"/>
+            </svg>
+        );
+    }
+    const id  = `sg-${up ? "u" : "d"}-${Math.random().toString(36).slice(2,6)}`;
+    const clr = up ? "#10b981" : "#ef4444";
+    const W = 100, H = 32, pad = 2;
+    const vals = points.map(p => p.v ?? p);
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const range = maxV - minV || 1;
+    const pts = vals.map((v, i) => {
+        const x = (i / (vals.length - 1)) * W;
+        const y = H - pad - ((v - minV) / range) * (H - 2 * pad);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const poly = `${pts} ${W},${H} 0,${H}`;
+    return (
+        <svg style={{ flex: 1 }} height="32" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            <defs>
+                <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={clr} stopOpacity="0.28"/>
+                    <stop offset="100%" stopColor={clr} stopOpacity="0"/>
+                </linearGradient>
+            </defs>
+            <polygon fill={`url(#${id})`} points={poly}/>
+            <polyline fill="none" stroke={clr} strokeWidth="1.8"
+                      strokeLinecap="round" strokeLinejoin="round" points={pts}/>
+        </svg>
+    );
+}
+
 function MobileStockRow({ stock, price, holding, onOpen }) {
     const { hidden: valuesHidden } = usePrivacy();
+    const [chartPts, setChartPts] = useState([]);
+
+    useEffect(() => {
+        // Fetch real intraday chart for the sparkline — fallback to 5d if today is thin
+        getStockChart(stock.symbol, stock.exchange || "NSE", "5m", "1d")
+            .then(res => {
+                const pts = (res?.data?.dataPoints || [])
+                    .filter(p => p.close != null)
+                    .map(p => ({ v: parseFloat(p.close) }))
+                    .filter(p => p.v > 0);
+                if (pts.length > 3) { setChartPts(pts); return; }
+                return getStockChart(stock.symbol, stock.exchange || "NSE", "1d", "5d")
+                    .then(r => setChartPts(
+                        (r?.data?.dataPoints || [])
+                            .filter(p => p.close != null)
+                            .map(p => ({ v: parseFloat(p.close) }))
+                            .filter(p => p.v > 0)
+                    ));
+            })
+            .catch(() => {});
+    }, [stock.symbol]);
+
     const cp  = parseFloat(price?.currentPrice || price?.regularMarketPrice || 0);
     const chg = parseFloat(price?.changePercent || price?.regularMarketChangePercent || 0);
     const up  = chg >= 0;
@@ -1270,37 +1344,32 @@ function MobileStockRow({ stock, price, holding, onOpen }) {
     const invested = holding ? parseFloat(holding.totalInvested || 0) : null;
 
     return (
-        <div
-            onClick={() => onOpen(stock)}
-            className="grid items-center gap-2 px-3 py-[5px] border-b border-slate-800/60 active:bg-slate-800/40"
-            style={{ gridTemplateColumns: "14px 1fr 28px auto" }}
-        >
-            <StockLogo symbol={stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
-            <div className="min-w-0">
-                <div className="text-[11px] font-bold text-white truncate leading-tight">
-                    {stock.name || stock.symbol}
+        <div onClick={() => onOpen(stock)}
+             className="flex items-center gap-2 px-3 py-[10px] border-b border-slate-800/60 active:bg-slate-800/40">
+            {/* Colour dot — rounded square, stable per symbol */}
+            <div style={{
+                width: 8, height: 8, borderRadius: 2,
+                background: symbolColour(stock.symbol), flexShrink: 0,
+            }}/>
+            {/* Symbol + context */}
+            <div style={{ width: 64, flexShrink: 0 }}>
+                <div className="text-[11px] font-extrabold text-white leading-tight truncate">
+                    {stock.symbol}
                 </div>
-                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                <div className="text-[8px] text-slate-500 leading-tight mt-[2px] truncate">
                     {qty != null
-                        ? `${qty} qty · invested ${valuesHidden ? "••••" : "₹" + invested.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                        : stock.symbol}
+                        ? `${qty} · ${valuesHidden ? "••••" : "₹" + Math.round(invested).toLocaleString("en-IN")}`
+                        : "board"}
                 </div>
             </div>
-            <svg viewBox="0 0 28 16" className="w-7 h-4 flex-shrink-0">
-                <polyline
-                    points="0,11 5,9 10,12 14,6 18,8 23,3 28,5"
-                    fill="none"
-                    stroke={up ? "#10b981" : "#ef4444"}
-                    strokeWidth="1.3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
-            </svg>
-            <div className="text-right flex-shrink-0">
-                <div className="text-[11px] font-bold text-white tabular-nums">
+            {/* Filled sparkline — takes all available middle space */}
+            <SparkArea up={up} points={chartPts}/>
+            {/* Price + % */}
+            <div className="text-right flex-shrink-0" style={{ minWidth: 54 }}>
+                <div className="text-[11px] font-extrabold text-white tabular-nums leading-tight">
                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                 </div>
-                <div className={"text-[9px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
+                <div className={"text-[9px] font-bold tabular-nums mt-[2px] " + (up ? "text-green-400" : "text-red-400")}>
                     {cp ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
                 </div>
             </div>
@@ -1308,43 +1377,80 @@ function MobileStockRow({ stock, price, holding, onOpen }) {
     );
 }
 
+// MobileMoverRow — same Idea 2 style as MobileStockRow for consistency.
+// Rank shown as a tiny number before the dot. No sparkline fetch —
+// movers are already ranked by % so the % is the hero number, not trend shape.
+// Section headers (TOP GAINERS / TOP LOSERS) kept as requested.
 function MobileMoverRow({ rank, stock, price }) {
     const cp  = parseFloat(price?.currentPrice || price?.regularMarketPrice || 0);
     const chg = parseFloat(price?.changePercent || price?.regularMarketChangePercent || 0);
     const up  = chg >= 0;
     return (
-        <div className="grid items-center gap-2 px-3 py-[5px] border-b border-slate-800/60"
-             style={{ gridTemplateColumns: "16px 14px 1fr auto" }}>
-            <div className="text-[8.5px] font-extrabold text-slate-500 tabular-nums">{rank}</div>
-            <StockLogo symbol={stock.symbol} size={14} className="rounded-[3px] flex-shrink-0" />
-            <div className="min-w-0">
-                <div className="text-[11px] font-bold text-white truncate leading-tight">{stock.name || stock.symbol}</div>
-                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
-                    {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : stock.symbol}
+        <div className="flex items-center gap-2 px-3 py-[10px] border-b border-slate-800/60 active:bg-slate-800/40">
+            {/* Rank number */}
+            <div className="text-[9px] font-extrabold text-slate-600 tabular-nums w-3 flex-shrink-0 text-center">
+                {rank}
+            </div>
+            {/* Colour dot */}
+            <div style={{
+                width: 8, height: 8, borderRadius: 2,
+                background: symbolColour(stock.symbol), flexShrink: 0,
+            }}/>
+            {/* Symbol + price context */}
+            <div style={{ width: 64, flexShrink: 0 }}>
+                <div className="text-[11px] font-extrabold text-white leading-tight truncate">
+                    {stock.symbol}
+                </div>
+                <div className="text-[8px] text-slate-500 leading-tight mt-[2px]">
+                    {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                 </div>
             </div>
-            <div className={"text-[9px] font-bold tabular-nums " + (up ? "text-green-400" : "text-red-400")}>
+            {/* Flat colour bar — visual weight proportional to magnitude */}
+            <div style={{ flex: 1, height: 4, borderRadius: 2, background: "#1e293b", overflow: "hidden" }}>
+                <div style={{
+                    height: "100%",
+                    width: Math.min(Math.abs(chg) * 8, 100) + "%",
+                    background: up ? "#10b981" : "#ef4444",
+                    borderRadius: 2,
+                    transition: "width 0.4s ease",
+                }}/>
+            </div>
+            {/* % change — hero number */}
+            <div className={"text-[12px] font-extrabold tabular-nums flex-shrink-0 " + (up ? "text-green-400" : "text-red-400")}
+                 style={{ minWidth: 54, textAlign: "right" }}>
                 {cp ? (up ? "+" : "") + chg.toFixed(2) + "%" : "—"}
             </div>
         </div>
     );
 }
 
-function MobileIndexPill({ idx, data, onClick }) {
+// Option 3 greeting card index pill — embedded in the greeting card itself.
+// Compact: name + value + %. No sparkline. Tappable → switches to Indices tab.
+function GreetingIndexPill({ idx, data, onClick, isVix }) {
     const chg = parseFloat(data?.changePercent ?? 0);
-    // Backend returns `value` (same field IndexCard uses on desktop).
-    // `price` / `currentPrice` don't exist on the indices API response —
-    // that's why pills always showed "—" before.
     const val = parseFloat(data?.value ?? data?.price ?? data?.currentPrice ?? 0);
     const up  = chg >= 0;
     return (
         <div onClick={onClick}
-             className="flex-shrink-0 bg-slate-800/80 border border-slate-700 rounded-md px-2 py-1 min-w-[54px] active:scale-95 transition-transform">
-            <div className="text-[7px] text-slate-500 font-bold tracking-wide">{idx.short}</div>
-            <div className="text-[9.5px] text-white font-bold tabular-nums mt-px">
+             className="flex-shrink-0 rounded-lg px-2 py-1 active:opacity-70 cursor-pointer"
+             style={{
+                 minWidth: 52,
+                 background: isVix
+                     ? "rgba(217,119,6,0.08)"
+                     : (up ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)"),
+                 border: isVix
+                     ? "1px solid rgba(217,119,6,0.2)"
+                     : `1px solid ${up ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+             }}>
+            <div className="text-[7px] font-bold tracking-wide"
+                 style={{ color: isVix ? "#d97706" : "#64748b" }}>
+                {idx.short}
+            </div>
+            <div className="text-[10px] font-extrabold tabular-nums mt-[1px] text-white">
                 {val ? val.toLocaleString("en-IN", { maximumFractionDigits: idx.short === "VIX" ? 2 : 0 }) : "—"}
             </div>
-            <div className={"text-[7.5px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
+            <div className="text-[7.5px] font-bold tabular-nums mt-[1px]"
+                 style={{ color: isVix ? "#d97706" : (up ? "#10b981" : "#ef4444") }}>
                 {data ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
             </div>
         </div>
@@ -1353,18 +1459,15 @@ function MobileIndexPill({ idx, data, onClick }) {
 
 function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpenStock }) {
     const { hidden: valuesHidden } = usePrivacy();
-    const [tab, setTab] = useState("stocks"); // stocks | indices | movers
-    const [indexData, setIndexData] = useState({});
-    const [indexLoading, setIndexLoading] = useState(false);
-    // constituentSym: which index was tapped — opens the IndexConstituentsModal.
-    // Lives here (not in IndexSection) because MobileMarketView owns the mobile
-    // render tree. The desktop version has the same state inside IndexSection.
+    const [tab, setTab]                       = useState("stocks");
+    const [indexData, setIndexData]           = useState({});
+    const [indexLoading, setIndexLoading]     = useState(false);
     const [constituentSym, setConstituentSym] = useState(null);
+    // collapsed: true when scrollTop > 60px — greeting card shrinks to compact strip
+    const [collapsed, setCollapsed]           = useState(false);
+    const scrollRef                           = useRef(null);
 
-    // Fetch indices on mount — not gated on the Indices tab being open.
-    // Previously this only ran when tab === "indices", so the pills row
-    // (which is always visible regardless of active tab) was always blank.
-    // The Caffeine backend cache means this is a cheap call after the first hit.
+    // Fetch indices on mount, not gated on any tab
     useEffect(() => {
         if (Object.keys(indexData).length > 0) return;
         setIndexLoading(true);
@@ -1376,183 +1479,347 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
             })
             .catch(() => {})
             .finally(() => setIndexLoading(false));
-    }, []); // empty deps = run once on mount
+    }, []);
+
+    // Drive greeting card collapse from scroll position
+    const handleScroll = () => {
+        if (!scrollRef.current) return;
+        setCollapsed(scrollRef.current.scrollTop > 60);
+    };
 
     const totalValue = parseFloat(portfolioSummary?.currentValue || portfolioSummary?.totalValue || 0);
-    const dayPL      = parseFloat(portfolioSummary?.dayChange || portfolioSummary?.dayPL || 0);
-    const totalPL    = parseFloat(portfolioSummary?.unrealizedPL || portfolioSummary?.totalPL || 0);
+    const dayPL      = parseFloat(portfolioSummary?.dayChange   || portfolioSummary?.dayPL      || 0);
+    const totalPL    = parseFloat(portfolioSummary?.unrealizedPL || portfolioSummary?.totalPL   || 0);
     const totalInv   = parseFloat(portfolioSummary?.totalInvested || 0);
     const returnPct  = totalInv > 0 ? (totalPL / totalInv) * 100 : 0;
     const dayPLPos   = dayPL >= 0;
     const returnPos  = returnPct >= 0;
 
-    // Movers ranked from the user's own pinned/board stocks — there is no
-    // separate "all market movers" endpoint wired into this page today.
-    const withPrices = pinned.filter(s => prices[s.symbol]);
+    const fmtShort = v => {
+        if (!v) return "—";
+        if (v >= 1e7) return "₹" + (v / 1e7).toFixed(2) + "Cr";
+        if (v >= 1e5) return "₹" + (v / 1e5).toFixed(2) + "L";
+        return "₹" + Math.round(v).toLocaleString("en-IN");
+    };
+
+    // Movers: rank board stocks by day change %
+    const withPrices     = pinned.filter(s => prices[s.symbol]);
     const sortedByChange = [...withPrices].sort((a, b) => {
         const ca = parseFloat(prices[a.symbol]?.changePercent || prices[a.symbol]?.regularMarketChangePercent || 0);
         const cb = parseFloat(prices[b.symbol]?.changePercent || prices[b.symbol]?.regularMarketChangePercent || 0);
         return cb - ca;
     });
-    const gainers = sortedByChange.filter(s => {
-        const c = parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0);
-        return c >= 0;
-    });
-    const losers = [...sortedByChange].reverse().filter(s => {
-        const c = parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0);
-        return c < 0;
-    });
+    const gainers = sortedByChange.filter(s =>
+        parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0) >= 0
+    );
+    const losers = [...sortedByChange].reverse().filter(s =>
+        parseFloat(prices[s.symbol]?.changePercent || prices[s.symbol]?.regularMarketChangePercent || 0) < 0
+    );
+
+    // 2×2 index card — NIFTY 50 gets span2, VIX gets amber
+    const IndexCard2x2 = ({ idx, span2 }) => {
+        const d      = indexData[idx.symbol];
+        const chg    = parseFloat(d?.changePercent ?? 0);
+        const val    = parseFloat(d?.value ?? d?.price ?? d?.currentPrice ?? 0);
+        const up     = chg >= 0;
+        const isVix  = idx.short === "VIX";
+        const clr    = isVix ? "#d97706"               : (up ? "#10b981"              : "#ef4444");
+        const bgClr  = isVix ? "rgba(217,119,6,0.06)"  : (up ? "rgba(16,185,129,0.05)" : "rgba(239,68,68,0.05)");
+        const bdrClr = isVix ? "rgba(217,119,6,0.2)"   : (up ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)");
+        return (
+            <div onClick={() => setConstituentSym(idx.symbol)}
+                 style={{
+                     gridColumn: span2 ? "span 2" : undefined,
+                     background: bgClr, border: `1px solid ${bdrClr}`,
+                     borderRadius: 12, padding: "10px 12px",
+                     cursor: "pointer", overflow: "hidden",
+                 }}
+                 className="active:opacity-70">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                        <div style={{ fontSize: span2 ? 11 : 9, fontWeight: 800, color: "white" }}>
+                            {idx.name}
+                            {isVix && (
+                                <span style={{ fontSize: 7, color: "#d97706",
+                                    background: "rgba(217,119,6,0.15)", padding: "1px 5px",
+                                    borderRadius: 4, marginLeft: 5 }}>Fear</span>
+                            )}
+                        </div>
+                        <div style={{ fontSize: 7, color: "#334155", marginTop: 1 }}>
+                            {idx.symbol.replace("^", "")}
+                        </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: span2 ? 18 : 14, fontWeight: 900,
+                            color: "white", fontVariantNumeric: "tabular-nums" }}>
+                            {val ? val.toLocaleString("en-IN", { maximumFractionDigits: isVix ? 2 : 0 }) : "—"}
+                        </div>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: clr,
+                            marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                            {d ? (up ? "▲ +" : "▼ ") + chg.toFixed(2) + "%" : ""}
+                        </div>
+                    </div>
+                </div>
+                {span2 && !isVix && (
+                    <div style={{ marginTop: 10, height: 32, display: "flex" }}>
+                        <SparkArea up={up} points={[{v:1},{v:1.4},{v:1.2},{v:1.8},{v:1.5},{v:2.1},{v:1.9},{v:2.4}]}/>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
-        <div className="-mx-4 -mt-2">{/* bleed to screen edges on mobile */}
+        <div className="-mx-4 -mt-2" style={{ display: "flex", flexDirection: "column" }}>
 
-            {/* 3-column stat strip */}
-            <div className="grid grid-cols-3 bg-slate-900 border-y border-slate-800">
-                <div className="px-2.5 py-[7px] border-r border-slate-800">
-                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Value</div>
-                    <div className="text-[12.5px] font-bold text-white tabular-nums mt-px">
-                        {valuesHidden ? "••••••" : (totalValue ? "₹" + totalValue.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—")}
-                    </div>
-                </div>
-                <div className="px-2.5 py-[7px] border-r border-slate-800">
-                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Day P&amp;L</div>
-                    <div className={"text-[12.5px] font-bold tabular-nums mt-px " + (dayPLPos ? "text-green-400" : "text-red-400")}>
-                        {valuesHidden ? "••••••" : (portfolioSummary ? (dayPLPos ? "+₹" : "-₹") + Math.abs(dayPL).toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—")}
-                    </div>
-                </div>
-                <div className="px-2.5 py-[7px]">
-                    <div className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide">Return</div>
-                    <div className={"text-[12.5px] font-bold tabular-nums mt-px " + (returnPos ? "text-green-400" : "text-red-400")}>
-                        {portfolioSummary ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%" : "—"}
-                    </div>
-                </div>
-            </div>
+            {/* ── GREETING CARD (Option 3) ──────────────────────────────────────
+                Index pills are embedded here — no separate pill strip row.
+                Collapses to a compact strip when scrollTop > 60px.
+                maxHeight transition gives a smooth resize without layout jank. */}
+            <div style={{
+                background: "linear-gradient(135deg, #0d1a2e 0%, #0a1220 100%)",
+                borderBottom: "1px solid #1a2740",
+                flexShrink: 0, overflow: "hidden",
+                transition: "max-height 0.25s ease, padding 0.25s ease",
+                maxHeight: collapsed ? 44 : 260,
+                padding: collapsed ? "0 12px" : "10px 12px",
+            }}>
 
-            {/* Scrollable index pills row — always visible regardless of active tab */}
-            <div className="flex gap-1.5 px-3 py-[7px] overflow-x-auto border-b border-slate-800"
-                 style={{ scrollbarWidth: "none" }}>
-                {MOBILE_INDICES.map(idx => (
-                    <MobileIndexPill
-                        key={idx.symbol}
-                        idx={idx}
-                        data={indexData[idx.symbol]}
-                        onClick={() => setTab("indices")}
-                    />
-                ))}
-            </div>
-
-            {/* Tab row: Stocks | Indices | Movers */}
-            <div className="flex gap-4 px-3 border-b border-slate-800">
-                {[
-                    { key: "stocks",  label: "Stocks"  },
-                    { key: "indices", label: "Indices" },
-                    { key: "movers",  label: "Movers"  },
-                ].map(t => (
-                    <button
-                        key={t.key}
-                        onClick={() => setTab(t.key)}
-                        className={"py-2 text-[10.5px] font-bold border-b-2 -mb-px transition-colors " +
-                        (tab === t.key
-                            ? "text-white border-blue-500"
-                            : "text-slate-500 border-transparent")}>
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Stocks tab */}
-            {tab === "stocks" && (
-                pinned.length === 0 ? (
-                    <div className="px-6 py-10 text-center">
-                        <p className="text-3xl mb-2">📌</p>
-                        <p className="text-slate-400 text-xs">No stocks on your board yet.</p>
-                    </div>
-                ) : (
-                    <div>
-                        {pinned.map(stock => (
-                            <MobileStockRow
-                                key={stock.symbol}
-                                stock={stock}
-                                price={prices[stock.symbol]}
-                                holding={holdingsMap[stock.symbol]}
-                                onOpen={onOpenStock}
-                            />
-                        ))}
-                    </div>
-                )
-            )}
-
-            {/* Indices tab */}
-            {tab === "indices" && (
-                indexLoading ? (
-                    <div className="px-6 py-10 text-center">
-                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                    </div>
-                ) : (
-                    <div>
+                {/* Collapsed strip: portfolio value + return % + index numbers inline */}
+                {collapsed && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, height: 44 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: "white",
+                            fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                            {valuesHidden ? "••••" : fmtShort(totalValue)}
+                        </div>
+                        <div style={{ fontSize: 9, fontWeight: 700, flexShrink: 0,
+                            color: returnPos ? "#10b981" : "#ef4444" }}>
+                            {portfolioSummary ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%" : ""}
+                        </div>
+                        <div style={{ flex: 1 }}/>
                         {MOBILE_INDICES.map(idx => {
-                            const d = indexData[idx.symbol];
-                            const chg = parseFloat(d?.changePercent ?? 0);
-                            // Same field-name fix as MobileIndexPill — backend returns `value`
-                            const val = parseFloat(d?.value ?? d?.price ?? d?.currentPrice ?? 0);
-                            const up = chg >= 0;
+                            const d     = indexData[idx.symbol];
+                            const chg   = parseFloat(d?.changePercent ?? 0);
+                            const val   = parseFloat(d?.value ?? d?.price ?? d?.currentPrice ?? 0);
+                            const up    = chg >= 0;
+                            const isVix = idx.short === "VIX";
                             return (
-                                // onClick opens IndexConstituentsModal — same behaviour as
-                                // desktop IndexCard. Was a plain div with no handler before.
-                                <div key={idx.symbol}
-                                     onClick={() => setConstituentSym(idx.symbol)}
-                                     className="flex items-center justify-between px-3 py-3 border-b border-slate-800/60 active:bg-slate-800/40 cursor-pointer">
-                                    <div>
-                                        <div className="text-[11.5px] font-bold text-white">{idx.name}</div>
-                                        <div className="text-[8px] text-slate-500 mt-px">{idx.symbol.replace("^", "")}</div>
+                                <div key={idx.symbol} onClick={() => setTab("indices")}
+                                     style={{ flexShrink: 0, textAlign: "right", cursor: "pointer" }}>
+                                    <div style={{ fontSize: 9, fontWeight: 800, color: "white",
+                                        fontVariantNumeric: "tabular-nums" }}>
+                                        {val ? val.toLocaleString("en-IN",
+                                            { maximumFractionDigits: isVix ? 2 : 0 }) : "—"}
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-[12px] font-bold text-white tabular-nums">
-                                            {val ? val.toLocaleString("en-IN", { maximumFractionDigits: idx.short === "VIX" ? 2 : 0 }) : "—"}
-                                        </div>
-                                        <div className={"text-[9px] font-bold tabular-nums mt-px " + (up ? "text-green-400" : "text-red-400")}>
-                                            {d ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
-                                        </div>
+                                    <div style={{ fontSize: 7, fontWeight: 700,
+                                        color: isVix ? "#d97706" : (up ? "#10b981" : "#ef4444"),
+                                        fontVariantNumeric: "tabular-nums" }}>
+                                        {d ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                )
-            )}
+                )}
 
-            {/* Movers tab — ranked from your board's own pinned stocks */}
-            {tab === "movers" && (
-                withPrices.length === 0 ? (
-                    <div className="px-6 py-10 text-center">
-                        <p className="text-slate-400 text-xs">No live prices yet to rank movers.</p>
-                    </div>
-                ) : (
-                    <div>
-                        {gainers.length > 0 && (
-                            <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide px-3 pt-[6px] pb-1">
-                                Top Gainers
+                {/* Expanded: greeting + stats + index pills */}
+                {!collapsed && (
+                    <>
+                        <div style={{ display: "flex", justifyContent: "space-between",
+                            alignItems: "flex-start", marginBottom: 6 }}>
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
+                                    Good {new Date().getHours() < 12 ? "morning" :
+                                    new Date().getHours() < 17 ? "afternoon" : "evening"} 👋
+                                </div>
+                                <div style={{ fontSize: 8, color: "#475569", marginTop: 1 }}>
+                                    {new Date().toLocaleDateString("en-IN", {
+                                        weekday: "long", day: "numeric",
+                                        month: "long", year: "numeric",
+                                    })}
+                                </div>
                             </div>
-                        )}
-                        {gainers.map((s, i) => (
-                            <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]} />
-                        ))}
-                        {losers.length > 0 && (
-                            <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide px-3 pt-[10px] pb-1">
-                                Top Losers
+                            <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 7, color: "#64748b" }}>Portfolio</div>
+                                <div style={{ fontSize: 14, fontWeight: 900, color: "white",
+                                    fontVariantNumeric: "tabular-nums" }}>
+                                    {valuesHidden ? "••••" : fmtShort(totalValue)}
+                                </div>
                             </div>
-                        )}
-                        {losers.map((s, i) => (
-                            <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]} />
-                        ))}
-                    </div>
-                )
-            )}
+                        </div>
 
-            {/* IndexConstituentsModal portal — rendered outside the scroll container
-                so it overlays the full screen. constituentSym is set when any index
-                row or pill is tapped. createPortal renders it into document.body so
-                z-index stacking is clean regardless of parent overflow settings. */}
+                        {/* 3-col stats strip */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+                            borderTop: "1px solid #1a2740", paddingTop: 6, marginBottom: 8 }}>
+                            <div>
+                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Value</div>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: "white",
+                                    fontVariantNumeric: "tabular-nums", marginTop: 1 }}>
+                                    {valuesHidden ? "••••" : fmtShort(totalValue)}
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Day P&L</div>
+                                <div style={{ fontSize: 11, fontWeight: 800,
+                                    fontVariantNumeric: "tabular-nums", marginTop: 1,
+                                    color: dayPLPos ? "#10b981" : "#ef4444" }}>
+                                    {valuesHidden ? "••••" : (portfolioSummary
+                                        ? (dayPLPos ? "+₹" : "-₹") + Math.abs(dayPL).toLocaleString("en-IN", { maximumFractionDigits: 0 })
+                                        : "—")}
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Return</div>
+                                <div style={{ fontSize: 11, fontWeight: 800,
+                                    fontVariantNumeric: "tabular-nums", marginTop: 1,
+                                    color: returnPos ? "#10b981" : "#ef4444" }}>
+                                    {portfolioSummary
+                                        ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%"
+                                        : "—"}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Index pills — Option 3: embedded in greeting card */}
+                        <div style={{ display: "flex", gap: 5, overflowX: "auto",
+                            scrollbarWidth: "none" }}>
+                            {MOBILE_INDICES.map(idx => (
+                                <GreetingIndexPill
+                                    key={idx.symbol}
+                                    idx={idx}
+                                    data={indexData[idx.symbol]}
+                                    isVix={idx.short === "VIX"}
+                                    onClick={() => setTab("indices")}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* ── TAB ROW — sticky, never scrolls away (fix B) ─────────────── */}
+            <div style={{
+                display: "flex", borderBottom: "1px solid #1a2740",
+                background: "#0a1628", flexShrink: 0,
+                position: "sticky", top: 0, zIndex: 10,
+            }}>
+                {[
+                    { key: "stocks",  label: "Stocks"  },
+                    { key: "indices", label: "Indices" },
+                    { key: "movers",  label: "Movers"  },
+                ].map(t => (
+                    <button key={t.key} onClick={() => setTab(t.key)}
+                            style={{
+                                padding: "8px 16px",
+                                fontSize: 10.5, fontWeight: 700,
+                                color: tab === t.key ? "white" : "#475569",
+                                borderBottom: tab === t.key ? "2px solid #3b82f6" : "2px solid transparent",
+                                marginBottom: -1,
+                                background: "none", border: "none",
+                                cursor: "pointer",
+                            }}>
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── SCROLLABLE CONTENT — onScroll drives greeting card collapse ── */}
+            <div ref={scrollRef} onScroll={handleScroll}
+                 style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+
+                {/* Stocks tab — Idea 2 rows with section headers */}
+                {tab === "stocks" && (
+                    pinned.length === 0 ? (
+                        <div className="px-6 py-10 text-center">
+                            <p className="text-3xl mb-2">📌</p>
+                            <p className="text-slate-400 text-xs">No stocks on your board yet.</p>
+                        </div>
+                    ) : (
+                        <div>
+                            {pinned.some(s => holdingsMap[s.symbol]) && (
+                                <div style={{ padding: "5px 12px 3px", fontSize: 8, fontWeight: 800,
+                                    letterSpacing: "0.1em", textTransform: "uppercase",
+                                    color: "#334155", background: "#060d1a" }}>
+                                    Your Holdings
+                                </div>
+                            )}
+                            {pinned.filter(s => holdingsMap[s.symbol]).map(stock => (
+                                <MobileStockRow key={stock.symbol} stock={stock}
+                                                price={prices[stock.symbol]}
+                                                holding={holdingsMap[stock.symbol]}
+                                                onOpen={onOpenStock}/>
+                            ))}
+                            {pinned.some(s => !holdingsMap[s.symbol]) && (
+                                <div style={{ padding: "8px 12px 3px", fontSize: 8, fontWeight: 800,
+                                    letterSpacing: "0.1em", textTransform: "uppercase",
+                                    color: "#334155", background: "#060d1a" }}>
+                                    On Your Board
+                                </div>
+                            )}
+                            {pinned.filter(s => !holdingsMap[s.symbol]).map(stock => (
+                                <MobileStockRow key={stock.symbol} stock={stock}
+                                                price={prices[stock.symbol]}
+                                                holding={null}
+                                                onOpen={onOpenStock}/>
+                            ))}
+                        </div>
+                    )
+                )}
+
+                {/* Indices tab — 2×2 card grid */}
+                {tab === "indices" && (
+                    indexLoading ? (
+                        <div className="px-6 py-10 text-center">
+                            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"/>
+                        </div>
+                    ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr",
+                            gap: 7, padding: "10px 10px" }}>
+                            <IndexCard2x2 idx={MOBILE_INDICES[0]} span2/>
+                            <IndexCard2x2 idx={MOBILE_INDICES[1]}/>
+                            <IndexCard2x2 idx={MOBILE_INDICES[2]}/>
+                            <IndexCard2x2 idx={MOBILE_INDICES[3]}/>
+                            <IndexCard2x2 idx={MOBILE_INDICES[4]}/>
+                        </div>
+                    )
+                )}
+
+                {/* Movers tab — same Idea 2 row style as Stocks tab for consistency */}
+                {tab === "movers" && (
+                    withPrices.length === 0 ? (
+                        <div className="px-6 py-10 text-center">
+                            <p className="text-slate-400 text-xs">No live prices yet to rank movers.</p>
+                        </div>
+                    ) : (
+                        <div>
+                            {gainers.length > 0 && (
+                                <div style={{ padding: "5px 12px 3px", fontSize: 8, fontWeight: 800,
+                                    letterSpacing: "0.1em", textTransform: "uppercase",
+                                    color: "#334155", background: "#060d1a" }}>
+                                    Top Gainers · from your board
+                                </div>
+                            )}
+                            {gainers.map((s, i) => (
+                                <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]}/>
+                            ))}
+                            {losers.length > 0 && (
+                                <div style={{ padding: "8px 12px 3px", fontSize: 8, fontWeight: 800,
+                                    letterSpacing: "0.1em", textTransform: "uppercase",
+                                    color: "#334155", background: "#060d1a" }}>
+                                    Top Losers · from your board
+                                </div>
+                            )}
+                            {losers.map((s, i) => (
+                                <MobileMoverRow key={s.symbol} rank={i + 1} stock={s} price={prices[s.symbol]}/>
+                            ))}
+                        </div>
+                    )
+                )}
+            </div>
+
             {constituentSym && createPortal(
                 <IndexConstituentsModal
                     symbol={constituentSym}
