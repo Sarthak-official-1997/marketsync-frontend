@@ -1463,9 +1463,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
     const [indexData, setIndexData]           = useState({});
     const [indexLoading, setIndexLoading]     = useState(false);
     const [constituentSym, setConstituentSym] = useState(null);
-    // collapsed: true when scrollTop > 60px — greeting card shrinks to compact strip
-    const [collapsed, setCollapsed]           = useState(false);
-    const scrollRef                           = useRef(null);
+    // (collapsing header removed — was causing zero-height scroll container on mobile)
 
     // Fetch indices on mount, not gated on any tab
     useEffect(() => {
@@ -1480,12 +1478,6 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
             .catch(() => {})
             .finally(() => setIndexLoading(false));
     }, []);
-
-    // Drive greeting card collapse from scroll position
-    const handleScroll = () => {
-        if (!scrollRef.current) return;
-        setCollapsed(scrollRef.current.scrollTop > 60);
-    };
 
     const totalValue = parseFloat(portfolioSummary?.currentValue || portfolioSummary?.totalValue || 0);
     const dayPL      = parseFloat(portfolioSummary?.dayChange   || portfolioSummary?.dayPL      || 0);
@@ -1579,125 +1571,83 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
             <div style={{
                 background: "linear-gradient(135deg, #0d1a2e 0%, #0a1220 100%)",
                 borderBottom: "1px solid #1a2740",
-                flexShrink: 0, overflow: "hidden",
-                transition: "max-height 0.25s ease, padding 0.25s ease",
-                maxHeight: collapsed ? 44 : 260,
-                padding: collapsed ? "0 12px" : "10px 12px",
+                padding: "10px 12px",
             }}>
 
-                {/* Collapsed strip: portfolio value + return % + index numbers inline */}
-                {collapsed && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, height: 44 }}>
-                        <div style={{ fontSize: 13, fontWeight: 900, color: "white",
-                            fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                            {valuesHidden ? "••••" : fmtShort(totalValue)}
+                {/* Greeting + stats + index pills (always shown) */}
+                <>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                        alignItems: "flex-start", marginBottom: 6 }}>
+                        <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
+                                Good {new Date().getHours() < 12 ? "morning" :
+                                new Date().getHours() < 17 ? "afternoon" : "evening"} 👋
+                            </div>
+                            <div style={{ fontSize: 8, color: "#475569", marginTop: 1 }}>
+                                {new Date().toLocaleDateString("en-IN", {
+                                    weekday: "long", day: "numeric",
+                                    month: "long", year: "numeric",
+                                })}
+                            </div>
                         </div>
-                        <div style={{ fontSize: 9, fontWeight: 700, flexShrink: 0,
-                            color: returnPos ? "#10b981" : "#ef4444" }}>
-                            {portfolioSummary ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%" : ""}
+                        <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 7, color: "#64748b" }}>Portfolio</div>
+                            <div style={{ fontSize: 14, fontWeight: 900, color: "white",
+                                fontVariantNumeric: "tabular-nums" }}>
+                                {valuesHidden ? "••••" : fmtShort(totalValue)}
+                            </div>
                         </div>
-                        <div style={{ flex: 1 }}/>
-                        {MOBILE_INDICES.map(idx => {
-                            const d     = indexData[idx.symbol];
-                            const chg   = parseFloat(d?.changePercent ?? 0);
-                            const val   = parseFloat(d?.value ?? d?.price ?? d?.currentPrice ?? 0);
-                            const up    = chg >= 0;
-                            const isVix = idx.short === "VIX";
-                            return (
-                                <div key={idx.symbol} onClick={() => setTab("indices")}
-                                     style={{ flexShrink: 0, textAlign: "right", cursor: "pointer" }}>
-                                    <div style={{ fontSize: 9, fontWeight: 800, color: "white",
-                                        fontVariantNumeric: "tabular-nums" }}>
-                                        {val ? val.toLocaleString("en-IN",
-                                            { maximumFractionDigits: isVix ? 2 : 0 }) : "—"}
-                                    </div>
-                                    <div style={{ fontSize: 7, fontWeight: 700,
-                                        color: isVix ? "#d97706" : (up ? "#10b981" : "#ef4444"),
-                                        fontVariantNumeric: "tabular-nums" }}>
-                                        {d ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
-                                    </div>
-                                </div>
-                            );
-                        })}
                     </div>
-                )}
 
-                {/* Expanded: greeting + stats + index pills */}
-                {!collapsed && (
-                    <>
-                        <div style={{ display: "flex", justifyContent: "space-between",
-                            alignItems: "flex-start", marginBottom: 6 }}>
-                            <div>
-                                <div style={{ fontSize: 13, fontWeight: 800, color: "white" }}>
-                                    Good {new Date().getHours() < 12 ? "morning" :
-                                    new Date().getHours() < 17 ? "afternoon" : "evening"} 👋
-                                </div>
-                                <div style={{ fontSize: 8, color: "#475569", marginTop: 1 }}>
-                                    {new Date().toLocaleDateString("en-IN", {
-                                        weekday: "long", day: "numeric",
-                                        month: "long", year: "numeric",
-                                    })}
-                                </div>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                                <div style={{ fontSize: 7, color: "#64748b" }}>Portfolio</div>
-                                <div style={{ fontSize: 14, fontWeight: 900, color: "white",
-                                    fontVariantNumeric: "tabular-nums" }}>
-                                    {valuesHidden ? "••••" : fmtShort(totalValue)}
-                                </div>
+                    {/* 3-col stats strip */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+                        borderTop: "1px solid #1a2740", paddingTop: 6, marginBottom: 8 }}>
+                        <div>
+                            <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                textTransform: "uppercase", letterSpacing: "0.06em" }}>Value</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "white",
+                                fontVariantNumeric: "tabular-nums", marginTop: 1 }}>
+                                {valuesHidden ? "••••" : fmtShort(totalValue)}
                             </div>
                         </div>
-
-                        {/* 3-col stats strip */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
-                            borderTop: "1px solid #1a2740", paddingTop: 6, marginBottom: 8 }}>
-                            <div>
-                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
-                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Value</div>
-                                <div style={{ fontSize: 11, fontWeight: 800, color: "white",
-                                    fontVariantNumeric: "tabular-nums", marginTop: 1 }}>
-                                    {valuesHidden ? "••••" : fmtShort(totalValue)}
-                                </div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
-                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Day P&L</div>
-                                <div style={{ fontSize: 11, fontWeight: 800,
-                                    fontVariantNumeric: "tabular-nums", marginTop: 1,
-                                    color: dayPLPos ? "#10b981" : "#ef4444" }}>
-                                    {valuesHidden ? "••••" : (portfolioSummary
-                                        ? (dayPLPos ? "+₹" : "-₹") + Math.abs(dayPL).toLocaleString("en-IN", { maximumFractionDigits: 0 })
-                                        : "—")}
-                                </div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
-                                    textTransform: "uppercase", letterSpacing: "0.06em" }}>Return</div>
-                                <div style={{ fontSize: 11, fontWeight: 800,
-                                    fontVariantNumeric: "tabular-nums", marginTop: 1,
-                                    color: returnPos ? "#10b981" : "#ef4444" }}>
-                                    {portfolioSummary
-                                        ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%"
-                                        : "—"}
-                                </div>
+                        <div>
+                            <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                textTransform: "uppercase", letterSpacing: "0.06em" }}>Day P&L</div>
+                            <div style={{ fontSize: 11, fontWeight: 800,
+                                fontVariantNumeric: "tabular-nums", marginTop: 1,
+                                color: dayPLPos ? "#10b981" : "#ef4444" }}>
+                                {valuesHidden ? "••••" : (portfolioSummary
+                                    ? (dayPLPos ? "+₹" : "-₹") + Math.abs(dayPL).toLocaleString("en-IN", { maximumFractionDigits: 0 })
+                                    : "—")}
                             </div>
                         </div>
-
-                        {/* Index pills — Option 3: embedded in greeting card */}
-                        <div style={{ display: "flex", gap: 5, overflowX: "auto",
-                            scrollbarWidth: "none" }}>
-                            {MOBILE_INDICES.map(idx => (
-                                <GreetingIndexPill
-                                    key={idx.symbol}
-                                    idx={idx}
-                                    data={indexData[idx.symbol]}
-                                    isVix={idx.short === "VIX"}
-                                    onClick={() => setTab("indices")}
-                                />
-                            ))}
+                        <div>
+                            <div style={{ fontSize: 7, color: "#475569", fontWeight: 600,
+                                textTransform: "uppercase", letterSpacing: "0.06em" }}>Return</div>
+                            <div style={{ fontSize: 11, fontWeight: 800,
+                                fontVariantNumeric: "tabular-nums", marginTop: 1,
+                                color: returnPos ? "#10b981" : "#ef4444" }}>
+                                {portfolioSummary
+                                    ? (returnPos ? "+" : "") + returnPct.toFixed(2) + "%"
+                                    : "—"}
+                            </div>
                         </div>
-                    </>
-                )}
+                    </div>
+
+                    {/* Index pills — Option 3: embedded in greeting card */}
+                    <div style={{ display: "flex", gap: 5, overflowX: "auto",
+                        scrollbarWidth: "none" }}>
+                        {MOBILE_INDICES.map(idx => (
+                            <GreetingIndexPill
+                                key={idx.symbol}
+                                idx={idx}
+                                data={indexData[idx.symbol]}
+                                isVix={idx.short === "VIX"}
+                                onClick={() => setTab("indices")}
+                            />
+                        ))}
+                    </div>
+                </>
             </div>
 
             {/* ── TAB ROW — sticky, never scrolls away (fix B) ─────────────── */}
@@ -1726,7 +1676,7 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
                 ))}
             </div>
 
-            {/* ── SCROLLABLE CONTENT — onScroll drives greeting card collapse ── */}
+            {/* ── CONTENT — flows naturally, page scrolls ── */}
             <div>
 
                 {/* Stocks tab — Idea 2 rows with section headers */}
