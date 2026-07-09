@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { sendChatMessage, getChatSessions, getChatHistory } from "../api/ai";
 import { getHoldings, getMfHoldings, getWatchlist, getPortfolioSummary } from "../api/portfolio";
 import ContactAdminModal from "./ContactAdminModal";
+import { useMobile } from "../hooks/useMobile";
 
 const newSessionId = () =>
     "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -140,8 +141,12 @@ function TypingDots() {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 export default function AiChatModal({ onClose }) {
+    const isMobile = useMobile();
     const [isMaximized, setIsMaximized] = useState(false);
     const [showContact, setShowContact] = useState(false);
+    // Overflow menu — on mobile, Contact Sarthak + Maximize move here so the
+    // header never overflows 4 buttons wide (History/New/Menu/Close always fit).
+    const [showMenu,     setShowMenu]     = useState(false);
     const [sessionId,    setSessionId]    = useState(() => newSessionId());
     const [portfolioCtx, setPortfolioCtx] = useState("");  // silent context injected into every message
     const [messages,     setMessages]     = useState([]);
@@ -317,80 +322,82 @@ export default function AiChatModal({ onClose }) {
         <>
             <div className="fixed inset-0 z-[60] flex items-end md:items-center
                         justify-center p-0 md:p-4"
-                 style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)" }}>
+                 style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)" }}
+                 onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
                 <div className={
                     "bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden transition-all duration-200 " +
                     (isMaximized
                         ? "w-full h-full rounded-none"
                         : "w-full md:max-w-2xl h-[92vh] md:h-[85vh] rounded-t-3xl md:rounded-2xl")
                 }>
+                    {/* Grabber handle — mobile only, signals swipe-down-to-close */}
+                    {isMobile && !isMaximized && (
+                        <div className="flex-shrink-0 pt-2 pb-1 flex justify-center">
+                            <div className="w-9 h-1 rounded-full bg-slate-600"/>
+                        </div>
+                    )}
 
                     {/* ── Header ── */}
-                    <div className="flex items-center justify-between px-5 py-4
+                    <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4
                                 border-b border-slate-700/60 flex-shrink-0
-                                bg-gradient-to-r from-slate-900 to-slate-800">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br
+                                bg-gradient-to-r from-slate-900 to-slate-800 relative">
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br
                                         from-blue-600 to-purple-600 flex items-center
-                                        justify-center text-lg shadow-lg shadow-blue-900/40">
+                                        justify-center text-base md:text-lg shadow-lg shadow-blue-900/40 flex-shrink-0">
                                 ✨
                             </div>
-                            <div>
-                                <h2 className="text-white font-bold text-sm">FOLYO AI</h2>
-                                <p className="text-slate-500 text-xs">
-                                    Indian markets · Stocks · Mutual Funds
+                            <div className="min-w-0">
+                                <h2 className="text-white font-bold text-sm flex items-center gap-1.5">
+                                    FOLYO AI
+                                    {/* Level badge inline with title on mobile — was a separate
+                                        header item before, now merged to save width */}
+                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                                        LEVEL_STYLES[currentLevel.color].badge
+                                    }`}>
+                                        {currentLevel.emoji} {currentLevel.label}
+                                    </span>
+                                </h2>
+                                <p className="text-slate-500 text-[10px] md:text-xs truncate">
+                                    Stocks · MF · Live portfolio
                                 </p>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-
-                            {/* Level indicator — compact badge in header */}
-                            <div className="flex items-center gap-1 px-2 py-1
-                                            bg-slate-800/60 border border-slate-700/50 rounded-lg">
-                                <span className="text-xs">{currentLevel.emoji}</span>
-                                <span className={`text-[10px] font-semibold hidden sm:block ${
-                                    LEVEL_STYLES[currentLevel.color].text
-                                }`}>{currentLevel.label}</span>
-                            </div>
+                        {/* Mobile: 4 buttons max (History, New, Menu, Close).
+                            Desktop (md+): full row, same as before. */}
+                        <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
 
                             <button onClick={() => setShowSessions(v => !v)}
-                                    className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700
+                                    title="History"
+                                    className="text-xs px-2.5 md:px-3 py-1.5 bg-slate-800 hover:bg-slate-700
                                            border border-slate-700 rounded-lg text-slate-400
                                            hover:text-white transition-colors">
-                                🕐 History
+                                🕐<span className="hidden md:inline"> History</span>
                             </button>
                             <button onClick={startNewSession}
-                                    className="text-xs px-3 py-1.5 bg-blue-600/20
+                                    title="New session"
+                                    className="text-xs px-2.5 md:px-3 py-1.5 bg-blue-600/20
                                            hover:bg-blue-600/40 border border-blue-500/30
                                            rounded-lg text-blue-400 hover:text-blue-300
                                            transition-colors">
-                                + New
+                                +<span className="hidden md:inline"> New</span>
                             </button>
-                            {/* Contact Sarthak */}
+
+                            {/* Desktop only: Contact Sarthak + Maximize shown inline (room to spare) */}
                             <button
                                 onClick={() => setShowContact(true)}
-                                className="p-2 text-slate-400 hover:text-amber-400
-                                       hover:bg-slate-700 rounded-lg transition-colors"
-                                title="Message Sarthak">
-                                ✉️
-                            </button>
-                            {/* Contact Sarthak — labeled, clearly visible */}
-                            <button
-                                onClick={() => setShowContact(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5
+                                className="hidden md:flex items-center gap-1.5 px-3 py-1.5
                                        bg-slate-700 hover:bg-amber-600/30
                                        border border-slate-600 hover:border-amber-500/50
                                        text-slate-300 hover:text-amber-300
                                        rounded-lg transition-all text-xs font-medium"
                                 title="Send a message to Sarthak (Admin)">
-                                ✉️ <span className="hidden sm:inline">Contact Sarthak</span>
-                                <span className="sm:hidden">Contact</span>
+                                ✉️ <span>Contact Sarthak</span>
                             </button>
-                            {/* Maximize / restore */}
                             <button
                                 onClick={() => setIsMaximized(v => !v)}
-                                className="p-2 text-slate-400 hover:text-white
+                                className="hidden md:flex p-2 text-slate-400 hover:text-white
                                        hover:bg-slate-700 rounded-lg transition-colors"
                                 title={isMaximized ? "Restore" : "Maximize"}
                             >
@@ -399,12 +406,48 @@ export default function AiChatModal({ onClose }) {
                                     : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
                                 }
                             </button>
+
+                            {/* Mobile only: overflow menu holds Contact Sarthak + Maximize.
+                                This is what keeps the header to 4 buttons and the close
+                                button always visible instead of overflowing off-screen. */}
+                            <button
+                                onClick={() => setShowMenu(v => !v)}
+                                title="More"
+                                className={"md:hidden p-2 rounded-lg transition-colors " +
+                                (showMenu ? "bg-blue-600/30 text-blue-300" : "text-slate-400 hover:text-white hover:bg-slate-700")}>
+                                ⋯
+                            </button>
+
                             <button onClick={onClose}
-                                    className="text-slate-500 hover:text-white text-xl
-                                           leading-none transition-colors ml-1">
+                                    title="Close"
+                                    className="text-slate-400 hover:text-white bg-slate-800/60
+                                           hover:bg-red-900/40 rounded-lg w-8 h-8 flex items-center
+                                           justify-center text-lg leading-none transition-colors">
                                 ✕
                             </button>
                         </div>
+
+                        {/* Overflow menu dropdown — mobile only */}
+                        {showMenu && (
+                            <div className="md:hidden absolute top-[calc(100%+4px)] right-4 z-10
+                                        bg-slate-800 border border-slate-700 rounded-xl
+                                        shadow-2xl py-1 min-w-[170px]">
+                                <button
+                                    onClick={() => { setShowContact(true); setShowMenu(false); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5
+                                           text-amber-400 hover:bg-slate-700/60 text-xs font-medium
+                                           text-left transition-colors">
+                                    ✉️ Contact Sarthak
+                                </button>
+                                <button
+                                    onClick={() => { setIsMaximized(v => !v); setShowMenu(false); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5
+                                           text-slate-300 hover:bg-slate-700/60 text-xs font-medium
+                                           text-left transition-colors">
+                                    ⛶ {isMaximized ? "Restore" : "Maximize"}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Session history panel */}

@@ -1276,11 +1276,15 @@ function symbolColour(symbol) {
 // Filled-area sparkline — the key visual element of Idea 2.
 // Points are normalised to a 100×32 viewBox so they fill whatever width
 // the flex container gives. gradient fill uses the up/dn colour at 25% opacity.
-function SparkArea({ up, points }) {
+function SparkArea({ up, points, width }) {
+    // width: optional fixed pixel width (Idea A stock rows use 72px so the
+    // sparkline doesn't stretch across the whole row). Omit for flex:1
+    // behaviour (used by the 2x2 index cards, which want full-width fill).
+    const svgStyle = width ? { width, flexShrink: 0 } : { flex: 1 };
     if (!points || points.length < 2) {
         // dashed flat line while data loads / unavailable
         return (
-            <svg style={{ flex: 1 }} height="32" viewBox="0 0 100 32" preserveAspectRatio="none">
+            <svg style={svgStyle} height="32" viewBox="0 0 100 32" preserveAspectRatio="none">
                 <line x1="0" y1="16" x2="100" y2="16"
                       stroke="#1e293b" strokeWidth="1.5" strokeDasharray="4 3"/>
             </svg>
@@ -1299,7 +1303,7 @@ function SparkArea({ up, points }) {
     }).join(" ");
     const poly = `${pts} ${W},${H} 0,${H}`;
     return (
-        <svg style={{ flex: 1 }} height="32" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <svg style={svgStyle} height="32" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
             <defs>
                 <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={clr} stopOpacity="0.28"/>
@@ -1345,31 +1349,35 @@ function MobileStockRow({ stock, price, holding, onOpen }) {
 
     return (
         <div onClick={() => onOpen(stock)}
-             className="flex items-center gap-2 px-3 py-[10px] border-b border-slate-800/60 active:bg-slate-800/40">
+             className="flex items-center gap-[10px] px-3.5 py-[11px] border-b border-slate-800/60 active:bg-slate-800/40">
             {/* Colour dot — rounded square, stable per symbol */}
             <div style={{
-                width: 8, height: 8, borderRadius: 2,
+                width: 9, height: 9, borderRadius: 3,
                 background: symbolColour(stock.symbol), flexShrink: 0,
             }}/>
-            {/* Symbol + context */}
-            <div style={{ width: 64, flexShrink: 0 }}>
-                <div className="text-[11px] font-extrabold text-white leading-tight truncate">
+            {/* Symbol + context — flex:1 so it takes all remaining space
+                (Idea A: was fixed 64px which truncated longer symbols like
+                "NILASPACES"; sparkline is now fixed-width instead, see below) */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="text-[13px] font-extrabold text-white leading-tight truncate"
+                     style={{ letterSpacing: "-0.2px" }}>
                     {stock.symbol}
                 </div>
-                <div className="text-[8px] text-slate-500 leading-tight mt-[2px] truncate">
+                <div className="text-[9px] text-slate-500 leading-tight mt-[1px] truncate">
                     {qty != null
-                        ? `${qty} · ${valuesHidden ? "••••" : "₹" + Math.round(invested).toLocaleString("en-IN")}`
+                        ? `${qty} qty · ${valuesHidden ? "••••" : "₹" + Math.round(invested).toLocaleString("en-IN")}`
                         : "board"}
                 </div>
             </div>
-            {/* Filled sparkline — takes all available middle space */}
-            <SparkArea up={up} points={chartPts}/>
+            {/* Fixed-width sparkline — was flex:1 (stretched thin across the
+                whole row width, looked noisy). 72px matches Idea A mockup. */}
+            <SparkArea up={up} points={chartPts} width={72}/>
             {/* Price + % */}
-            <div className="text-right flex-shrink-0" style={{ minWidth: 54 }}>
-                <div className="text-[11px] font-extrabold text-white tabular-nums leading-tight">
+            <div className="text-right flex-shrink-0" style={{ minWidth: 64 }}>
+                <div className="text-[13px] font-extrabold text-white tabular-nums leading-tight">
                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                 </div>
-                <div className={"text-[9px] font-bold tabular-nums mt-[2px] " + (up ? "text-green-400" : "text-red-400")}>
+                <div className={"text-[10px] font-bold tabular-nums mt-[1px] " + (up ? "text-green-400" : "text-red-400")}>
                     {cp ? (up ? "+" : "") + chg.toFixed(2) + "%" : ""}
                 </div>
             </div>
