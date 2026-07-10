@@ -929,51 +929,47 @@ export default function StockDetailModal({ stock, onClose }) {
                                     ) : !returnsOk ? (
                                         <p className="text-slate-400 text-sm text-center p-5">Not available</p>
                                     ) : (
-                                        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                                            <table className="w-full text-sm" style={{ minWidth: isMobile ? 480 : undefined }}>
-                                                <thead>
-                                                <tr className="text-slate-500 text-xs uppercase border-b border-slate-700/40">
-                                                    <th className="text-left px-5 py-2.5">Period</th>
-                                                    <th className="text-right px-5 py-2.5">Start Price</th>
-                                                    <th className="text-right px-5 py-2.5">Absolute</th>
-                                                    <th className="text-right px-5 py-2.5">CAGR (p.a.)</th>
-                                                </tr>
-                                                </thead>
-                                                <tbody>
-                                                {RETURN_PERIODS.map(({ key }) => {
-                                                    const r = returns.returns?.[key];
-                                                    if (!r) return null;
-                                                    return (
-                                                        <tr key={key}
-                                                            className="border-b border-slate-700/30 hover:bg-slate-700/20">
-                                                            <td className="px-5 py-2.5">
-                                                                <p className="text-white font-medium">
-                                                                    {key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
-                                                                        : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
-                                                                            : key === "3Y" ? "3 Years" : "5 Years"}
-                                                                </p>
-                                                                <p className="text-xs text-slate-500">since {r.startDate}</p>
-                                                            </td>
-                                                            <td className="text-right px-5 py-2.5 text-slate-400 text-xs">
-                                                                {fmt(r.priceAtPeriodStart, returns.currency)}
-                                                            </td>
-                                                            <td className={"text-right px-5 py-2.5 font-semibold " + clr(r.absoluteReturn)}>
+                                        /* Sample 1 — stacked rows: name + start-price sub-line on
+                                           the left, big absolute % on the right, CAGR as a small
+                                           secondary line. No table and no fixed min-width, so this
+                                           can never be wider than the phone → no horizontal leak. */
+                                        <div className="px-4">
+                                            {RETURN_PERIODS.map(({ key }) => {
+                                                const r = returns.returns?.[key];
+                                                if (!r) return null;
+                                                const periodName =
+                                                    key === "1M" ? "1 Month" : key === "3M" ? "3 Months"
+                                                        : key === "6M" ? "6 Months" : key === "1Y" ? "1 Year"
+                                                            : key === "3Y" ? "3 Years" : "5 Years";
+                                                return (
+                                                    <div key={key}
+                                                         className="flex items-center justify-between gap-3 py-3
+                                                                border-b border-slate-700/30 last:border-b-0">
+                                                        <div className="min-w-0">
+                                                            <p className="text-white text-sm font-semibold truncate">
+                                                                {periodName}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-500 truncate">
+                                                                since {r.startDate} · from {fmt(r.priceAtPeriodStart, returns.currency)}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex-shrink-0 text-right">
+                                                            <p className={"text-[15px] font-bold leading-tight " + clr(r.absoluteReturn)}>
                                                                 {fmtPct(r.absoluteReturn)}
-                                                            </td>
-                                                            <td className="text-right px-5 py-2.5 font-medium">
-                                                                {r.annualizedReturn != null ? (
-                                                                    <span className={clr(r.annualizedReturn)}>
-                                                                {fmtPct(r.annualizedReturn)}
-                                                            </span>
-                                                                ) : (
-                                                                    <span className="text-slate-500 text-xs">= absolute</span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                                </tbody>
-                                            </table>
+                                                            </p>
+                                                            {r.annualizedReturn != null ? (
+                                                                <p className={"text-[10px] leading-tight " + clr(r.annualizedReturn)}>
+                                                                    {fmtPct(r.annualizedReturn)} p.a.
+                                                                </p>
+                                                            ) : (
+                                                                <p className="text-[10px] leading-tight text-slate-600">
+                                                                    = absolute
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
