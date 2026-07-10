@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import StockLogo from "./StockLogo";
 import { getIndexConstituents, getStockChart } from "../api/portfolio";
 import StockDetailModal from "./StockDetailModal";
+import { useMobile } from "../hooks/useMobile";
 
 // Mini sparkline — reused from board section style
 function RowSparkline({ symbol }) {
@@ -70,6 +71,7 @@ const SORT_FIELDS = [
 ];
 
 export default function IndexConstituentsModal({ symbol, onClose }) {
+    const isMobile = useMobile();
     const [constituents, setConstituents] = useState([]);
     const [loading,      setLoading]      = useState(true);
     const [error,        setError]        = useState(null);
@@ -138,6 +140,7 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                  onClick={e => e.target === e.currentTarget && onClose()}>
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full
                             max-w-5xl min-h-[80vh] flex flex-col shadow-2xl"
+                     style={{ overflowX: "hidden", maxWidth: isMobile ? "100vw" : undefined }}
                      onClick={e => e.stopPropagation()}>
 
                     {/* ── Header ─────────────────────────────────────────────── */}
@@ -176,34 +179,36 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                         </button>
                     </div>
 
-                    {/* ── Table header ────────────────────────────────────────── */}
-                    <div className="grid text-[10px] font-semibold text-slate-500 uppercase
+                    {/* ── Table header (desktop only — mobile rows are self-labeling) ── */}
+                    {!isMobile && (
+                        <div className="grid text-[10px] font-semibold text-slate-500 uppercase
                                 tracking-wide px-4 py-2 border-b border-slate-800/60
                                 bg-slate-900/80 flex-shrink-0"
-                         style={{ gridTemplateColumns: "32px 36px 1fr 140px 88px 72px 72px 68px 52px" }}>
-                        {[
-                            { key: "rank",          label: "#"       },
-                            { key: null,            label: ""        },
-                            { key: "symbol",        label: "Stock"   },
-                            { key: "industry",      label: "Sector"  },
-                            { key: "marketCap",     label: "Mkt Cap" },
-                            { key: "currentPrice",  label: "Price"   },
-                            { key: "changePercent", label: "Change"  },
-                            { key: null,            label: "Chart"   },
-                            { key: null,            label: ""        },
-                        ].map(({ key, label }, i) => (
-                            <div key={i}
-                                 className={key ? "cursor-pointer hover:text-slate-300 transition-colors" : ""}
-                                 onClick={() => key && handleSort(key)}>
-                                {label}
-                                {sortKey === key && (
-                                    <span className="ml-0.5 text-blue-400">
+                             style={{ gridTemplateColumns: "32px 36px 1fr 140px 88px 72px 72px 68px 52px" }}>
+                            {[
+                                { key: "rank",          label: "#"       },
+                                { key: null,            label: ""        },
+                                { key: "symbol",        label: "Stock"   },
+                                { key: "industry",      label: "Sector"  },
+                                { key: "marketCap",     label: "Mkt Cap" },
+                                { key: "currentPrice",  label: "Price"   },
+                                { key: "changePercent", label: "Change"  },
+                                { key: null,            label: "Chart"   },
+                                { key: null,            label: ""        },
+                            ].map(({ key, label }, i) => (
+                                <div key={i}
+                                     className={key ? "cursor-pointer hover:text-slate-300 transition-colors" : ""}
+                                     onClick={() => key && handleSort(key)}>
+                                    {label}
+                                    {sortKey === key && (
+                                        <span className="ml-0.5 text-blue-400">
                                     {sortAsc ? "↑" : "↓"}
                                 </span>
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* ── Table body ───────────────────────────────────────────── */}
                     <div className="flex-1 overflow-y-auto" style={{
@@ -239,6 +244,59 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                             const up     = chg >= 0;
                             const price  = parseFloat(c.currentPrice  || 0);
 
+                            // ── MOBILE: compact single row that fits 380px, no h-scroll ──
+                            if (isMobile) {
+                                return (
+                                    <div key={c.symbol}
+                                         className={`flex items-center gap-2.5 px-3 py-2.5 border-b
+                                                 border-slate-800/40 active:bg-slate-800/50
+                                                 transition-colors cursor-pointer
+                                                 ${i % 2 === 0 ? "" : "bg-slate-900/30"}`}
+                                         style={{ minWidth: 0 }}
+                                         onClick={() => setDetailStock({
+                                             id: i, symbol: c.symbol, name: c.name, exchange: "NSE"
+                                         })}>
+
+                                        {/* rank + logo */}
+                                        <span className="text-slate-600 text-[10px] font-mono w-4 flex-shrink-0 text-right">
+                                            {c.rank}
+                                        </span>
+                                        <div className="flex-shrink-0">
+                                            <StockLogo symbol={c.symbol} name={c.name} size={26} />
+                                        </div>
+
+                                        {/* symbol + sector + mkt cap stacked */}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-white font-bold text-xs leading-tight truncate">
+                                                {c.symbol}
+                                            </p>
+                                            <p className="text-slate-500 text-[10px] leading-tight truncate">
+                                                {(c.industry || "—")} · {fmtCap(c.marketCap)}
+                                            </p>
+                                        </div>
+
+                                        {/* sparkline (fixed, doesn't stretch) */}
+                                        <div className="flex-shrink-0 w-14">
+                                            <RowSparkline symbol={c.symbol} />
+                                        </div>
+
+                                        {/* price + change stacked, right-aligned */}
+                                        <div className="flex-shrink-0 text-right" style={{ minWidth: 62 }}>
+                                            <p className="text-xs font-bold text-white leading-tight">
+                                                {price > 0
+                                                    ? "₹" + price.toLocaleString("en-IN", { maximumFractionDigits: 2 })
+                                                    : "—"}
+                                            </p>
+                                            <p className={`text-[10px] font-bold leading-tight ${up ? "text-green-400" : "text-red-400"}`}>
+                                                <span className="text-[8px] mr-0.5">{up ? "▲" : "▼"}</span>
+                                                {Math.abs(chg).toFixed(2)}%
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // ── DESKTOP: full 9-column grid table ──
                             return (
                                 <div key={c.symbol}
                                      className={`grid items-center px-4 py-2.5 border-b

@@ -51,6 +51,21 @@ body {
     overscroll-behavior-y: contain;
 }
 
+/* ── Global horizontal-drag guard (mobile only) ──────────────────────────
+   Stops the WHOLE page from ever scrolling/dragging left-right on phones.
+   If some inner element overflows, it gets clipped instead of turning the
+   page into a horizontal scroller. `clip` (not `hidden`) avoids creating a
+   scroll container, so position:sticky headers keep working. Inner elements
+   that are meant to scroll horizontally (e.g. the 600px holdings tables)
+   have their OWN overflow-x:auto wrapper and are unaffected by this.
+   Scoped to <=767px so desktop wide tables keep their normal behaviour. */
+@media (max-width: 767px) {
+    html, body, #root {
+        overflow-x: clip;
+        max-width: 100%;
+    }
+}
+
 /* Light mode */
 html.light-mode {
     filter: invert(1) hue-rotate(180deg);
