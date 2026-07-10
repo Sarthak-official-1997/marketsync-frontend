@@ -11,6 +11,7 @@ import { NotFoundPage }    from "./components/ErrorFallback";
 import NotificationModal   from "./components/NotificationModal";
 import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
 import PasskeyBlocker      from "./components/PasskeyBlocker";
+import BuildBadge          from "./components/BuildBadge"; // DEV BUILD BADGE — remove before sharing
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
 import AdminClientViewPage    from "./pages/AdminClientViewPage";
 
@@ -320,6 +321,7 @@ export default function App() {
             <AuthProvider>
                 <ToastProvider>
                     <MfMarketProvider>
+                        <BuildBadge />        {/* DEV BUILD BADGE — remove before sharing */}
                         <PwaInstallPrompt />   {/* ADDed THIS */}
                         <ErrorBoundary>
                             <Routes>

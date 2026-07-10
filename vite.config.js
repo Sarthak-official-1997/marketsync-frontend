@@ -4,6 +4,16 @@ import tailwindcss       from "@tailwindcss/vite";
 import { VitePWA }       from "vite-plugin-pwa";
 
 export default defineConfig({
+  // ── DEV BUILD BADGE support (remove this whole `define` block when you
+  //    retire the badge). Vercel sets these env vars automatically on every
+  //    deploy — no dashboard config needed. Locally they're undefined, so we
+  //    fall back to "local" / build timestamp.
+  define: {
+    __BUILD_ID__:   JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7)),
+    __BUILD_MSG__:  JSON.stringify(process.env.VERCEL_GIT_COMMIT_MESSAGE || "local dev build"),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
+
   plugins: [
     react(),
     tailwindcss(),   // Tailwind v4 — must come before VitePWA
