@@ -287,6 +287,12 @@ export default function StockDetailModal({ stock, onClose }) {
                         border: "none",
                         paddingTop: "env(safe-area-inset-top, 0px)",
                         paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                        // Hard guard: the sheet itself must never scroll/drag horizontally.
+                        // touchAction "pan-y" tells the browser to only honor vertical
+                        // swipes here, so a horizontal finger-drag can't shift the sheet
+                        // (which is what was exposing the timeframe row's overflow).
+                        overflowX: "hidden",
+                        touchAction: "pan-y",
                     } : {
                         width: "calc(100vw - 32px)",
                         height: "calc(100vh - 32px)",
@@ -661,8 +667,9 @@ export default function StockDetailModal({ stock, onClose }) {
                         <div className={`flex flex-col flex-shrink-0 pt-4 pb-2 ${isMobile ? "px-2" : "px-6"}`}>
 
                             {/* Chart controls */}
-                            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                                <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-between mb-3 flex-shrink-0"
+                                 style={{ minWidth: 0 }}>
+                                <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
                                     <p className="text-sm font-semibold text-white">Price Chart</p>
                                     {periodChange && !chartLoading && (
                                         <span className={
@@ -676,7 +683,8 @@ export default function StockDetailModal({ stock, onClose }) {
                                     )}
                                 </div>
 
-                                <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}>
+                                <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}
+                                     style={{ minWidth: 0 }}>
                                     {/* Vertical slider — desktop only, takes up too much mobile width */}
                                     {!isMobile && (
                                         <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
@@ -698,12 +706,13 @@ export default function StockDetailModal({ stock, onClose }) {
                                     )}
 
                                     {/* Original Timeframe Selectors */}
-                                    <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
+                                    <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}
+                                         style={{ minWidth: 0 }}>
                                         <div className={
                                             "flex gap-1 bg-slate-800 p-1 rounded-xl " +
                                             (isMobile ? "overflow-x-auto" : "")
                                         }
-                                             style={isMobile ? { scrollbarWidth: "none" } : {}}>
+                                             style={isMobile ? { scrollbarWidth: "none", minWidth: 0, width: "100%" } : {}}>
                                             {TIMEFRAMES.map(t => (
                                                 <button
                                                     key={t.label}
