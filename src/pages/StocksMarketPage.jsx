@@ -1473,18 +1473,41 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
     const [constituentSym, setConstituentSym] = useState(null);
     // (collapsing header removed — was causing zero-height scroll container on mobile)
 
-    // Fetch indices on mount, not gated on any tab
+    // Fetch indices on mount, then poll + refresh on tab-focus.
+    // BUG FIXED: previously ran once ([] deps, guarded against re-running once
+    // data existed) — indices froze at whatever value existed on first load.
     useEffect(() => {
-        if (Object.keys(indexData).length > 0) return;
-        setIndexLoading(true);
-        getIndices()
-            .then(res => {
-                const map = {};
-                (res.data || []).forEach(d => { map[d.symbol] = d; });
-                setIndexData(map);
-            })
-            .catch(() => {})
-            .finally(() => setIndexLoading(false));
+        let cancelled = false;
+
+        const fetchIndices = () => {
+            setIndexLoading(prev => Object.keys(indexData).length === 0 ? true : prev);
+            getIndices()
+                .then(res => {
+                    if (cancelled) return;
+                    const map = {};
+                    (res.data || []).forEach(d => { map[d.symbol] = d; });
+                    setIndexData(map);
+                })
+                .catch(() => {})
+                .finally(() => setIndexLoading(false));
+        };
+
+        fetchIndices();
+
+        const t = setInterval(() => {
+            if (document.visibilityState === "visible") fetchIndices();
+        }, 20_000);
+
+        const onVisible = () => {
+            if (document.visibilityState === "visible") fetchIndices();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+
+        return () => {
+            cancelled = true;
+            clearInterval(t);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, []);
 
     const totalValue = parseFloat(portfolioSummary?.currentValue || portfolioSummary?.totalValue || 0);
@@ -1960,27 +1983,70 @@ export default function StocksMarketPage() {
             .catch(() => {});
     }, []);
 
-    // -- Portfolio summary for greeting bar ------------------------------------
+    // -- Portfolio summary for greeting bar — poll + refresh on tab-focus ------
+    // Same stale-data bug as prices/indices: this only fetched once on mount,
+    // so "Good afternoon" card showed frozen ₹ value / return% all session.
     useEffect(() => {
-        getPortfolioSummary()
-            .then(res => setPortfolioSummary(res.data))
-            .catch(() => {});
+        let cancelled = false;
+        const fetchSummary = () => {
+            getPortfolioSummary()
+                .then(res => { if (!cancelled) setPortfolioSummary(res.data); })
+                .catch(() => {});
+        };
+        fetchSummary();
+        const t = setInterval(() => {
+            if (document.visibilityState === "visible") fetchSummary();
+        }, 20_000);
+        const onVisible = () => {
+            if (document.visibilityState === "visible") fetchSummary();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            cancelled = true;
+            clearInterval(t);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, []);
 
-    // -- Live prices  refresh whenever pinned list changes --------------------
+    // -- Live prices — refresh on pinned-list change AND on a timer -----------
+    // BUG FIXED: previously this only re-fetched when the set of pinned symbols
+    // changed, so prices loaded once on mount and then sat frozen for the rest
+    // of the session — opening the app mid-morning showed stale prices from
+    // whenever it last mounted, and only a manual page reload fixed it.
+    // Now: polls every 20s while the tab is visible, plus an immediate refetch
+    // whenever the user returns to the tab/app after being away (visibilitychange).
     useEffect(() => {
         if (pinned.length === 0) return;
         let cancelled = false;
-        Promise.allSettled(pinned.map(s => getStockPrice(s.symbol)))
-            .then(res => {
-                if (cancelled) return;
-                const map = {};
-                res.forEach((r, i) => {
-                    if (r.status === "fulfilled") map[pinned[i].symbol] = r.value.data;
+
+        const fetchPrices = () => {
+            Promise.allSettled(pinned.map(s => getStockPrice(s.symbol)))
+                .then(res => {
+                    if (cancelled) return;
+                    const map = {};
+                    res.forEach((r, i) => {
+                        if (r.status === "fulfilled") map[pinned[i].symbol] = r.value.data;
+                    });
+                    setPrices(map);
                 });
-                setPrices(map);
-            });
-        return () => { cancelled = true; };
+        };
+
+        fetchPrices(); // initial load
+
+        const t = setInterval(() => {
+            if (document.visibilityState === "visible") fetchPrices();
+        }, 20_000);
+
+        const onVisible = () => {
+            if (document.visibilityState === "visible") fetchPrices();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+
+        return () => {
+            cancelled = true;
+            clearInterval(t);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, [pinned.map(s => s.symbol).join(",")]);
 
     // -- Stock actions ---------------------------------------------------------
