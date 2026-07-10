@@ -287,12 +287,10 @@ export default function StockDetailModal({ stock, onClose }) {
                         border: "none",
                         paddingTop: "env(safe-area-inset-top, 0px)",
                         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-                        // Hard guard: the sheet itself must never scroll/drag horizontally.
-                        // touchAction "pan-y" tells the browser to only honor vertical
-                        // swipes here, so a horizontal finger-drag can't shift the sheet
-                        // (which is what was exposing the timeframe row's overflow).
+                        // Backstop only: clip anything that overflows the sheet width.
+                        // Do NOT set touch-action here — it would kill horizontal
+                        // swipe on the inner timeframe / returns scroller rows.
                         overflowX: "hidden",
-                        touchAction: "pan-y",
                     } : {
                         width: "calc(100vw - 32px)",
                         height: "calc(100vh - 32px)",
@@ -631,8 +629,8 @@ export default function StockDetailModal({ stock, onClose }) {
                     )}
                     {/* ── end TOP BAR ── */}
 
-                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. */}
-                    <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }}>
+                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. overflow-x hidden so the whole body can never be dragged sideways — inner rows scroll themselves. */}
+                    <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}>
 
                         {/* ── STATS STRIP ── */}
                         {quote && !quoteLoading && (
@@ -873,42 +871,47 @@ export default function StockDetailModal({ stock, onClose }) {
                         </div>
 
                         {/* ── HISTORICAL RETURNS (collapsible) ── */}
-                        <div className={`pb-5 flex-shrink-0 ${isMobile ? "px-2" : "px-6"}`}>
+                        <div className={`pb-5 flex-shrink-0 ${isMobile ? "px-2" : "px-6"}`} style={{ minWidth: 0 }}>
                             <button
                                 onClick={() => setShowReturns(v => !v)}
                                 className="w-full flex items-center justify-between
                                        px-5 py-3 bg-slate-800/60 hover:bg-slate-800
                                        rounded-2xl border border-slate-700/40 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <p className="text-sm font-semibold text-white">Historical Returns</p>
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <p className="text-sm font-semibold text-white flex-shrink-0">Historical Returns</p>
                                     {returns?.dataReliable === false && (
-                                        <span className="text-xs bg-amber-900/40 text-amber-400 px-2 py-0.5 rounded-full">
+                                        <span className="text-xs bg-amber-900/40 text-amber-400 px-2 py-0.5 rounded-full flex-shrink-0">
                                         ⚠ Data unreliable
                                     </span>
                                     )}
-                                    {returnsOk && (
-                                        <div className="flex gap-2">
-                                            {RETURN_PERIODS.map(({ key, label }) => {
-                                                const r = returns.returns?.[key];
-                                                if (!r) return null;
-                                                const v = parseFloat(r.absoluteReturn);
-                                                return (
-                                                    <span key={key}
-                                                          className={
-                                                              "text-xs font-medium px-2 py-0.5 rounded-full " +
-                                                              (v >= 0
-                                                                  ? "bg-green-900/30 text-green-400"
-                                                                  : "bg-red-900/30 text-red-400")
-                                                          }>
-                                                    {label}: {fmtPct(r.absoluteReturn)}
-                                                </span>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
                                 </div>
-                                <span className={"text-slate-400 transition-transform " + (showReturns ? "rotate-180" : "")}>▼</span>
+                                <span className={"flex-shrink-0 text-slate-400 transition-transform " + (showReturns ? "rotate-180" : "")}>▼</span>
                             </button>
+
+                            {/* Return-period pills: their own horizontal scroller, OUTSIDE the
+                                toggle button so a sideways swipe scrolls instead of toggling.
+                                min-width:0 lets it clip+scroll rather than widen the body. */}
+                            {returnsOk && (
+                                <div className="flex gap-2 mt-2 overflow-x-auto pb-1"
+                                     style={{ minWidth: 0, width: "100%", scrollbarWidth: "none" }}>
+                                    {RETURN_PERIODS.map(({ key, label }) => {
+                                        const r = returns.returns?.[key];
+                                        if (!r) return null;
+                                        const v = parseFloat(r.absoluteReturn);
+                                        return (
+                                            <span key={key}
+                                                  className={
+                                                      "flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full " +
+                                                      (v >= 0
+                                                          ? "bg-green-900/30 text-green-400"
+                                                          : "bg-red-900/30 text-red-400")
+                                                  }>
+                                                {label}: {fmtPct(r.absoluteReturn)}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
 
                             {showReturns && (
                                 <div className="mt-2 bg-slate-800/60 rounded-2xl border border-slate-700/40 overflow-hidden">
