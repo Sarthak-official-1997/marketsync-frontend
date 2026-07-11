@@ -10,6 +10,19 @@ import { getMyThreads } from "../api/contact";
 import ContactAdminModal from "./ContactAdminModal";
 import ContactThreadModal from "./ContactThreadModal";
 
+// ── Read-tracking for triggered alerts ──────────────────────────────────────
+// Client-side only (per device): remembers which triggered alerts the user has
+// already tapped, so the Alerts badge counts only NEW ones. A backend read flag
+// would make this sync across devices — this is the local stand-in.
+const seenKey = (uid) => `folyo_seen_alerts_${uid || "me"}`;
+function loadSeenAlerts(uid) {
+    try { return new Set(JSON.parse(localStorage.getItem(seenKey(uid)) || "[]")); }
+    catch { return new Set(); }
+}
+function saveSeenAlerts(uid, set) {
+    try { localStorage.setItem(seenKey(uid), JSON.stringify([...set])); } catch { /* ignore */ }
+}
+
 const fmtTime = (d) => {
     if (!d) return "";
     const dt   = new Date(d);
@@ -72,7 +85,8 @@ function TabBar({ tabs, active, onChange }) {
 }
 
 export default function InboxPanel({ onClose, onUnreadChange }) {
-    const { isCreator } = useAuth();
+    const { isCreator, user } = useAuth();
+    const uid = user?.id ?? user?.email ?? "me";
 
     const [tab,         setTab]         = useState(isCreator ? "messages" : "notifications");
     const [messages,    setMessages]    = useState([]);
@@ -80,10 +94,21 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
     const [broadcasts,  setBroadcasts]  = useState([]);
     const [pending,     setPending]     = useState([]);
     const [triggered,   setTriggered]   = useState([]);   // read-only triggered price alerts
+    const [seenAlerts,  setSeenAlerts]  = useState(() => loadSeenAlerts(uid));
     const [loading,     setLoading]     = useState(true);
     const [threadId,    setThreadId]    = useState(null);
     const [showContact, setShowContact] = useState(false);
     const navigate = useNavigate();
+
+    const markAlertSeen = (id) => {
+        setSeenAlerts(prev => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.add(id);
+            saveSeenAlerts(uid, next);
+            return next;
+        });
+    };
 
     const panelRef = useRef(null);
 
@@ -158,16 +183,18 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
 
     const unreadMessages = messages.filter(m => !m.read).length;
 
+    const unseenAlertCount = triggered.reduce((n, a) => n + (seenAlerts.has(a.id) ? 0 : 1), 0);
+
     const creatorTabs = [
         { id: "messages",   label: "Messages",  badge: unreadMessages },
         { id: "inbox",      label: "My Inbox",  badge: pending.length },
         { id: "broadcasts", label: "Broadcasts", badge: 0             },
-        { id: "alerts",     label: "Alerts",    badge: triggered.length },
+        { id: "alerts",     label: "Alerts",    badge: unseenAlertCount },
     ];
     const userTabs = [
         { id: "notifications", label: "Notifications", badge: pending.length },
         { id: "messages",      label: "My Messages",   badge: 0              },
-        { id: "alerts",        label: "Alerts",        badge: triggered.length },
+        { id: "alerts",        label: "Alerts",        badge: unseenAlertCount },
     ];
     const tabs = isCreator ? creatorTabs : userTabs;
 
@@ -330,38 +357,47 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
                                 triggered.length === 0 ? (
                                     <EmptyState icon="🔕" text="No triggered alerts"
                                                 sub="Price alerts that hit their target will show up here" />
-                                ) : triggered.map(a => (
-                                    <button key={a.id}
-                                            onClick={() => {
-                                                navigate("/stocks/alerts", {
-                                                    state: { fromInbox: true, alertId: a.id },
-                                                });
-                                                onClose();
-                                            }}
-                                            className="w-full flex items-start gap-3 px-4 py-3.5 text-left
-                                                       cursor-pointer border-b border-slate-800/60
-                                                       last:border-0 hover:bg-slate-800/60 transition-colors">
-                                        <span className="text-lg mt-0.5 flex-shrink-0">🔔</span>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="text-white text-sm font-semibold truncate">
-                                                    {a.symbol}
-                                                </p>
-                                                <span className="text-slate-500 text-xs flex-shrink-0">
-                                                    {fmtTime(a.triggeredAt)}
-                                                </span>
+                                ) : triggered.map(a => {
+                                    const unseen = !seenAlerts.has(a.id);
+                                    return (
+                                        <button key={a.id}
+                                                onClick={() => {
+                                                    markAlertSeen(a.id);   // read → drops the badge count
+                                                    navigate("/stocks/alerts", {
+                                                        state: { fromInbox: true, alertId: a.id },
+                                                    });
+                                                    onClose();
+                                                }}
+                                                className="w-full flex items-start gap-3 px-4 py-3.5 text-left
+                                                           cursor-pointer border-b border-slate-800/60
+                                                           last:border-0 hover:bg-slate-800/60 transition-colors">
+                                            <div className="flex items-center gap-1.5 mt-0.5 flex-shrink-0">
+                                                <span className={"w-2 h-2 rounded-full " +
+                                                (unseen ? "bg-red-500" : "bg-transparent")} />
+                                                <span className="text-lg">🔔</span>
                                             </div>
-                                            {a.name && (
-                                                <p className="text-slate-500 text-xs truncate mt-0.5">
-                                                    {a.name}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className={"text-sm truncate " +
+                                                    (unseen ? "text-white font-semibold" : "text-slate-300")}>
+                                                        {a.symbol}
+                                                    </p>
+                                                    <span className="text-slate-500 text-xs flex-shrink-0">
+                                                        {fmtTime(a.triggeredAt)}
+                                                    </span>
+                                                </div>
+                                                {a.name && (
+                                                    <p className="text-slate-500 text-xs truncate mt-0.5">
+                                                        {a.name}
+                                                    </p>
+                                                )}
+                                                <p className="text-green-400 text-[11px] truncate mt-0.5">
+                                                    ✓ {a.description || "Target hit"} · tap to view →
                                                 </p>
-                                            )}
-                                            <p className="text-green-400 text-[11px] truncate mt-0.5">
-                                                ✓ {a.description || "Target hit"} · tap to view →
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))
+                                            </div>
+                                        </button>
+                                    );
+                                })
                             )}
                         </>
                     )}
