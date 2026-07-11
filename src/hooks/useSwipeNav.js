@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 // "More" is a sheet, not a route, so it's intentionally not in the chain.
 const ORDER = ["/stocks", "/stocks/holdings", "/stocks/transactions", "/stocks/watchlist"];
 
-function indexForPath(path) {
+export function indexForPath(path) {
     if (path.startsWith("/stocks/holdings"))     return 1;
     if (path.startsWith("/stocks/transactions")) return 2;
     if (path.startsWith("/stocks/watchlist"))    return 3;

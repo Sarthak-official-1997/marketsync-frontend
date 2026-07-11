@@ -19,7 +19,7 @@ import CommandPalette from "./CommandPalette";
 import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
 import { InboxContext } from "../context/InboxContext";
-import { useSwipeNav } from "../hooks/useSwipeNav";
+import { useSwipeNav, indexForPath } from "../hooks/useSwipeNav";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
@@ -384,6 +384,33 @@ function SectionHeader({ icon, label, expanded, onToggle }) {
             <span className={"text-slate-600 transition-transform text-xs " +
             (expanded ? "rotate-180" : "")}>▼</span>
         </button>
+    );
+}
+
+// -- Directional page transition ---------------------------------------------
+// Slides the incoming page in from the right when moving to a later tab, from
+// the left when moving back, and plain-fades for everything else. Direction is
+// derived from tab order, so swipes AND bottom-nav taps animate consistently.
+function PageTransition({ children }) {
+    const location = useLocation();
+    const prevIdx  = useRef(indexForPath(location.pathname));
+    const [dir,     setDir]     = useState("fade");
+    const [animKey, setAnimKey] = useState(location.key || location.pathname);
+
+    useEffect(() => {
+        const cur  = indexForPath(location.pathname);
+        const prev = prevIdx.current;
+        let d = "fade";
+        if (cur >= 0 && prev >= 0 && cur !== prev) d = cur > prev ? "next" : "prev";
+        setDir(d);
+        setAnimKey(location.key || location.pathname);
+        prevIdx.current = cur;
+    }, [location.pathname, location.key]);
+
+    return (
+        <div key={animKey} className={"page-anim page-anim-" + dir}>
+            {children}
+        </div>
     );
 }
 
@@ -874,7 +901,7 @@ export default function Layout({ children, portfolioSummary }) {
                             openInbox:  () => setShowInbox(true),
                             closeInbox: () => setShowInbox(false),
                         }}>
-                            {children}
+                            <PageTransition>{children}</PageTransition>
                         </InboxContext.Provider>
                     </div>
                 </main>

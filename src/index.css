@@ -77,3 +77,16 @@ html.light-mode canvas,
 html.light-mode svg image {
     filter: invert(1) hue-rotate(180deg);
 }
+/* ── Page swipe/route transitions (subtle directional slide + fade) ───────── */
+@keyframes pageNext { from { transform: translateX(22px);  opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes pagePrev { from { transform: translateX(-22px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes pageFade { from { opacity: 0; } to { opacity: 1; } }
+
+.page-anim        { overflow-x: hidden; }
+.page-anim-next   { animation: pageNext 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+.page-anim-prev   { animation: pagePrev 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+.page-anim-fade   { animation: pageFade 0.18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+    .page-anim-next, .page-anim-prev, .page-anim-fade { animation: none; }
+}
