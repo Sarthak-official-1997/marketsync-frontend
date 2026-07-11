@@ -143,12 +143,12 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
             {loading ? (
                 /* Skeleton rows */
                 Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="grid gap-2 px-3 py-[6px] border-b border-slate-800/60 items-center animate-pulse"
-                         style={{ gridTemplateColumns: "14px 1fr 28px auto" }}>
-                        <div className="w-[14px] h-[14px] rounded-[3px] bg-slate-700" />
-                        <div><div className="h-[9px] w-3/4 rounded bg-slate-700 mb-1" /><div className="h-[7px] w-1/2 rounded bg-slate-700/60" /></div>
-                        <div className="h-[14px] w-7 rounded bg-slate-700/60" />
-                        <div className="text-right"><div className="h-[9px] w-10 rounded bg-slate-700 mb-1 ml-auto" /><div className="h-[7px] w-7 rounded bg-slate-700/60 ml-auto" /></div>
+                    <div key={i} className="grid gap-[10px] px-3.5 py-[11px] border-b border-slate-800/60 items-center animate-pulse"
+                         style={{ gridTemplateColumns: "20px 1fr 48px auto" }}>
+                        <div className="w-[20px] h-[20px] rounded-[3px] bg-slate-700" />
+                        <div><div className="h-[11px] w-3/4 rounded bg-slate-700 mb-1" /><div className="h-[8px] w-1/2 rounded bg-slate-700/60" /></div>
+                        <div className="h-[18px] w-12 rounded bg-slate-700/60" />
+                        <div className="text-right"><div className="h-[11px] w-12 rounded bg-slate-700 mb-1 ml-auto" /><div className="h-[8px] w-8 rounded bg-slate-700/60 ml-auto" /></div>
                     </div>
                 ))
             ) : filtered.length === 0 ? (
@@ -169,49 +169,49 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
 
                     return (
                         <div key={item.id}
-                             className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
-                             style={{ gridTemplateColumns: "14px 1fr 28px auto" }}
+                             className="grid items-center gap-[10px] px-3.5 py-[11px] border-b border-slate-800/60 active:bg-slate-800/40"
+                             style={{ gridTemplateColumns: "20px 1fr 48px auto" }}
                              onClick={() => onStockTap(item.stock)}>
-                            <StockLogo symbol={item.stock.symbol} size={14}
+                            <StockLogo symbol={item.stock.symbol} size={20}
                                        className="rounded-[3px] flex-shrink-0" />
                             <div className="min-w-0">
-                                <div className="text-[11px] font-bold text-white leading-tight flex items-center gap-1.5">
+                                <div className="text-[13px] font-extrabold text-white leading-tight flex items-center gap-1.5">
                                     <span className="truncate">{item.stock.symbol}</span>
                                     {held && (
-                                        <span className="flex-shrink-0 text-[7px] font-bold px-[5px] py-[1px] rounded-[2px]"
+                                        <span className="flex-shrink-0 text-[8px] font-bold px-[5px] py-[1px] rounded-[2px]"
                                               style={{ background: "rgba(16,185,129,.16)", color: "#10b981" }}>
                                             HELD
                                         </span>
                                     )}
                                     {boardSymbols.has(item.stock.symbol) && (
-                                        <span className="flex-shrink-0 text-[7px] font-bold px-[5px] py-[1px] rounded-[2px]"
+                                        <span className="flex-shrink-0 text-[8px] font-bold px-[5px] py-[1px] rounded-[2px]"
                                               style={{ background: "rgba(59,130,246,.16)", color: "#60a5fa" }}>
                                             BOARD
                                         </span>
                                     )}
                                 </div>
-                                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                                <div className="text-[9px] text-slate-500 truncate leading-tight mt-px">
                                     {sinceAdded != null
                                         ? `since added: ${(sinceAdded >= 0 ? "+" : "") + sinceAdded.toFixed(2) + "%"}`
                                         : item.stock.name}
                                 </div>
                             </div>
-                            {/* Mini sparkline — reuse existing WatchlistSparkline but smaller */}
-                            <svg viewBox="0 0 28 16" className="w-7 h-4 flex-shrink-0">
+                            {/* Mini sparkline — widened to match the Market row's visual weight */}
+                            <svg viewBox="0 0 48 18" className="w-12 h-[18px] flex-shrink-0">
                                 <polyline
-                                    points="0,11 5,9 10,12 14,6 18,8 23,3 28,5"
+                                    points="0,13 8,10 16,14 24,6 32,9 40,3 48,6"
                                     fill="none"
                                     stroke={up ? "#10b981" : "#ef4444"}
-                                    strokeWidth="1.3"
+                                    strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                 />
                             </svg>
                             <div className="text-right flex-shrink-0">
-                                <div className="text-[11px] font-bold text-white tabular-nums">
+                                <div className="text-[13px] font-extrabold text-white tabular-nums leading-tight">
                                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                                 </div>
-                                <div className={"text-[9px] font-bold tabular-nums mt-px " +
+                                <div className={"text-[10px] font-bold tabular-nums mt-px " +
                                 (up ? "text-green-400" : "text-red-400")}>
                                     {item.currentPrice
                                         ? (up ? "+" : "") + chg.toFixed(2) + "%"

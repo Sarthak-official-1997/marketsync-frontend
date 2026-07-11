@@ -78,12 +78,15 @@ html.light-mode svg image {
     filter: invert(1) hue-rotate(180deg);
 }
 
-/* ── Page route transitions (vertical/fade only → never clips full-bleed pages) ── */
-@keyframes pageRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Page route transitions ── directional slide. Horizontal overflow is clipped
+   at <main> (the viewport-width scroller), NOT on the page wrapper, so the pages'
+   full-bleed -mx rows are never cut. ── */
+@keyframes pageNext { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
+@keyframes pagePrev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes pageFade { from { opacity: 0; } to { opacity: 1; } }
 
-.page-anim-next,
-.page-anim-prev { animation: pageRise 0.22s ease-out; }
+.page-anim-next { animation: pageNext 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+.page-anim-prev { animation: pagePrev 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
 .page-anim-fade { animation: pageFade 0.18s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {

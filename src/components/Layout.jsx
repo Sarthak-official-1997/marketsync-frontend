@@ -894,8 +894,10 @@ export default function Layout({ children, portfolioSummary }) {
                     </aside>
                 )}
 
-                {/* -- MAIN CONTENT -- */}
-                <main ref={mainRef} className="flex-1 overflow-y-auto bg-slate-950">
+                {/* -- MAIN CONTENT -- overflow-x-hidden clips the page-slide's off-screen
+                    travel at the viewport edge; the pages' full-bleed rows sit AT the edge
+                    so they stay uncut. Never put overflow-x on the inner page wrapper. */}
+                <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-950">
                     <div className={isMobile ? "p-3 pb-24" : "p-3 sm:p-4 md:p-6"}>
                         <InboxContext.Provider value={{
                             openInbox:  () => setShowInbox(true),
