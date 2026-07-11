@@ -212,7 +212,8 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
 
                     {/* ── Table body ───────────────────────────────────────────── */}
                     <div className="flex-1 overflow-y-auto" style={{
-                        scrollbarWidth: "thin", scrollbarColor: "#334155 transparent"
+                        scrollbarWidth: "thin", scrollbarColor: "#334155 transparent",
+                        overflowX: "hidden",
                     }}>
                         {loading && (
                             <div className="flex flex-col items-center justify-center py-20 gap-3">

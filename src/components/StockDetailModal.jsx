@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 import StockTransactionPanel from "./StockTransactionPanel";
@@ -109,6 +109,33 @@ export default function StockDetailModal({ stock, onClose }) {
         const marketOpen = day >= 1 && day <= 5 && min >= 9 * 60 + 15 && min <= 15 * 60 + 30;
         return marketOpen ? TIMEFRAMES[0] : TIMEFRAMES[3];
     });
+
+    // Timeframe row auto-centering: keep the active pill centered inside its own
+    // horizontal scroller so the default (e.g. 1D) is never half-clipped at the edge,
+    // and a selected 1W/1M scrolls into the middle instead of hiding in the corner.
+    const tfScrollRef = useRef(null);
+    const tfActiveRef = useRef(null);
+    const centerActiveTf = useCallback(() => {
+        const container = tfScrollRef.current;
+        const active = tfActiveRef.current;
+        if (!container || !active) return;
+        // Nothing to center if the row isn't actually overflowing.
+        if (container.scrollWidth <= container.clientWidth + 1) return;
+        const cRect = container.getBoundingClientRect();
+        const aRect = active.getBoundingClientRect();
+        // horizontal delta needed to put the active pill in the container's centre
+        const delta = (aRect.left - cRect.left) - (container.clientWidth - active.clientWidth) / 2;
+        container.scrollBy({ left: delta, behavior: "auto" });
+    }, []);
+    // Re-centre whenever the active timeframe changes. On first open the modal's
+    // layout is still settling (chart mounts, fonts load), so a single frame often
+    // fires before the row is scrollable — fire a few times over ~260ms to be safe.
+    useEffect(() => {
+        const raf = requestAnimationFrame(centerActiveTf);
+        const t1 = setTimeout(centerActiveTf, 80);
+        const t2 = setTimeout(centerActiveTf, 260);
+        return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
+    }, [tf, centerActiveTf]);
 
     // PIECE 3: Updated initialization effect to handle incoming watchlist state properties
     useEffect(() => {
@@ -629,8 +656,14 @@ export default function StockDetailModal({ stock, onClose }) {
                     )}
                     {/* ── end TOP BAR ── */}
 
-                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. overflow-x hidden so the whole body can never be dragged sideways — inner rows scroll themselves. */}
-                    <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}>
+                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. overflow-x hidden so the whole body can never be dragged sideways — inner rows scroll themselves. paddingBottom on mobile clears the fixed bottom nav so the last returns row (5Y) isn't hidden behind it. */}
+                    <div style={{
+                        flex: "1 1 0",
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                        minHeight: 0,
+                        paddingBottom: isMobile ? "calc(96px + env(safe-area-inset-bottom, 0px))" : 0,
+                    }}>
 
                         {/* ── STATS STRIP ── */}
                         {quote && !quoteLoading && (
@@ -706,7 +739,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                     {/* Original Timeframe Selectors */}
                                     <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}
                                          style={{ minWidth: 0 }}>
-                                        <div className={
+                                        <div ref={tfScrollRef} className={
                                             "flex gap-1 bg-slate-800 p-1 rounded-xl " +
                                             (isMobile ? "overflow-x-auto" : "")
                                         }
@@ -714,6 +747,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                             {TIMEFRAMES.map(t => (
                                                 <button
                                                     key={t.label}
+                                                    ref={tf.label === t.label ? tfActiveRef : null}
                                                     onClick={() => setTf(t)}
                                                     title={t.desc}
                                                     className={

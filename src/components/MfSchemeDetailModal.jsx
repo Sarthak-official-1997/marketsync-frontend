@@ -444,60 +444,42 @@ export default function MfSchemeDetailModal({ scheme, onClose, onTransact }) {
                             {showReturns && (
                                 <div className="mt-1 bg-slate-800/60 rounded-2xl
                                                 border border-slate-700/40 overflow-hidden">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                        <tr className="text-slate-500 text-xs uppercase
-                                                           border-b border-slate-700/40">
-                                            <th className="text-left px-5 py-2.5">
-                                                Period
-                                            </th>
-                                            <th className="text-right px-5 py-2.5">
-                                                Absolute Return
-                                            </th>
-                                            <th className="text-right px-5 py-2.5">
-                                                CAGR (p.a.)
-                                            </th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {RANGES.map(period => {
-                                            const ret = data.returns?.[period];
-                                            if (ret == null) return null;
-                                            const abs  = ret.absoluteReturn ?? ret;
-                                            const cagr = ret.annualizedReturn;
-                                            const isMulti = MULTI_YEAR.has(period);
-                                            return (
-                                                <tr key={period}
-                                                    className={
-                                                        "border-b border-slate-700/30 " +
-                                                        "hover:bg-slate-700/20 " +
-                                                        (range === period
-                                                            ? "bg-blue-900/10" : "")
-                                                    }>
-                                                    <td className="px-5 py-2.5
-                                                                       text-white font-medium">
-                                                        {PERIOD_LABEL[period] || period}
-                                                    </td>
-                                                    <td className={"text-right px-5 py-2.5 " +
-                                                    "font-semibold " + pctColor(abs)}>
+                                    {/* Sample 1 stacked rows — name left, big % right, CAGR small
+                                        line. No table/columns → cannot clip on mobile. Matches the
+                                        stock detail modal's returns layout. */}
+                                    {RANGES.map(period => {
+                                        const ret = data.returns?.[period];
+                                        if (ret == null) return null;
+                                        const abs  = ret.absoluteReturn ?? ret;
+                                        const cagr = ret.annualizedReturn;
+                                        const isMulti = MULTI_YEAR.has(period);
+                                        return (
+                                            <div key={period}
+                                                 className={
+                                                     "flex items-center justify-between gap-3 px-4 py-3 " +
+                                                     "border-b border-slate-700/30 last:border-b-0 " +
+                                                     (range === period ? "bg-blue-900/10" : "")
+                                                 }>
+                                                <p className="text-white text-sm font-semibold min-w-0 truncate">
+                                                    {PERIOD_LABEL[period] || period}
+                                                </p>
+                                                <div className="flex-shrink-0 text-right">
+                                                    <p className={"text-[15px] font-bold leading-tight " + pctColor(abs)}>
                                                         {fmtPct(abs)}
-                                                    </td>
-                                                    <td className="text-right px-5 py-2.5">
-                                                        {isMulti && cagr != null ? (
-                                                            <span className={pctColor(cagr)}>
-                                                                    {fmtPct(cagr)}
-                                                                </span>
-                                                        ) : (
-                                                            <span className="text-slate-500 text-xs">
-                                                                    = absolute
-                                                                </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                        </tbody>
-                                    </table>
+                                                    </p>
+                                                    {isMulti && cagr != null ? (
+                                                        <p className={"text-[10px] leading-tight " + pctColor(cagr)}>
+                                                            {fmtPct(cagr)} p.a.
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[10px] leading-tight text-slate-600">
+                                                            = absolute
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
