@@ -101,11 +101,20 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
     const navigate = useNavigate();
 
     const markAlertSeen = (id) => {
+        // Persist FIRST, synchronously and independently of React state. The panel
+        // usually unmounts (onClose) immediately after this tap, and React drops
+        // pending state-updater side effects on unmount — so writing inside
+        // setSeenAlerts would silently never run. Write straight to storage here.
+        try {
+            const cur = loadSeenAlerts(uid);
+            cur.add(id);
+            saveSeenAlerts(uid, cur);
+        } catch { /* ignore */ }
+        // Update in-memory state too, for the live dot/dimming while still open.
         setSeenAlerts(prev => {
             if (prev.has(id)) return prev;
             const next = new Set(prev);
             next.add(id);
-            saveSeenAlerts(uid, next);
             return next;
         });
     };
