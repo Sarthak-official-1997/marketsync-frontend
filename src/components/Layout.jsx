@@ -19,6 +19,7 @@ import CommandPalette from "./CommandPalette";
 import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
 import { InboxContext } from "../context/InboxContext";
+import { useSwipeNav } from "../hooks/useSwipeNav";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
@@ -395,6 +396,11 @@ export default function Layout({ children, portfolioSummary }) {
     const navigate  = useNavigate();
     const location  = useLocation();
     const isMobile  = useMobile();
+
+    // Swipe left/right between the main tabs (mobile only). The hook guards
+    // against horizontal scrollers so it won't hijack pill rows / tables / charts.
+    const mainRef = useRef(null);
+    useSwipeNav(mainRef, isMobile);
 
     const [stocksOpen,  setStocksOpen]  = useState(true);
     const [mfOpen,      setMfOpen]      = useState(true);
@@ -862,7 +868,7 @@ export default function Layout({ children, portfolioSummary }) {
                 )}
 
                 {/* -- MAIN CONTENT -- */}
-                <main className="flex-1 overflow-y-auto bg-slate-950">
+                <main ref={mainRef} className="flex-1 overflow-y-auto bg-slate-950">
                     <div className={isMobile ? "p-3 pb-24" : "p-3 sm:p-4 md:p-6"}>
                         <InboxContext.Provider value={{
                             openInbox:  () => setShowInbox(true),
