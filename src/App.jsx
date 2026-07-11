@@ -48,6 +48,7 @@ import { MfMarketProvider } from "./context/MfMarketContext";
 
 //PWA mobile app
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
+import PwaUpdatePrompt  from "./components/PwaUpdatePrompt";
 
 
 // -- Route guards --------------------------------------------------------------
@@ -323,6 +324,7 @@ export default function App() {
                     <MfMarketProvider>
                         <BuildBadge />        {/* DEV BUILD BADGE — remove before sharing */}
                         <PwaInstallPrompt />   {/* ADDed THIS */}
+                        <PwaUpdatePrompt />    {/* new-build "Refresh" toast */}
                         <ErrorBoundary>
                             <Routes>
                                 <Route path="/login"    element={<LoginPage />} />

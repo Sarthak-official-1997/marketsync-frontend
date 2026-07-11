@@ -19,27 +19,69 @@ export default defineConfig({
     tailwindcss(),   // Tailwind v4 — must come before VitePWA
 
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt" (not "autoUpdate"): when a new deploy is detected the new service
+      // worker WAITS instead of swapping silently, so we can surface a visible
+      // "New version — Refresh" toast (see PwaUpdatePrompt). This directly attacks
+      // the deploy-gap: the user sees the fresh build is ready and applies it in one
+      // tap, in the current session, instead of unknowingly sitting on a stale one.
+      registerType: "prompt",
       includeAssets: ["favicon.svg", "icons/*.png", "*.svg"],
 
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Deploy-gap hygiene: drop old precache buckets on every new deploy so a
+        // stale build can't linger. Paired with registerType:"prompt" above and the
+        // PwaUpdatePrompt toast, the app surfaces the newest build for a one-tap apply
+        // (and BuildBadge confirms which build is actually live).
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        // SPA deep links keep working offline — but never fall back API/auth to HTML.
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
+
         runtimeCaching: [
+          // 1) Brand logos (logo.uplead.com) — these never change. Long-lived,
+          //    host-scoped, CacheFirst. Biggest cheap win: we refetch these a lot.
+          {
+            urlPattern: ({ url }) => url.hostname.includes("uplead"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "folyo-logos",
+              expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 2) Charts / returns / NAV history — heavier payloads that change slowly
+          //    intraday. Show cached instantly, revalidate in the background.
+          {
+            urlPattern: /\/(market-data\/(chart|index-chart|returns)|nav-history)/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "folyo-charts",
+              expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 3) Everything else under /api (prices, holdings, indices, watchlist…) —
+          //    instant cached render, revalidate in the background. Short TTL so it
+          //    never *looks* stale; only GETs are cached (mutations pass through).
           {
             urlPattern: /^https?:\/\/.*\/api\/.*/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "folyo-api-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 5 * 60 },
+              expiration: { maxEntries: 200, maxAgeSeconds: 5 * 60, purgeOnQuotaError: true },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // 4) Any other images.
           {
-            urlPattern: /^https?:\/\/.*(logo|icon|image).*/i,
+            urlPattern: ({ request }) => request.destination === "image",
             handler: "CacheFirst",
             options: {
               cacheName: "folyo-images",
-              expiration: { maxEntries: 200, maxAgeSeconds: 24 * 60 * 60 },
+              expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
