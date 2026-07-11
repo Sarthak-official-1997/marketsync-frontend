@@ -2,11 +2,13 @@
 // Client's personal price alerts — set, manage, and track triggered alerts.
 
 import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getAlerts, toggleAlert, deleteAlert } from "../api/portfolio";
 import { searchStocks, getStockPrice } from "../api/portfolio";
 import StockLogo    from "../components/StockLogo";
 import PriceAlertModal from "../components/PriceAlertModal";
 import { useToast } from "../context/ToastContext";
+import { useInbox } from "../context/InboxContext";
 
 const fmtDate = (d) => {
     if (!d) return "—";
@@ -153,51 +155,87 @@ function StockSearchForAlert({ onSelect }) {
     const [query,   setQuery]   = useState("");
     const [results, setResults] = useState([]);
     const [open,    setOpen]    = useState(false);
-    const timer = useRef(null);
+    const timer  = useRef(null);
+    const reqId  = useRef(0);      // invalidates stale async responses
+    const boxRef = useRef(null);   // container: outside-click + scroll-into-view
 
     const handleInput = (val) => {
         setQuery(val);
-        if (!val.trim()) { setResults([]); setOpen(false); return; }
+        // Empty field: kill any pending/in-flight request so a late response
+        // can't repopulate the dropdown after the user has cleared the box.
+        if (!val.trim()) {
+            clearTimeout(timer.current);
+            reqId.current++;
+            setResults([]); setOpen(false);
+            return;
+        }
         clearTimeout(timer.current);
+        const myId = ++reqId.current;
         timer.current = setTimeout(() => {
             searchStocks(val).then(r => {
+                if (myId !== reqId.current) return;      // a newer keystroke won
                 setResults((r.data?.content || r.data || []).slice(0, 8));
                 setOpen(true);
             }).catch(() => {});
         }, 300);
     };
 
+    // Tap anywhere outside the box → close the dropdown.
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e) => {
+            if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", onDown);
+        document.addEventListener("touchstart", onDown);
+        return () => {
+            document.removeEventListener("mousedown", onDown);
+            document.removeEventListener("touchstart", onDown);
+        };
+    }, [open]);
+
+    // On mobile the soft keyboard covers a mid-page field. Pull the box to the
+    // top so the input AND its results sit in the space above the keyboard.
+    const handleFocus = () => {
+        setTimeout(() => {
+            boxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 250);
+    };
+
     return (
-        <div className="relative">
+        <div className="relative" ref={boxRef} style={{ scrollMarginTop: 80 }}>
             <input
                 type="text"
                 value={query}
                 onChange={e => handleInput(e.target.value)}
+                onFocus={handleFocus}
                 placeholder="Search stock to set alert (e.g. HDFCBANK, Reliance…)"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl
                            px-4 py-3 text-white text-sm placeholder-slate-500
                            focus:outline-none focus:border-amber-500 transition-colors"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">🔔</span>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">🔔</span>
 
-            {open && results.length > 0 && (
+            {open && query.trim() && results.length > 0 && (
                 <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-slate-900
                                 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
                     {results.map(s => (
                         <button
                             key={s.id || s.symbol}
                             onClick={() => {
+                                clearTimeout(timer.current);
+                                reqId.current++;
                                 setQuery(""); setResults([]); setOpen(false);
                                 onSelect(s);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5
                                        hover:bg-slate-800 transition-colors text-left">
                             <StockLogo symbol={s.symbol} name={s.name} size={28} />
-                            <div>
-                                <p className="text-white font-semibold text-sm">{s.symbol}</p>
-                                <p className="text-slate-500 text-xs truncate max-w-[280px]">{s.name}</p>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-white font-semibold text-sm truncate">{s.symbol}</p>
+                                <p className="text-slate-500 text-xs truncate">{s.name}</p>
                             </div>
-                            <span className="ml-auto text-xs text-slate-600">{s.exchange}</span>
+                            <span className="flex-shrink-0 ml-2 text-xs text-slate-600">{s.exchange}</span>
                         </button>
                     ))}
                 </div>
@@ -215,6 +253,32 @@ export default function AlertsPage() {
     const [alertPrice, setAlertPrice] = useState(null);
     const [livePrices, setLivePrices] = useState({});
     const toast = useToast();
+
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { openInbox } = useInbox();
+    const fromInbox = !!location.state?.fromInbox;
+    const [focusId, setFocusId] = useState(location.state?.alertId ?? null);
+    const focusRef = useRef(null);
+
+    // A fresh navigation from the inbox (even to this same route) should re-focus.
+    useEffect(() => {
+        if (location.state?.alertId) setFocusId(location.state.alertId);
+    }, [location.state?.alertId, location.key]);
+
+    // Once alerts are loaded, jump to the Triggered tab, scroll the focused alert
+    // into view and ring it briefly, then let the ring fade.
+    useEffect(() => {
+        if (!focusId || loading) return;
+        setTab("triggered");
+        const t1 = setTimeout(() => {
+            focusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+        const t2 = setTimeout(() => setFocusId(null), 3200);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [focusId, loading]);
+
+    const backToInbox = () => { openInbox(); navigate(-1); };
 
     const load = () => {
         setLoading(true);
@@ -271,6 +335,17 @@ export default function AlertsPage() {
 
     return (
         <div className="space-y-5">
+            {/* Back to Inbox — only when arrived from the inbox Alerts tab */}
+            {fromInbox && (
+                <button onClick={backToInbox}
+                        className="flex items-center gap-1.5 text-sm text-slate-300
+                                   hover:text-white bg-slate-800/60 hover:bg-slate-800
+                                   border border-slate-700/50 rounded-lg px-3 py-1.5
+                                   transition-colors">
+                    <span className="text-base leading-none">←</span> Back to Inbox
+                </button>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
@@ -337,15 +412,23 @@ export default function AlertsPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filtered.map(alert => (
-                        <AlertCard
-                            key={alert.id}
-                            alert={alert}
-                            livePrice={livePrices[alert.symbol]}
-                            onToggle={handleToggle}
-                            onDelete={handleDelete}
-                        />
-                    ))}
+                    {filtered.map(alert => {
+                        const isFocused = alert.id === focusId;
+                        return (
+                            <div key={alert.id}
+                                 ref={isFocused ? focusRef : null}
+                                 className={isFocused
+                                     ? "rounded-xl ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 transition-all"
+                                     : ""}>
+                                <AlertCard
+                                    alert={alert}
+                                    livePrice={livePrices[alert.symbol]}
+                                    onToggle={handleToggle}
+                                    onDelete={handleDelete}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

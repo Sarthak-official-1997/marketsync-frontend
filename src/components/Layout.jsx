@@ -18,6 +18,7 @@ import FolyoBrand from "./FolyoBrand";
 import CommandPalette from "./CommandPalette";
 import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
+import { InboxContext } from "../context/InboxContext";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
@@ -863,7 +864,12 @@ export default function Layout({ children, portfolioSummary }) {
                 {/* -- MAIN CONTENT -- */}
                 <main className="flex-1 overflow-y-auto bg-slate-950">
                     <div className={isMobile ? "p-3 pb-24" : "p-3 sm:p-4 md:p-6"}>
-                        {children}
+                        <InboxContext.Provider value={{
+                            openInbox:  () => setShowInbox(true),
+                            closeInbox: () => setShowInbox(false),
+                        }}>
+                            {children}
+                        </InboxContext.Provider>
                     </div>
                 </main>
             </div>

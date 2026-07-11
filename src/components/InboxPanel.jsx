@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
     getContactMessages, markContactRead, getInboxUnread,
     getAllNotifications, getPendingNotifications, acknowledgeNotification,
 } from "../api/admin";
+import { getAlerts } from "../api/portfolio";
 import { getMyThreads } from "../api/contact";
 import ContactAdminModal from "./ContactAdminModal";
 import ContactThreadModal from "./ContactThreadModal";
@@ -77,19 +79,22 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
     const [myMessages,  setMyMessages]  = useState([]);
     const [broadcasts,  setBroadcasts]  = useState([]);
     const [pending,     setPending]     = useState([]);
+    const [triggered,   setTriggered]   = useState([]);   // read-only triggered price alerts
     const [loading,     setLoading]     = useState(true);
     const [threadId,    setThreadId]    = useState(null);
     const [showContact, setShowContact] = useState(false);
+    const navigate = useNavigate();
 
     const panelRef = useRef(null);
 
     const loadAll = async () => {
         setLoading(true);
         try {
-            const [pendRes, msgRes, bcastRes] = await Promise.allSettled([
+            const [pendRes, msgRes, bcastRes, alertRes] = await Promise.allSettled([
                 getPendingNotifications(),
                 isCreator ? getContactMessages() : getMyThreads(),
                 isCreator ? getAllNotifications() : Promise.resolve([]),
+                getAlerts(),
             ]);
             setPending(pendRes.status   === "fulfilled" ? (pendRes.value   || []) : []);
             if (isCreator) {
@@ -98,6 +103,10 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
             } else {
                 setMyMessages(msgRes.status === "fulfilled" ? (msgRes.value || []) : []);
             }
+            // Triggered price alerts (read-only mirror of the Alerts page).
+            const alertList = alertRes.status === "fulfilled"
+                ? (alertRes.value?.data || alertRes.value || []) : [];
+            setTriggered(alertList.filter(a => a.triggeredAt));
         } finally {
             setLoading(false);
         }
@@ -153,10 +162,12 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
         { id: "messages",   label: "Messages",  badge: unreadMessages },
         { id: "inbox",      label: "My Inbox",  badge: pending.length },
         { id: "broadcasts", label: "Broadcasts", badge: 0             },
+        { id: "alerts",     label: "Alerts",    badge: triggered.length },
     ];
     const userTabs = [
         { id: "notifications", label: "Notifications", badge: pending.length },
         { id: "messages",      label: "My Messages",   badge: 0              },
+        { id: "alerts",        label: "Alerts",        badge: triggered.length },
     ];
     const tabs = isCreator ? creatorTabs : userTabs;
 
@@ -311,6 +322,45 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
                                             </div>
                                         </div>
                                     </div>
+                                ))
+                            )}
+                            {/* Alerts tab (both roles): read-only triggered price alerts.
+                                Tapping a row opens the Alerts page focused on that alert. */}
+                            {tab === "alerts" && (
+                                triggered.length === 0 ? (
+                                    <EmptyState icon="🔕" text="No triggered alerts"
+                                                sub="Price alerts that hit their target will show up here" />
+                                ) : triggered.map(a => (
+                                    <button key={a.id}
+                                            onClick={() => {
+                                                navigate("/stocks/alerts", {
+                                                    state: { fromInbox: true, alertId: a.id },
+                                                });
+                                                onClose();
+                                            }}
+                                            className="w-full flex items-start gap-3 px-4 py-3.5 text-left
+                                                       cursor-pointer border-b border-slate-800/60
+                                                       last:border-0 hover:bg-slate-800/60 transition-colors">
+                                        <span className="text-lg mt-0.5 flex-shrink-0">🔔</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-white text-sm font-semibold truncate">
+                                                    {a.symbol}
+                                                </p>
+                                                <span className="text-slate-500 text-xs flex-shrink-0">
+                                                    {fmtTime(a.triggeredAt)}
+                                                </span>
+                                            </div>
+                                            {a.name && (
+                                                <p className="text-slate-500 text-xs truncate mt-0.5">
+                                                    {a.name}
+                                                </p>
+                                            )}
+                                            <p className="text-green-400 text-[11px] truncate mt-0.5">
+                                                ✓ {a.description || "Target hit"} · tap to view →
+                                            </p>
+                                        </div>
+                                    </button>
                                 ))
                             )}
                         </>
