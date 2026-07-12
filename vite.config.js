@@ -29,6 +29,9 @@ export default defineConfig({
 
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Pull our push/notificationclick handlers into the generated SW so push
+        // notifications work even when the app is closed.
+        importScripts: ["/push-sw.js"],
         // Deploy-gap hygiene: drop old precache buckets on every new deploy so a
         // stale build can't linger. Paired with registerType:"prompt" above and the
         // PwaUpdatePrompt toast, the app surfaces the newest build for a one-tap apply
@@ -62,7 +65,24 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // 3) Everything else under /api (prices, holdings, indices, watchlist…) —
+          // 2b) USER-MUTABLE DATA (watchlist, holdings, portfolio, alerts) — must
+          //     reflect the user's own writes immediately, so it must NOT be served
+          //     stale. NetworkFirst = fresh when online; falls back to cache only if
+          //     the backend is cold/slow (networkTimeoutSeconds) or the device is
+          //     offline. This fixes the bug where "added to watchlist" toasted but the
+          //     item didn't appear — StaleWhileRevalidate was returning the pre-add
+          //     list. Placed BEFORE the /api catch-all: Workbox matches in order.
+          {
+            urlPattern: /\/api\/(watchlist|holdings|portfolio|alerts)(\/|\?|$)/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "folyo-user-data",
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 80, maxAgeSeconds: 5 * 60, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 3) Everything else under /api (prices, indices, quotes…) —
           //    instant cached render, revalidate in the background. Short TTL so it
           //    never *looks* stale; only GETs are cached (mutations pass through).
           {

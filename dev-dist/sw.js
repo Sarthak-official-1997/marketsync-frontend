@@ -67,9 +67,14 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-5ccb27be'], (function (workbox) { 'use strict';
+define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
 
-  self.skipWaiting();
+  importScripts("/push-sw.js");
+  self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    }
+  });
   workbox.clientsClaim();
   /**
    * The precacheAndRoute() method efficiently caches and responds to
@@ -81,26 +86,66 @@ define(['./workbox-5ccb27be'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.k19ibsv1cuc"
+    "revision": "0.146gkquikkg"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
-    allowlist: [/^\/$/]
+    allowlist: [/^\/$/],
+    denylist: [/^\/api\//, /^\/auth\//]
   }));
-  workbox.registerRoute(/^https?:\/\/.*\/api\/.*/i, new workbox.StaleWhileRevalidate({
-    "cacheName": "folyo-api-cache",
+  workbox.registerRoute(({
+    url
+  }) => url.hostname.includes("uplead"), new workbox.CacheFirst({
+    "cacheName": "folyo-logos",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 100,
-      maxAgeSeconds: 300
+      maxEntries: 300,
+      maxAgeSeconds: 2592000,
+      purgeOnQuotaError: true
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]
     })]
   }), 'GET');
-  workbox.registerRoute(/^https?:\/\/.*(logo|icon|image).*/i, new workbox.CacheFirst({
+  workbox.registerRoute(/\/(market-data\/(chart|index-chart|returns)|nav-history)/i, new workbox.StaleWhileRevalidate({
+    "cacheName": "folyo-charts",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 150,
+      maxAgeSeconds: 3600,
+      purgeOnQuotaError: true
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\/api\/(watchlist|holdings|portfolio|alerts)(\/|\?|$)/i, new workbox.NetworkFirst({
+    "cacheName": "folyo-user-data",
+    "networkTimeoutSeconds": 4,
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 80,
+      maxAgeSeconds: 300,
+      purgeOnQuotaError: true
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(/^https?:\/\/.*\/api\/.*/i, new workbox.StaleWhileRevalidate({
+    "cacheName": "folyo-api-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 200,
+      maxAgeSeconds: 300,
+      purgeOnQuotaError: true
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(({
+    request
+  }) => request.destination === "image", new workbox.CacheFirst({
     "cacheName": "folyo-images",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 200,
-      maxAgeSeconds: 86400
+      maxAgeSeconds: 604800,
+      purgeOnQuotaError: true
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
     })]
   }), 'GET');
 
