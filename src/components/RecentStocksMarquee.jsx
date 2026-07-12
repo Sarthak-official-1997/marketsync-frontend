@@ -18,6 +18,7 @@ export function trackStockView(stock) {
         const filtered = existing.filter(s => s.symbol !== stock.symbol);
         const updated  = [
             {
+                id:            stock.id ?? stock.stockId ?? null,
                 symbol:        stock.symbol,
                 name:          stock.name          || stock.companyName || stock.symbol,
                 exchange:      stock.exchange       || "NSE",
