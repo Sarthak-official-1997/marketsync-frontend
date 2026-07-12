@@ -7,6 +7,8 @@ import { getAlerts, toggleAlert, deleteAlert } from "../api/portfolio";
 import { searchStocks, getStockPrice } from "../api/portfolio";
 import StockLogo    from "../components/StockLogo";
 import PriceAlertModal from "../components/PriceAlertModal";
+import PushToggle from "../components/PushToggle";
+import { sendTestPush } from "../utils/push";
 import { useToast } from "../context/ToastContext";
 import { useInbox } from "../context/InboxContext";
 
@@ -351,7 +353,7 @@ export default function AlertsPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-white">Price Alerts</h1>
                     <p className="text-xs text-slate-500 mt-1">
-                        Alerts fire during market hours and appear as notifications
+                        Alerts fire during market hours — get them as phone notifications
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -361,6 +363,24 @@ export default function AlertsPage() {
                         <span>{activeCount} active</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Enable real phone notifications for this device */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <PushToggle />
+                <button
+                    onClick={async () => {
+                        try {
+                            await sendTestPush();
+                            toast.success("Test sent — check your device (enable notifications first if nothing arrives)");
+                        } catch (e) {
+                            toast.error(e?.response?.data?.message || "Couldn't send test notification");
+                        }
+                    }}
+                    className="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700
+                               text-slate-300 hover:bg-slate-800 active:bg-slate-700/60 transition-colors">
+                    Send test notification
+                </button>
             </div>
 
             {/* Search to set new alert */}
