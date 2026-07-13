@@ -29,6 +29,46 @@ const HEALTH = {
     CRITICAL: { dot: "bg-red-600 animate-pulse", badge: "bg-red-900/40 text-red-400", label: "Critical" },
 };
 
+// ── Editable health thresholds ────────────────────────────────────────────
+// Health is derived on the FRONTEND from each client's unrealized P&L %, using
+// the cutoffs below. They're creator-editable and saved per-device. This
+// intentionally overrides any healthLevel the backend sends, so the rules are
+// yours to set with no backend change. Read as "P&L % at or below X".
+const DEFAULT_THRESHOLDS = { warning: 0, alert: -5, critical: -10 };
+const THRESHOLDS_KEY = "folyo_client_health_thresholds";
+
+function loadThresholds() {
+    try {
+        const raw = localStorage.getItem(THRESHOLDS_KEY);
+        if (raw) return { ...DEFAULT_THRESHOLDS, ...JSON.parse(raw) };
+    } catch { /* ignore */ }
+    return { ...DEFAULT_THRESHOLDS };
+}
+
+function computeHealth(plPct, t) {
+    if (plPct == null || isNaN(plPct)) return "HEALTHY";
+    if (plPct <= t.critical) return "CRITICAL";
+    if (plPct <= t.alert)    return "ALERT";
+    if (plPct <= t.warning)  return "WARNING";
+    return "HEALTHY";
+}
+
+function initials(c) {
+    const s = (c.fullName || c.username || "?").trim();
+    const parts = s.split(/\s+/);
+    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+}
+
+function useIsMobile() {
+    const [m, setM] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+    useEffect(() => {
+        const on = () => setM(window.innerWidth < 768);
+        window.addEventListener("resize", on);
+        return () => window.removeEventListener("resize", on);
+    }, []);
+    return m;
+}
+
 export default function AdminClientsPage() {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -36,8 +76,11 @@ export default function AdminClientsPage() {
     const [sortBy,  setSortBy]  = useState("portfolio");  // portfolio|pl|name|health
     const [sortDir, setSortDir] = useState("desc");
     const [filterH, setFilterH] = useState("ALL");        // health filter
+    const [thresholds, setThresholds] = useState(loadThresholds);
+    const [showRules, setShowRules]   = useState(false);
     const navigate  = useNavigate();
     const { isCreator } = useAuth();
+    const isMobile  = useIsMobile();
 
     useEffect(() => {
         getAdminClients()
@@ -45,10 +88,28 @@ export default function AdminClientsPage() {
             .finally(() => setLoading(false));
     }, []);
 
-    const filtered = useMemo(() => {
-        let rows = [...clients];
+    const saveThreshold = (key, val) => {
+        setThresholds(prev => {
+            const next = { ...prev, [key]: (val === "" || val == null) ? 0 : parseFloat(val) };
+            try { localStorage.setItem(THRESHOLDS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
+    const resetThresholds = () => {
+        setThresholds({ ...DEFAULT_THRESHOLDS });
+        try { localStorage.setItem(THRESHOLDS_KEY, JSON.stringify(DEFAULT_THRESHOLDS)); } catch { /* ignore */ }
+    };
 
-        // Text search
+    // Attach a frontend-computed health level to every client.
+    const withHealth = useMemo(() =>
+        clients.map(c => ({
+            ...c,
+            _health: computeHealth(parseFloat(c.unrealizedPLPercent), thresholds),
+        })), [clients, thresholds]);
+
+    const filtered = useMemo(() => {
+        let rows = [...withHealth];
+
         if (search.trim()) {
             const q = search.toLowerCase();
             rows = rows.filter(c =>
@@ -57,10 +118,8 @@ export default function AdminClientsPage() {
                 c.email.toLowerCase().includes(q));
         }
 
-        // Health filter
-        if (filterH !== "ALL") rows = rows.filter(c => c.healthLevel === filterH);
+        if (filterH !== "ALL") rows = rows.filter(c => c._health === filterH);
 
-        // Sort
         rows.sort((a, b) => {
             let va, vb;
             switch (sortBy) {
@@ -88,7 +147,7 @@ export default function AdminClientsPage() {
         });
 
         return rows;
-    }, [clients, search, sortBy, sortDir, filterH]);
+    }, [withHealth, search, sortBy, sortDir, filterH]);
 
     const toggle = (col) => {
         if (sortBy === col) setSortDir(d => d === "desc" ? "asc" : "desc");
@@ -104,35 +163,136 @@ export default function AdminClientsPage() {
         </button>
     );
 
-    // Summary stats
     const totalAum     = clients.reduce((s, c) => s + parseFloat(c.portfolioValue || 0), 0);
-    const healthCounts = clients.reduce((acc, c) => {
-        acc[c.healthLevel] = (acc[c.healthLevel] || 0) + 1; return acc;
+    const healthCounts = withHealth.reduce((acc, c) => {
+        acc[c._health] = (acc[c._health] || 0) + 1; return acc;
     }, {});
 
+    // ── Editable health-rules panel ──────────────────────────────────────
+    const RulesPanel = () => (
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-white">Health rules</p>
+                <button onClick={resetThresholds}
+                        className="text-xs text-slate-400 hover:text-white">Reset</button>
+            </div>
+            <p className="text-xs text-slate-500 -mt-1">
+                Based on each client's unrealized P&amp;L %. Saved on this device.
+            </p>
+            {[
+                { key: "warning",  label: "Warning at or below",  color: "text-amber-400" },
+                { key: "alert",    label: "Alert at or below",    color: "text-red-400"   },
+                { key: "critical", label: "Critical at or below", color: "text-red-500"   },
+            ].map(row => (
+                <div key={row.key} className="flex items-center justify-between gap-3">
+                    <span className={"text-xs font-semibold " + row.color}>{row.label}</span>
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="number"
+                            value={thresholds[row.key]}
+                            onChange={e => saveThreshold(row.key, e.target.value)}
+                            className="w-20 bg-slate-900 border border-slate-700 text-white
+                                       text-sm rounded-lg px-2 py-1.5 text-right
+                                       focus:outline-none focus:border-blue-500"
+                        />
+                        <span className="text-slate-500 text-sm">%</span>
+                    </div>
+                </div>
+            ))}
+            <p className="text-[11px] text-slate-600 leading-snug">
+                Anything above the warning cutoff is Healthy. These rules apply here only —
+                they don't change server-side data.
+            </p>
+        </div>
+    );
+
+    // ── Mobile card (Direction A) ────────────────────────────────────────
+    const ClientCard = ({ c }) => {
+        const plPct = parseFloat(c.unrealizedPLPercent || 0);
+        const hasPl = c.unrealizedPLPercent != null;
+        const isPos = plPct >= 0;
+        const hc    = HEALTH[c._health] || HEALTH.HEALTHY;
+        return (
+            <div onClick={() => navigate(`/admin/clients/${c.id}`)}
+                 className="flex items-center gap-3 px-3.5 py-3 border-b border-slate-800/60
+                            active:bg-slate-800/40">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center
+                                text-xs font-bold flex-shrink-0 bg-slate-700 text-slate-200">
+                    {initials(c)}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-bold text-white truncate">
+                            {c.fullName || c.username}
+                        </span>
+                        {c.role === "ADMIN" && (
+                            <span className="flex-shrink-0 text-[8px] font-bold px-[5px] py-[1px]
+                                             rounded bg-amber-500/20 text-amber-400">ADMIN</span>
+                        )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate">{c.email}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                    <p className="text-[13px] font-bold text-white tabular-nums">
+                        {fmtCrore(c.portfolioValue)}
+                    </p>
+                    <p className={"text-[11px] font-semibold tabular-nums " +
+                    (!hasPl ? "text-slate-600" : isPos ? "text-green-400" : "text-red-400")}>
+                        {!hasPl ? "—" : `${isPos ? "+" : ""}${plPct.toFixed(2)}%`}
+                    </p>
+                </div>
+                <span className={"w-2.5 h-2.5 rounded-full flex-shrink-0 " + hc.dot}
+                      aria-label={hc.label} />
+            </div>
+        );
+    };
+
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 md:space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold text-white">All Clients</h1>
+                        <h1 className="text-xl md:text-2xl font-bold text-white">Clients</h1>
                         <span className="text-xs bg-amber-500/20 text-amber-400 border
                                          border-amber-500/30 px-2.5 py-1 rounded-full font-bold">
                             ADMIN
                         </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
-                        {clients.length} clients · Platform AUM {fmtCrore(totalAum)}
+                        {clients.length} clients · AUM {fmtCrore(totalAum)}
                     </p>
                 </div>
-                <button onClick={() => navigate("/admin")}
-                        className="text-sm text-slate-400 hover:text-white hover:underline">
-                    ← Dashboard
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setShowRules(v => !v)}
+                            className="text-xs text-slate-300 bg-slate-800 border border-slate-700
+                                       px-3 py-1.5 rounded-xl hover:text-white">
+                        ⚙ Health rules
+                    </button>
+                    {!isMobile && (
+                        <button onClick={() => navigate("/admin")}
+                                className="text-sm text-slate-400 hover:text-white hover:underline">
+                            ← Dashboard
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* Health summary chips */}
+            {showRules && <RulesPanel />}
+
+            {/* Search — full width on mobile, above chips */}
+            {isMobile && (
+                <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search name, email…"
+                    className="w-full bg-slate-800 border border-slate-700 text-slate-300
+                               text-sm rounded-xl px-3.5 py-2.5 focus:outline-none
+                               focus:border-blue-500 placeholder:text-slate-600"
+                />
+            )}
+
+            {/* Health filter chips */}
             <div className="flex items-center gap-2 flex-wrap">
                 {["ALL", "HEALTHY", "WARNING", "ALERT", "CRITICAL"].map(h => {
                     const count = h === "ALL" ? clients.length : (healthCounts[h] || 0);
@@ -157,22 +317,23 @@ export default function AdminClientsPage() {
                     );
                 })}
 
-                {/* Search */}
-                <div className="ml-auto">
-                    <input
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search name, email…"
-                        className="w-52 bg-slate-800 border border-slate-700 text-slate-300
-                                   text-xs rounded-xl px-3 py-2 focus:outline-none
-                                   focus:border-blue-500 placeholder:text-slate-600"
-                    />
-                </div>
-
+                {/* Search — desktop only, right-aligned */}
+                {!isMobile && (
+                    <div className="ml-auto">
+                        <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search name, email…"
+                            className="w-52 bg-slate-800 border border-slate-700 text-slate-300
+                                       text-xs rounded-xl px-3 py-2 focus:outline-none
+                                       focus:border-blue-500 placeholder:text-slate-600"
+                        />
+                    </div>
+                )}
                 <p className="text-xs text-slate-600">{filtered.length} shown</p>
             </div>
 
-            {/* Table */}
+            {/* List */}
             {loading ? (
                 <div className="space-y-2">
                     {[1,2,3,4,5].map(i => (
@@ -184,6 +345,11 @@ export default function AdminClientsPage() {
                                 p-12 text-center">
                     <p className="text-4xl mb-2">👥</p>
                     <p className="text-white font-semibold">No clients found</p>
+                </div>
+            ) : isMobile ? (
+                /* Direction A — card list */
+                <div className="bg-slate-900/40 rounded-2xl border border-slate-800 overflow-hidden">
+                    {filtered.map(c => <ClientCard key={c.id} c={c} />)}
                 </div>
             ) : (
                 <div className="bg-slate-800 rounded-2xl border border-slate-700/60
@@ -225,7 +391,7 @@ export default function AdminClientsPage() {
                         {filtered.map(c => {
                             const plPct = parseFloat(c.unrealizedPLPercent || 0);
                             const isPos = plPct >= 0;
-                            const hc    = HEALTH[c.healthLevel] || HEALTH.HEALTHY;
+                            const hc    = HEALTH[c._health] || HEALTH.HEALTHY;
                             return (
                                 <tr key={c.id}
                                     className="border-b border-slate-700/40 last:border-0
@@ -302,9 +468,6 @@ export default function AdminClientsPage() {
                                                 "rounded-full " + hc.badge}>
                                                     {hc.label}
                                                 </span>
-                                                <p className="text-slate-600 text-xs mt-0.5 max-w-[120px]">
-                                                    {c.healthNote}
-                                                </p>
                                             </div>
                                         </div>
                                     </td>
