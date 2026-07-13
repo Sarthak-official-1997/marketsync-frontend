@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import haptics from "../utils/haptics";
 
 // Primary bottom-nav routes, in left→right order. Swiping moves between these.
 // "More" is a sheet, not a route, so it's intentionally not in the chain.
@@ -69,8 +70,10 @@ export function useSwipeNav(rootRef, enabled) {
             if (idx < 0) return; // not on a swipeable main tab
 
             if (dx < 0 && idx < ORDER.length - 1) {
+                haptics.tap();
                 navigate(ORDER[idx + 1]);   // swipe LEFT  → next tab (rightward in the bar)
             } else if (dx > 0 && idx > 0) {
+                haptics.tap();
                 navigate(ORDER[idx - 1]);   // swipe RIGHT → previous tab
             }
         };

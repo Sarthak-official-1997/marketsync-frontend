@@ -6,6 +6,7 @@ import { ToastProvider } from './context/ToastContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { PrivacyProvider } from './context/PrivacyContext'
 import App from './App.jsx'
+import './utils/installManager'   // capture PWA install event early
 import './index.css'
 import "./styles/themes.css";
 

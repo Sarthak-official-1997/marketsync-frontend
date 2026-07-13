@@ -291,16 +291,6 @@ function AppShell() {
                 />
             )}
 
-            {showChecklist && (
-                <SetupChecklist
-                    onDismiss={() => {
-                        const key = `ms_checklist_dismissed_${user?.id || user?.username}`;
-                        localStorage.setItem(key, "1");
-                        setShowChecklist(false);
-                    }}
-                />
-            )}
-
             {showWelcome && (
                 <WelcomeModal
                     user={user}

@@ -54,42 +54,36 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // 2) Charts / returns / NAV history — heavier payloads that change slowly
-          //    intraday. Show cached instantly, revalidate in the background.
+          // 2) READ-ONLY MARKET DATA — prices, charts, returns, indices, stock/MF
+          //    search, MF scheme + NAV. These aren't user-editable, so a few seconds
+          //    of staleness is harmless, and instant cached render keeps the app fast
+          //    (and cold-start-friendly). StaleWhileRevalidate = show cache now,
+          //    refresh in background. NOTE: /watchlist/prices matches here (price data)
+          //    but bare /watchlist does NOT — that falls through to NetworkFirst below.
           {
-            urlPattern: /\/(market-data\/(chart|index-chart|returns)|nav-history)/i,
+            urlPattern: /\/api\/(market-data\/|stocks\/search|stocks\/[^/]+\/price|watchlist\/prices|mf\/schemes\/)/i,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "folyo-charts",
-              expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60, purgeOnQuotaError: true },
+              cacheName: "folyo-readonly",
+              expiration: { maxEntries: 250, maxAgeSeconds: 60 * 60, purgeOnQuotaError: true },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // 2b) USER-MUTABLE DATA (watchlist, holdings, portfolio, alerts) — must
-          //     reflect the user's own writes immediately, so it must NOT be served
-          //     stale. NetworkFirst = fresh when online; falls back to cache only if
-          //     the backend is cold/slow (networkTimeoutSeconds) or the device is
-          //     offline. This fixes the bug where "added to watchlist" toasted but the
-          //     item didn't appear — StaleWhileRevalidate was returning the pre-add
-          //     list. Placed BEFORE the /api catch-all: Workbox matches in order.
+          // 3) EVERYTHING ELSE UNDER /api = USER-MUTABLE DATA (watchlist, holdings,
+          //    transactions, alerts, board, notifications, MF holdings/watchlist/txns,
+          //    portfolio summaries, creator/admin…). NetworkFirst so the user's OWN
+          //    writes always show without a manual refresh — the fresh response wins;
+          //    cache is only a fallback when the backend is cold/slow
+          //    (networkTimeoutSeconds) or the device is offline. This is the default,
+          //    so any *new* mutable endpoint is correct automatically. Fixes the whole
+          //    class of "I changed something but had to refresh to see it" bugs
+          //    (deleted alert reappearing, added watchlist item missing, etc.).
           {
-            urlPattern: /\/api\/(watchlist|holdings|portfolio|alerts)(\/|\?|$)/i,
+            urlPattern: /^https?:\/\/.*\/api\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "folyo-user-data",
               networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 80, maxAgeSeconds: 5 * 60, purgeOnQuotaError: true },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          // 3) Everything else under /api (prices, indices, quotes…) —
-          //    instant cached render, revalidate in the background. Short TTL so it
-          //    never *looks* stale; only GETs are cached (mutations pass through).
-          {
-            urlPattern: /^https?:\/\/.*\/api\/.*/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "folyo-api-cache",
               expiration: { maxEntries: 200, maxAgeSeconds: 5 * 60, purgeOnQuotaError: true },
               cacheableResponse: { statuses: [0, 200] },
             },

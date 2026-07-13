@@ -26,23 +26,11 @@ export default function PasskeyBlocker({ children }) {
 
     if (!needsPasskey) return children;
 
-    // -- CLIENT: hard block — blurred app, cannot dismiss ------------------
-    if (user?.role === "CLIENT") {
-        return (
-            <>
-                <div className="pointer-events-none select-none"
-                     style={{ filter: "blur(4px)", opacity: 0.3 }}>
-                    {children}
-                </div>
-                <PasskeySetupModal
-                    isBlocking={true}
-                    onDone={() => setNeedsPasskey(false)}
-                />
-            </>
-        );
-    }
-
-    // -- CREATOR / ADMIN: sticky banner — no dismiss, app still usable ----─
+    // Passkey not set up yet — for EVERY role we now show a persistent (but
+    // non-blocking) top banner instead of forcing setup. The user can skip and keep
+    // using the app; the banner returns on every load until the passkey is set up,
+    // then disappears for good. (Previously CLIENT users were hard-blocked behind a
+    // blurred, non-dismissable modal — that forcing is removed.)
     return (
         <>
             {/* Persistent banner — no close button, no dismiss */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { useAuth }  from "../context/AuthContext";
@@ -20,6 +20,9 @@ import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
 import { InboxContext } from "../context/InboxContext";
 import { useSwipeNav, indexForPath } from "../hooks/useSwipeNav";
+import { usePullToRefresh } from "../hooks/usePullToRefresh";
+import haptics from "../utils/haptics";
+import InstallAppButton from "./InstallAppButton";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 
@@ -194,6 +197,7 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore }) {
                 return (
                     <button key={tab.id}
                             onClick={() => {
+                                haptics.tap();
                                 if (tab.id === "more") {
                                     showMore ? onHideMore() : onShowMore();
                                 } else {
@@ -266,7 +270,10 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
                         </button>
                     ))}
                 </div>
-                {isAdmin && (
+
+                {/* Install-to-home-screen shortcut (+ enables alert notifications) */}
+                <InstallAppButton />
+                {(isAdmin || isCreator) && (
                     <div style={{ marginTop: 12, paddingTop: 12,
                         borderTop: "1px solid rgba(51,65,85,0.4)" }}>
                         <p style={{ fontSize: 10, color: "#475569", fontWeight: 600,
@@ -279,6 +286,13 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
                                 { to: "/admin",           label: "Dashboard" },
                                 { to: "/admin/clients",   label: "Clients"   },
                                 { to: "/admin/analytics", label: "Analytics" },
+                                // Creator-only — mirrors the desktop sidebar so creators
+                                // get the full menu on mobile too.
+                                ...(isCreator ? [
+                                    { to: "/admin/notifications", label: "Notifications" },
+                                    { to: "/admin/users",         label: "Users"         },
+                                    { to: "/admin/ai-report",     label: "AI Report"     },
+                                ] : []),
                             ].map(l => (
                                 <button key={l.to} onClick={() => go(l.to)}
                                         style={{
@@ -428,6 +442,17 @@ export default function Layout({ children, portfolioSummary }) {
     // against horizontal scrollers so it won't hijack pill rows / tables / charts.
     const mainRef = useRef(null);
     useSwipeNav(mainRef, isMobile);
+
+    // Pull-to-refresh: dispatching visibilitychange makes every page's existing
+    // "refetch when visible" handler fire — so one gesture refreshes all data with
+    // no per-page wiring. Brief delay so the spinner is visible, not a flicker.
+    const onPullRefresh = useCallback(async () => {
+        haptics.tap();
+        document.dispatchEvent(new Event("visibilitychange"));
+        await new Promise(r => setTimeout(r, 850));
+    }, []);
+    const { distance: ptrDist, refreshing: ptrBusy, threshold: ptrThreshold } =
+        usePullToRefresh(mainRef, onPullRefresh);
 
     const [stocksOpen,  setStocksOpen]  = useState(true);
     const [mfOpen,      setMfOpen]      = useState(true);
@@ -898,6 +923,29 @@ export default function Layout({ children, portfolioSummary }) {
                     travel at the viewport edge; the pages' full-bleed rows sit AT the edge
                     so they stay uncut. Never put overflow-x on the inner page wrapper. */}
                 <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-950">
+                    {/* Pull-to-refresh spinner — slides down with the pull, spins while refreshing */}
+                    {isMobile && (ptrDist > 0 || ptrBusy) && (
+                        <div style={{
+                            position: "fixed", top: 56, left: "50%", zIndex: 40, pointerEvents: "none",
+                            transform: `translateX(-50%) translateY(${(ptrBusy ? ptrThreshold : ptrDist) - 24}px)`,
+                            transition: ptrBusy ? "none" : "transform .15s ease-out",
+                            opacity: Math.min(1, (ptrBusy ? ptrThreshold : ptrDist) / 40),
+                        }}>
+                            <div style={{
+                                width: 34, height: 34, borderRadius: "50%",
+                                background: "#0f1626", border: "1px solid rgba(134,59,255,0.4)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                boxShadow: "0 2px 10px rgba(0,0,0,0.4)",
+                            }}>
+                                <div className={ptrBusy ? "ptr-spin" : ""} style={{
+                                    width: 16, height: 16, borderRadius: "50%",
+                                    border: "2px solid rgba(148,163,184,0.3)",
+                                    borderTopColor: "#863bff",
+                                    transform: ptrBusy ? undefined : `rotate(${ptrDist * 3}deg)`,
+                                }} />
+                            </div>
+                        </div>
+                    )}
                     <div className={isMobile ? "p-3 pb-24" : "p-3 sm:p-4 md:p-6"}>
                         <InboxContext.Provider value={{
                             openInbox:  () => setShowInbox(true),
