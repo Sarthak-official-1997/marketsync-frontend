@@ -404,6 +404,8 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 setWatchlistItemId(res.data?.id || null);
                                                 toast.success(`${stock.symbol} added to watchlist`);
                                             }
+                                            // Tell any mounted WatchlistPage to refetch immediately.
+                                            window.dispatchEvent(new Event("watchlist:changed"));
                                         } catch (err) {
                                             const msg = err.response?.data?.message || "";
                                             if (msg.toLowerCase().includes("already")) {
@@ -505,6 +507,8 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 setWatchlistItemId(res.data?.id || null);
                                                 toast.success(`${stock.symbol} added to watchlist`);
                                             }
+                                            // Tell any mounted WatchlistPage to refetch immediately.
+                                            window.dispatchEvent(new Event("watchlist:changed"));
                                         } catch (err) {
                                             const msg = err.response?.data?.message || "";
                                             if (msg.toLowerCase().includes("already")) {

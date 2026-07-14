@@ -380,6 +380,13 @@ function StocksWatchlist({ toast, isMobile }) {
             .catch(() => {});
     };
     useEffect(() => { load(); }, []);
+    // Reload when a watchlist change happens elsewhere (e.g. adding from the
+    // global-search StockDetailModal), which otherwise can't reach load().
+    useEffect(() => {
+        const onChanged = () => load();
+        window.addEventListener("watchlist:changed", onChanged);
+        return () => window.removeEventListener("watchlist:changed", onChanged);
+    }, []);
     useEffect(() => {
         if (searchOpen) setTimeout(() => inputRef.current?.focus(), 50);
         else { setQuery(""); setResults([]); }
