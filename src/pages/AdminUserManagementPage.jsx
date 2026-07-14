@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser, resetUserPassword } from "../api/admin";
+import { getAllUsers, changeUserRole, blockUser, unblockUser, deleteUser, resetUserPassword, createUser } from "../api/admin";
 import { resetUserPasskey } from "../api/admin";
 
 
@@ -43,6 +43,118 @@ function ConfirmModal({ message, onConfirm, onCancel, danger = false }) {
     );
 }
 
+function genPassword() {
+    // Readable temp password: no ambiguous chars, easy to dictate over a call.
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    let p = "";
+    for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
+    return p;
+}
+
+function CreateUserModal({ onClose, onCreated }) {
+    const [form, setForm] = useState({
+        fullName: "", username: "", password: genPassword(), email: "", role: "CLIENT",
+    });
+    const [busy, setBusy]   = useState(false);
+    const [error, setError] = useState("");
+    const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+    const submit = async () => {
+        setError("");
+        if (form.username.trim().length < 3) { setError("Username must be at least 3 characters."); return; }
+        if (form.password.length < 8)        { setError("Password must be at least 8 characters."); return; }
+        setBusy(true);
+        try {
+            const created = await createUser({
+                username: form.username.trim(),
+                password: form.password,
+                fullName: form.fullName.trim() || null,
+                email:    form.email.trim() || null,
+                role:     form.role,
+            });
+            // Hand the plaintext password back up so the creator can copy/share it;
+            // the server never returns it, so we surface what was just set.
+            onCreated({ ...created, sharedPassword: form.password });
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.response?.data?.error || "Could not create account.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const field = "w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-xl " +
+        "px-3 py-2.5 focus:outline-none focus:border-blue-500 placeholder:text-slate-600";
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl
+                            max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-1">
+                    <p className="text-white font-bold">Create account</p>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+                </div>
+                <p className="text-slate-500 text-xs mb-4">
+                    You'll share the username &amp; password with them yourself.
+                </p>
+
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-xs text-slate-400 font-semibold">Full name</label>
+                        <input className={field} value={form.fullName} placeholder="e.g. Ramesh Gupta"
+                               onChange={e => set("fullName", e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 font-semibold">Username <span className="text-red-400">*</span></label>
+                        <input className={field} value={form.username} placeholder="login id, 3+ chars"
+                               autoCapitalize="none" autoCorrect="off"
+                               onChange={e => set("username", e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 font-semibold">Password <span className="text-red-400">*</span></label>
+                        <div className="flex gap-2">
+                            <input className={field} value={form.password}
+                                   onChange={e => set("password", e.target.value)} />
+                            <button type="button" onClick={() => set("password", genPassword())}
+                                    className="flex-shrink-0 px-3 rounded-xl bg-slate-700 hover:bg-slate-600
+                                               text-slate-200 text-xs font-semibold">
+                                New
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 font-semibold">Email <span className="text-slate-600">(optional)</span></label>
+                        <input className={field} value={form.email} placeholder="blank = auto-generated"
+                               autoCapitalize="none" autoCorrect="off"
+                               onChange={e => set("email", e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 font-semibold">Role</label>
+                        <div className="flex gap-2 mt-1">
+                            {["CLIENT", "ADMIN"].map(r => (
+                                <button key={r} type="button" onClick={() => set("role", r)}
+                                        className={"flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors " +
+                                        (form.role === r
+                                            ? "bg-blue-600 text-white border-blue-500"
+                                            : "bg-slate-900 text-slate-400 border-slate-700")}>
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {error && <p className="text-red-400 text-xs">{error}</p>}
+
+                    <button onClick={submit} disabled={busy}
+                            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50
+                                       text-white text-sm font-semibold transition-colors">
+                        {busy ? "Creating…" : "Create account"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AdminUserManagementPage() {
     const [users,   setUsers]   = useState([]);
     const [loading, setLoading] = useState(true);
@@ -51,6 +163,8 @@ export default function AdminUserManagementPage() {
     const [search,  setSearch]  = useState("");
     const [resetResult,     setResetResult]     = useState(null); // { username, tempPassword }
     const [passkeyResetDone,setPasskeyResetDone]= useState(null); // username
+    const [showCreate,      setShowCreate]      = useState(false);
+    const [createdCreds,    setCreatedCreds]    = useState(null); // { username, sharedPassword, fullName }
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -137,10 +251,17 @@ export default function AdminUserManagementPage() {
                         {adminCount} admins · {clientCount} clients · {blockedCount} blocked
                     </p>
                 </div>
-                <button onClick={() => navigate("/admin")}
-                        className="text-sm text-slate-400 hover:text-white hover:underline">
-                    ← Dashboard
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setShowCreate(true)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700
+                                       text-white text-sm font-semibold rounded-xl transition-colors">
+                        + Create account
+                    </button>
+                    <button onClick={() => navigate("/admin")}
+                            className="text-sm text-slate-400 hover:text-white hover:underline">
+                        ← Dashboard
+                    </button>
+                </div>
             </div>
 
             {/* Legend + search */}
@@ -433,6 +554,66 @@ export default function AdminUserManagementPage() {
                             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700
                            text-white font-semibold rounded-xl text-sm
                            transition-colors">
+                            Done
+                        </button>
+                    </div>
+                </div>
+            )}
+            {showCreate && (
+                <CreateUserModal
+                    onClose={() => setShowCreate(false)}
+                    onCreated={(u) => { setShowCreate(false); setCreatedCreds(u); refresh(); }}
+                />
+            )}
+            {createdCreds && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50
+                    flex items-center justify-center p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl
+                        p-6 w-full max-w-sm shadow-2xl">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">✅</span>
+                            <h3 className="text-white font-bold">Account created</h3>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-4">
+                            Share these credentials with
+                            <span className="text-white font-semibold"> {createdCreds.fullName || createdCreds.username}</span> yourself.
+                        </p>
+                        <div className="space-y-2">
+                            <div className="bg-slate-900 border border-slate-600 rounded-xl px-4 py-3
+                                            flex items-center justify-between">
+                                <div>
+                                    <p className="text-slate-500 text-[10px] uppercase font-semibold">Username</p>
+                                    <code className="text-white font-bold tracking-wide">{createdCreds.username}</code>
+                                </div>
+                                <button onClick={() => navigator.clipboard.writeText(createdCreds.username)}
+                                        className="text-xs text-slate-400 hover:text-white ml-3 flex-shrink-0">📋</button>
+                            </div>
+                            <div className="bg-slate-900 border border-slate-600 rounded-xl px-4 py-3
+                                            flex items-center justify-between">
+                                <div>
+                                    <p className="text-slate-500 text-[10px] uppercase font-semibold">Password</p>
+                                    <code className="text-amber-400 font-bold text-lg tracking-wider">
+                                        {createdCreds.sharedPassword}
+                                    </code>
+                                </div>
+                                <button onClick={() => navigator.clipboard.writeText(createdCreds.sharedPassword)}
+                                        className="text-xs text-slate-400 hover:text-white ml-3 flex-shrink-0">📋</button>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => navigator.clipboard.writeText(
+                                `Username: ${createdCreds.username}\nPassword: ${createdCreds.sharedPassword}`)}
+                            className="w-full mt-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200
+                                       text-xs font-semibold rounded-xl transition-colors">
+                            📋 Copy both
+                        </button>
+                        <p className="text-slate-600 text-xs mt-3">
+                            ⚠️ The password is shown only once. Copy it now.
+                        </p>
+                        <button
+                            onClick={() => setCreatedCreds(null)}
+                            className="w-full mt-3 py-2.5 bg-blue-600 hover:bg-blue-700
+                           text-white font-semibold rounded-xl text-sm transition-colors">
                             Done
                         </button>
                     </div>

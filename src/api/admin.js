@@ -10,6 +10,7 @@ export const getPlatformAnalytics      = ()                        => api.get("/
 
 // -- User management (CREATOR only) ----------------------------------------
 export const getAllUsers     = ()                  => api.get("/admin/users").then(r => r.data);
+export const createUser      = (data)             => api.post("/admin/users", data).then(r => r.data);
 export const changeUserRole = (userId, role)      => api.patch(`/admin/users/${userId}/role`, { role }).then(r => r.data);
 export const blockUser      = (userId)            => api.patch(`/admin/users/${userId}/block`).then(r => r.data);
 export const unblockUser    = (userId)            => api.patch(`/admin/users/${userId}/unblock`).then(r => r.data);
