@@ -170,7 +170,7 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
                     return (
                         <div key={item.id}
                              className="grid items-center gap-[10px] px-3.5 py-[11px] border-b border-slate-800/60 active:bg-slate-800/40"
-                             style={{ gridTemplateColumns: "20px 1fr 48px auto" }}
+                             style={{ gridTemplateColumns: "20px 1fr 48px auto 30px" }}
                              onClick={() => onStockTap(item.stock)}>
                             <StockLogo symbol={item.stock.symbol} size={20}
                                        className="rounded-[3px] flex-shrink-0" />
@@ -218,6 +218,16 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
                                         : ""}
                                 </div>
                             </div>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onRemove(item); }}
+                                aria-label={`Remove ${item.stock.symbol} from watchlist`}
+                                className="flex-shrink-0 w-[30px] h-[30px] -mr-1 flex items-center
+                                           justify-center text-slate-600 active:text-red-400">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <path d="M18 6 6 18M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                     );
                 })
