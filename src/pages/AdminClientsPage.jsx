@@ -69,6 +69,88 @@ function useIsMobile() {
     return m;
 }
 
+// Stable, module-level so it never remounts mid-typing (that was closing the
+// keyboard). Values are kept as local strings while editing and only saved on
+// blur / stepper, so typing a lone "-" never triggers a parse-and-rerender.
+const RULE_ROWS = [
+    { key: "warning",  label: "Warning at or below",  color: "text-amber-400" },
+    { key: "alert",    label: "Alert at or below",    color: "text-red-400"   },
+    { key: "critical", label: "Critical at or below", color: "text-red-500"   },
+];
+
+function RulesPanel({ thresholds, onSave, onReset }) {
+    const [draft, setDraft] = useState({
+        warning:  String(thresholds.warning),
+        alert:    String(thresholds.alert),
+        critical: String(thresholds.critical),
+    });
+
+    // Re-sync when thresholds change from outside (Reset or a stepper tap).
+    useEffect(() => {
+        setDraft({
+            warning:  String(thresholds.warning),
+            alert:    String(thresholds.alert),
+            critical: String(thresholds.critical),
+        });
+    }, [thresholds]);
+
+    const commit = (key) => {
+        const n = parseFloat(draft[key]);
+        onSave(key, isNaN(n) ? 0 : n);
+    };
+    const step = (key, delta) => {
+        const base = parseFloat(draft[key]);
+        const n = (isNaN(base) ? (Number(thresholds[key]) || 0) : base) + delta;
+        setDraft(d => ({ ...d, [key]: String(n) }));
+        onSave(key, n);
+    };
+
+    return (
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-white">Health rules</p>
+                <button onClick={onReset}
+                        className="text-xs text-slate-400 hover:text-white">Reset</button>
+            </div>
+            <p className="text-xs text-slate-500 -mt-1">
+                Based on each client's unrealized P&amp;L %. Saved on this device.
+            </p>
+            {RULE_ROWS.map(row => (
+                <div key={row.key} className="flex items-center justify-between gap-3">
+                    <span className={"text-xs font-semibold " + row.color}>{row.label}</span>
+                    <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => step(row.key, -1)}
+                                aria-label="decrease"
+                                className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700
+                                           text-white text-lg leading-none flex items-center
+                                           justify-center active:bg-slate-700">−</button>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={draft[row.key]}
+                            onChange={e => setDraft(d => ({ ...d, [row.key]: e.target.value }))}
+                            onBlur={() => commit(row.key)}
+                            className="w-14 bg-slate-900 border border-slate-700 text-white
+                                       text-sm rounded-lg px-2 py-1.5 text-center
+                                       focus:outline-none focus:border-blue-500"
+                        />
+                        <button type="button" onClick={() => step(row.key, +1)}
+                                aria-label="increase"
+                                className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700
+                                           text-white text-lg leading-none flex items-center
+                                           justify-center active:bg-slate-700">+</button>
+                        <span className="text-slate-500 text-sm">%</span>
+                    </div>
+                </div>
+            ))}
+            <p className="text-[11px] text-slate-600 leading-snug">
+                Use −/+ to go negative, or type a value. Anything above the warning cutoff is
+                Healthy. These rules apply here only — they don't change server-side data.
+            </p>
+        </div>
+    );
+}
+
 export default function AdminClientsPage() {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -168,44 +250,6 @@ export default function AdminClientsPage() {
         acc[c._health] = (acc[c._health] || 0) + 1; return acc;
     }, {});
 
-    // ── Editable health-rules panel ──────────────────────────────────────
-    const RulesPanel = () => (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-white">Health rules</p>
-                <button onClick={resetThresholds}
-                        className="text-xs text-slate-400 hover:text-white">Reset</button>
-            </div>
-            <p className="text-xs text-slate-500 -mt-1">
-                Based on each client's unrealized P&amp;L %. Saved on this device.
-            </p>
-            {[
-                { key: "warning",  label: "Warning at or below",  color: "text-amber-400" },
-                { key: "alert",    label: "Alert at or below",    color: "text-red-400"   },
-                { key: "critical", label: "Critical at or below", color: "text-red-500"   },
-            ].map(row => (
-                <div key={row.key} className="flex items-center justify-between gap-3">
-                    <span className={"text-xs font-semibold " + row.color}>{row.label}</span>
-                    <div className="flex items-center gap-1">
-                        <input
-                            type="number"
-                            value={thresholds[row.key]}
-                            onChange={e => saveThreshold(row.key, e.target.value)}
-                            className="w-20 bg-slate-900 border border-slate-700 text-white
-                                       text-sm rounded-lg px-2 py-1.5 text-right
-                                       focus:outline-none focus:border-blue-500"
-                        />
-                        <span className="text-slate-500 text-sm">%</span>
-                    </div>
-                </div>
-            ))}
-            <p className="text-[11px] text-slate-600 leading-snug">
-                Anything above the warning cutoff is Healthy. These rules apply here only —
-                they don't change server-side data.
-            </p>
-        </div>
-    );
-
     // ── Mobile card (Direction A) ────────────────────────────────────────
     const ClientCard = ({ c }) => {
         const plPct = parseFloat(c.unrealizedPLPercent || 0);
@@ -278,7 +322,9 @@ export default function AdminClientsPage() {
                 </div>
             </div>
 
-            {showRules && <RulesPanel />}
+            {showRules && (
+                <RulesPanel thresholds={thresholds} onSave={saveThreshold} onReset={resetThresholds} />
+            )}
 
             {/* Search — full width on mobile, above chips */}
             {isMobile && (
