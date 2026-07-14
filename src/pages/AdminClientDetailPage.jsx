@@ -45,15 +45,23 @@ export default function AdminClientDetailPage() {
     const [chartLoad, setChartLoad] = useState(false);
 
     useEffect(() => {
-        Promise.all([
+        setLoading(true);
+        // allSettled, not all: for an ADMIN client the holdings/history calls may
+        // be refused by the backend. With Promise.all one rejection sinks the whole
+        // page → "Client not found". allSettled lets the profile still render from
+        // the clients list, degrading holdings/history to empty on failure.
+        Promise.allSettled([
             getAdminClients(),
             getClientHoldings(clientId),
             getClientPortfolioHistory(clientId, range),
-        ]).then(([clients, h, hist]) => {
+        ]).then(([clientsR, hR, histR]) => {
+            const clients = clientsR.status === "fulfilled" ? clientsR.value : [];
             const found = clients.find(c => String(c.id) === String(clientId));
             setClient(found || null);
-            setHoldings(h);
-            setHistory(hist);
+            setHoldings(hR.status === "fulfilled" && Array.isArray(hR.value) ? hR.value : []);
+            setHistory(histR.status === "fulfilled" && histR.value
+                ? histR.value
+                : { dates: [], values: [], totalInvested: 0 });
         }).finally(() => setLoading(false));
     }, [clientId]);
 
@@ -62,6 +70,7 @@ export default function AdminClientDetailPage() {
         setChartLoad(true);
         getClientPortfolioHistory(clientId, range)
             .then(setHistory)
+            .catch(() => setHistory({ dates: [], values: [], totalInvested: 0 }))
             .finally(() => setChartLoad(false));
     }, [range]);
 

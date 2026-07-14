@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getAdminClients } from "../api/admin";
@@ -78,43 +78,84 @@ const RULE_ROWS = [
     { key: "critical", label: "Critical at or below", color: "text-red-500"   },
 ];
 
-function RulesPanel({ thresholds, onSave, onReset }) {
+function RulesPanel({ thresholds, counts, onSave, onReset }) {
     const [draft, setDraft] = useState({
         warning:  String(thresholds.warning),
         alert:    String(thresholds.alert),
         critical: String(thresholds.critical),
     });
+    const [applied, setApplied] = useState(false);
+    const flashRef = useRef(null);
 
-    // Re-sync when thresholds change from outside (Reset or a stepper tap).
-    useEffect(() => {
-        setDraft({
-            warning:  String(thresholds.warning),
-            alert:    String(thresholds.alert),
-            critical: String(thresholds.critical),
-        });
-    }, [thresholds]);
+    // Brief "Applied" confirmation whenever a value actually lands.
+    const flash = () => {
+        setApplied(true);
+        clearTimeout(flashRef.current);
+        flashRef.current = setTimeout(() => setApplied(false), 1300);
+    };
+    useEffect(() => () => clearTimeout(flashRef.current), []);
 
+    const push = (key, n) => { onSave(key, n); flash(); };
+
+    // Apply as you type: if the current text is a valid number, push it straight
+    // to thresholds so the list reclassifies live. Partial input ("", "-", "-.")
+    // stays in the local draft and isn't committed, so negative entry still works.
+    const change = (key, raw) => {
+        setDraft(d => ({ ...d, [key]: raw }));
+        const n = parseFloat(raw);
+        if (raw.trim() !== "" && !isNaN(n) && isFinite(n)) push(key, n);
+    };
     const commit = (key) => {
         const n = parseFloat(draft[key]);
-        onSave(key, isNaN(n) ? 0 : n);
+        const val = isNaN(n) ? 0 : n;
+        setDraft(d => ({ ...d, [key]: String(val) }));
+        push(key, val);
     };
     const step = (key, delta) => {
         const base = parseFloat(draft[key]);
         const n = (isNaN(base) ? (Number(thresholds[key]) || 0) : base) + delta;
         setDraft(d => ({ ...d, [key]: String(n) }));
-        onSave(key, n);
+        push(key, n);
     };
+    const reset = () => {
+        onReset();
+        setDraft({
+            warning:  String(DEFAULT_THRESHOLDS.warning),
+            alert:    String(DEFAULT_THRESHOLDS.alert),
+            critical: String(DEFAULT_THRESHOLDS.critical),
+        });
+        flash();
+    };
+
+    const c = counts || {};
 
     return (
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-white">Health rules</p>
-                <button onClick={onReset}
+                <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-white">Health rules</p>
+                    <span className={"text-[11px] font-semibold px-2 py-0.5 rounded-full " +
+                    "bg-green-900/30 text-green-400 transition-opacity duration-300 " +
+                    (applied ? "opacity-100" : "opacity-0")}>
+                        ✓ Applied
+                    </span>
+                </div>
+                <button onClick={reset}
                         className="text-xs text-slate-400 hover:text-white">Reset</button>
             </div>
             <p className="text-xs text-slate-500 -mt-1">
                 Based on each client's unrealized P&amp;L %. Saved on this device.
             </p>
+
+            {/* Live tally — updates the instant a rule changes */}
+            <div className="flex items-center gap-3 flex-wrap text-[11px] font-semibold
+                            bg-slate-900/50 rounded-lg px-3 py-2">
+                <span className="text-green-400">{c.HEALTHY || 0} Healthy</span>
+                <span className="text-amber-400">{c.WARNING || 0} Warning</span>
+                <span className="text-red-400">{c.ALERT || 0} Alert</span>
+                <span className="text-red-500">{c.CRITICAL || 0} Critical</span>
+            </div>
+
             {RULE_ROWS.map(row => (
                 <div key={row.key} className="flex items-center justify-between gap-3">
                     <span className={"text-xs font-semibold " + row.color}>{row.label}</span>
@@ -128,7 +169,7 @@ function RulesPanel({ thresholds, onSave, onReset }) {
                             type="text"
                             inputMode="numeric"
                             value={draft[row.key]}
-                            onChange={e => setDraft(d => ({ ...d, [row.key]: e.target.value }))}
+                            onChange={e => change(row.key, e.target.value)}
                             onBlur={() => commit(row.key)}
                             className="w-14 bg-slate-900 border border-slate-700 text-white
                                        text-sm rounded-lg px-2 py-1.5 text-center
@@ -323,7 +364,8 @@ export default function AdminClientsPage() {
             </div>
 
             {showRules && (
-                <RulesPanel thresholds={thresholds} onSave={saveThreshold} onReset={resetThresholds} />
+                <RulesPanel thresholds={thresholds} counts={healthCounts}
+                            onSave={saveThreshold} onReset={resetThresholds} />
             )}
 
             {/* Search — full width on mobile, above chips */}
