@@ -72,12 +72,13 @@ function ConfirmDialog({dialog, onConfirm, onCancel}) {
 }
 
 // ─── Stock Group Card ─────────────────────────────────────────────────────────
-function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, selectedIds, onToggleSelect}) {
+function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, selectedIds, onToggleSelect, onDeleteGroupSelected, bulkDeleting}) {
     const buys  = group.transactions.filter(t => t.type === "BUY");
     const sells = group.transactions.filter(t => t.type === "SELL");
     const totalBought = buys.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
     const totalSold   = sells.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
     const latest = group.transactions[0];
+    const selectedInGroup = group.transactions.filter(t => selectedIds?.has(t.id));
 
     return (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden
@@ -195,7 +196,8 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                         })}
                         </tbody>
                     </table>
-                    <div className="px-5 py-3 border-t border-slate-700/30 bg-slate-900/20">
+                    <div className="px-5 py-3 border-t border-slate-700/30 bg-slate-900/20
+                                    flex items-center justify-between gap-3 flex-wrap">
                         <button
                             onClick={() => onOpenPanel({
                                 stockId: group.stockId,
@@ -208,6 +210,16 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                             <span className="text-base leading-none">+</span>
                             Add transaction for {group.symbol}
                         </button>
+                        {selectedInGroup.length > 0 && (
+                            <button
+                                onClick={() => onDeleteGroupSelected(selectedInGroup.map(t => t.id))}
+                                disabled={bulkDeleting}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600
+                                           hover:bg-red-700 active:bg-red-700 disabled:opacity-50
+                                           text-white text-xs font-semibold rounded-lg transition-colors">
+                                🗑 Delete {selectedInGroup.length} selected
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -615,24 +627,30 @@ export default function TransactionsPage() {
 
     const clearSelection = () => setSelectedIds(new Set());
 
-    const handleBulkDelete = async () => {
-        if (selectedIds.size === 0) return;
+    const deleteByIds = async (ids) => {
+        if (!ids.length) return;
         const confirmed = window.confirm(
-            `Delete ${selectedIds.size} transaction${selectedIds.size > 1 ? "s" : ""}? This will recompute your holdings.`
+            `Delete ${ids.length} transaction${ids.length > 1 ? "s" : ""}? This will recompute your holdings.`
         );
         if (!confirmed) return;
         setBulkDeleting(true);
         try {
-            await bulkDeleteTransactions([...selectedIds]);
-            toast.success(`Deleted ${selectedIds.size} transactions`);
-            setSelectedIds(new Set());
+            await bulkDeleteTransactions(ids);
+            toast.success(`Deleted ${ids.length} transaction${ids.length > 1 ? "s" : ""}`);
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                ids.forEach(i => next.delete(i));
+                return next;
+            });
             load();
         } catch {
-            toast.error("Bulk delete failed");
+            toast.error("Delete failed");
         } finally {
             setBulkDeleting(false);
         }
     };
+
+    const handleBulkDelete = () => deleteByIds([...selectedIds]);
 
     const handleExportCSV = () => {
         const rows = transactions.map(t => [
@@ -654,6 +672,16 @@ export default function TransactionsPage() {
         setShowAdd(true);
     };
 
+    // How many distinct stocks the current selection spans. The top (bulk) bar
+    // only makes sense when it's 2+; a single-stock selection is handled by that
+    // stock's own "Delete N selected" button.
+    const selectedStockSpan = useMemo(() => {
+        const syms = new Set();
+        transactions.forEach(t => { if (selectedIds.has(t.id)) syms.add(t.stockSymbol); });
+        return syms.size;
+    }, [transactions, selectedIds]);
+    const showTopBulk = selectedStockSpan >= 2;
+
     return (
         <div className="space-y-4">
 
@@ -666,27 +694,6 @@ export default function TransactionsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    {/* Bulk delete toolbar — appears when rows are selected */}
-                    {selectedIds.size > 0 && (
-                        <div className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/40
-                                        rounded-xl px-3 py-1.5">
-                            <span className="text-blue-300 text-sm font-medium">
-                                {selectedIds.size} selected
-                            </span>
-                            <button
-                                onClick={handleBulkDelete}
-                                disabled={bulkDeleting}
-                                className="flex items-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-700
-                                           disabled:opacity-50 text-white text-xs font-semibold
-                                           rounded-lg transition-colors">
-                                {bulkDeleting ? "Deleting..." : "Delete selected"}
-                            </button>
-                            <button onClick={clearSelection}
-                                    className="text-slate-400 hover:text-white text-xs transition-colors px-1">
-                                ✕
-                            </button>
-                        </div>
-                    )}
                     <button onClick={() => setShowAiImport(true)}
                             className="flex items-center gap-1.5 px-4 py-2 bg-purple-600
                                        hover:bg-purple-700 text-white text-sm font-semibold
@@ -707,6 +714,31 @@ export default function TransactionsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Sticky bulk bar — only when the selection spans 2+ stocks.
+                Stays pinned on scroll; collapses to per-stock delete at 1 stock. */}
+            {showTopBulk && (
+                <div className="sticky top-14 md:top-0 z-40 flex items-center gap-2
+                                bg-blue-600/20 backdrop-blur border border-blue-500/40
+                                rounded-xl px-3 py-2 shadow-lg">
+                    <span className="text-blue-200 text-sm font-medium">
+                        {selectedIds.size} selected · {selectedStockSpan} stocks
+                    </span>
+                    <button
+                        onClick={handleBulkDelete}
+                        disabled={bulkDeleting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700
+                                   active:bg-red-700 disabled:opacity-50 text-white text-xs
+                                   font-semibold rounded-lg transition-colors">
+                        {bulkDeleting ? "Deleting…" : "🗑 Delete selected"}
+                    </button>
+                    <button onClick={clearSelection}
+                            className="ml-auto text-slate-300 hover:text-white active:text-white
+                                       text-sm transition-colors px-1">
+                        ✕
+                    </button>
+                </div>
+            )}
 
             {/* Controls bar */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -795,6 +827,8 @@ export default function TransactionsPage() {
                             onAskDelete={askDelete}
                             selectedIds={selectedIds}
                             onToggleSelect={toggleSelect}
+                            onDeleteGroupSelected={deleteByIds}
+                            bulkDeleting={bulkDeleting}
                         />
                     ))}
                 </div>
