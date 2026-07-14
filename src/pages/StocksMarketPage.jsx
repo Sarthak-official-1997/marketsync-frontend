@@ -6,6 +6,7 @@ import { searchStocks, addToWatchlist, getStockPrice,
 import IndexConstituentsModal from "../components/IndexConstituentsModal";
 import StockDetailModal  from "../components/StockDetailModal";
 import StockLogo         from "../components/StockLogo";
+import AsOfLabel         from "../components/AsOfLabel";
 import { useToast }      from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth }       from "../context/AuthContext";
@@ -190,6 +191,7 @@ function GreetingBar({ portfolioSummary }) {
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
                 <span className={`text-xs font-semibold ${status.color}`}>{status.label}</span>
                 <span className="text-slate-600 text-xs">· NSE / BSE · 9:15 AM – 3:30 PM IST</span>
+                <AsOfLabel className="text-[11px] ml-auto flex-shrink-0" />
             </div>
         </div>
     );
@@ -309,9 +311,9 @@ function StockCard({ stock, price, holding, dragging, over,
             {/* Remove button */}
             <button
                 onClick={e => { e.stopPropagation(); onRemove(); }}
-                className="absolute top-1 right-1 w-4 h-4 rounded opacity-0
-                           group-hover:opacity-100 flex items-center justify-center
-                           text-slate-500 hover:text-white hover:bg-red-600/70
+                className="absolute top-1 right-1 w-4 h-4 rounded opacity-100
+                           md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center
+                           text-slate-500 hover:text-white hover:bg-red-600/70 active:bg-red-600/70
                            transition-all text-[10px] z-10"
             >✕</button>
 

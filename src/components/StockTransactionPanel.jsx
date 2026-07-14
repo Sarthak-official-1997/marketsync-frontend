@@ -475,8 +475,8 @@ export default function StockTransactionPanel({ stock, onClose, onChanged, onDel
                                                 {fmt(total)}
                                             </p>
                                             <button onClick={() => askDelete(tx)}
-                                                    className="opacity-0 group-hover:opacity-100
-                                                           text-slate-500 hover:text-red-400
+                                                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100
+                                                           text-slate-500 hover:text-red-400 active:text-red-400
                                                            transition-all text-xs hover:underline">
                                                 Delete
                                             </button>
