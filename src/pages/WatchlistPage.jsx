@@ -29,11 +29,11 @@ const fmtDate = (d) => {
 
 
 // Groww-style mini sparkline for watchlist rows
-function WatchlistSparkline({ symbol, exchange, previousClose, changePercent }) {
+function WatchlistSparkline({ symbol, exchange, previousClose, changePercent, width = 120, height = 40 }) {
     const [points, setPoints] = useState([]);
     const up = parseFloat(changePercent || 0) >= 0;
     const color = up ? "#22c55e" : "#ef4444";
-    const W = 120, H = 40;
+    const W = width, H = height;
 
     useEffect(() => {
         const parse = (res) =>
@@ -196,17 +196,17 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
                                         : item.stock.name}
                                 </div>
                             </div>
-                            {/* Mini sparkline — widened to match the Market row's visual weight */}
-                            <svg viewBox="0 0 48 18" className="w-12 h-[18px] flex-shrink-0">
-                                <polyline
-                                    points="0,13 8,10 16,14 24,6 32,9 40,3 48,6"
-                                    fill="none"
-                                    stroke={up ? "#10b981" : "#ef4444"}
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
+                            {/* Mini sparkline — real per-stock data, same source as the Market row */}
+                            <div className="w-12 h-[18px] flex-shrink-0 overflow-hidden">
+                                <WatchlistSparkline
+                                    symbol={item.stock.symbol}
+                                    exchange={item.stock.exchange}
+                                    previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
+                                    changePercent={item.currentPrice?.changePercent}
+                                    width={48}
+                                    height={18}
                                 />
-                            </svg>
+                            </div>
                             <div className="text-right flex-shrink-0">
                                 <div className="text-[13px] font-extrabold text-white tabular-nums leading-tight">
                                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}

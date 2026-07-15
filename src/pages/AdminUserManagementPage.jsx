@@ -235,6 +235,56 @@ export default function AdminUserManagementPage() {
     const clientCount = users.filter(u => u.role === "CLIENT").length;
     const blockedCount = users.filter(u => u.blocked).length;
 
+    // Shared so the desktop table and the mobile cards render identical actions.
+    const renderActions = (u) => {
+        const isBusy = busy === u.id;
+        return (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button disabled={isBusy} onClick={() => handleRoleChange(u.id, u.role)}
+                        className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors
+                                    disabled:opacity-40 disabled:cursor-not-allowed ${u.role === "CLIENT"
+                            ? "bg-purple-900/40 text-purple-400 hover:bg-purple-900/70 border border-purple-500/30"
+                            : "bg-blue-900/40 text-blue-400 hover:bg-blue-900/70 border border-blue-500/30"}`}
+                        title={u.role === "CLIENT" ? "Promote to Admin" : "Demote to Client"}>
+                    {isBusy ? "…" : u.role === "CLIENT" ? "↑ Make Admin" : "↓ Make Client"}
+                </button>
+                <button disabled={isBusy}
+                        onClick={() => { if (!u.blocked) { setConfirm({ type: "block", userId: u.id, username: u.username }); } else { handleBlock(u.id, true); } }}
+                        className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors
+                                    disabled:opacity-40 disabled:cursor-not-allowed ${u.blocked
+                            ? "bg-green-900/30 text-green-400 hover:bg-green-900/50 border border-green-500/30"
+                            : "bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 border border-amber-500/30"}`}
+                        title={u.blocked ? "Unblock user" : "Block user"}>
+                    {isBusy ? "…" : u.blocked ? "✓ Unblock" : "🚫 Block"}
+                </button>
+                <button disabled={isBusy}
+                        onClick={() => setConfirm({ type: "delete", userId: u.id, username: u.username })}
+                        className="text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors
+                                   bg-red-900/30 text-red-400 hover:bg-red-900/60 border border-red-500/30
+                                   disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Delete account permanently">
+                    🗑 Delete
+                </button>
+                <button disabled={isBusy}
+                        onClick={() => setConfirm({ type: "resetPassword", userId: u.id, username: u.username })}
+                        className="text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors
+                                   bg-slate-700/60 text-slate-400 hover:bg-slate-700 border border-slate-600
+                                   disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Generate a temporary password">
+                    🔑 Reset PW
+                </button>
+                <button disabled={isBusy}
+                        onClick={() => setConfirm({ type: "resetPasskey", userId: u.id, username: u.username })}
+                        className="text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors
+                                   bg-amber-900/20 text-amber-400 hover:bg-amber-900/40 border border-amber-500/30
+                                   disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Reset passkey — user will be forced to set a new one">
+                    🔑 Reset Key
+                </button>
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-5">
             {/* Header */}
@@ -299,167 +349,131 @@ export default function AdminUserManagementPage() {
                     <p className="text-slate-400">No users found</p>
                 </div>
             ) : (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                        <tr className="border-b border-slate-700 bg-slate-900/30 text-xs
-                                       text-slate-400 uppercase tracking-wide">
-                            <th className="text-left px-5 py-3">User</th>
-                            <th className="text-center px-4 py-3">Role</th>
-                            <th className="text-center px-4 py-3">Status</th>
-                            <th className="text-right px-4 py-3 hidden md:table-cell">Holdings</th>
-                            <th className="text-right px-4 py-3 hidden md:table-cell">Joined</th>
-                            <th className="text-right px-5 py-3">Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {filtered.map(u => {
-                            const isBusy = busy === u.id;
-                            return (
-                                <tr key={u.id}
-                                    className={"border-b border-slate-700/40 last:border-0 " +
-                                    (u.blocked ? "opacity-60" : "")}>
-
-                                    {/* User info */}
-                                    <td className="px-5 py-4">
-                                        <p className="text-white font-semibold text-sm">
+                <>
+                    {/* Mobile: card layout (the table cuts off Status/Actions on small screens) */}
+                    <div className="md:hidden space-y-2">
+                        {filtered.map(u => (
+                            <div key={u.id}
+                                 className={"bg-slate-800 rounded-2xl border border-slate-700/60 p-3.5 " +
+                                 (u.blocked ? "opacity-60" : "")}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-white font-semibold text-sm truncate">
                                             {u.fullName || u.username}
                                         </p>
-                                        <p className="text-slate-500 text-xs">{u.email}</p>
-                                        <p className="text-slate-600 text-xs">@{u.username}</p>
-                                    </td>
+                                        <p className="text-slate-500 text-xs truncate">{u.email}</p>
+                                        <p className="text-slate-600 text-xs truncate">@{u.username}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                        <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full border " +
+                                        (ROLE_STYLES[u.role] || "")}>
+                                            {u.role}
+                                        </span>
+                                        {u.blocked ? (
+                                            <span className="text-[10px] bg-red-900/40 text-red-400 border
+                                                             border-red-500/30 px-2 py-0.5 rounded-full font-semibold">
+                                                🚫 Blocked
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] bg-green-900/20 text-green-500 border
+                                                             border-green-500/20 px-2 py-0.5 rounded-full">
+                                                ✓ Active
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-2">
+                                    {u.holdingCount} holdings · {u.transactionCount} txns · joined {fmtDate(u.createdAt)}
+                                </div>
+                                <div className="mt-3 border-t border-slate-700/50 pt-3">
+                                    {renderActions(u)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
 
-                                    {/* Role badge */}
-                                    <td className="text-center px-4 py-4">
+                    {/* Desktop: table */}
+                    <div className="hidden md:block bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead>
+                            <tr className="border-b border-slate-700 bg-slate-900/30 text-xs
+                                       text-slate-400 uppercase tracking-wide">
+                                <th className="text-left px-5 py-3">User</th>
+                                <th className="text-center px-4 py-3">Role</th>
+                                <th className="text-center px-4 py-3">Status</th>
+                                <th className="text-right px-4 py-3 hidden md:table-cell">Holdings</th>
+                                <th className="text-right px-4 py-3 hidden md:table-cell">Joined</th>
+                                <th className="text-right px-5 py-3">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {filtered.map(u => {
+                                const isBusy = busy === u.id;
+                                return (
+                                    <tr key={u.id}
+                                        className={"border-b border-slate-700/40 last:border-0 " +
+                                        (u.blocked ? "opacity-60" : "")}>
+
+                                        {/* User info */}
+                                        <td className="px-5 py-4">
+                                            <p className="text-white font-semibold text-sm">
+                                                {u.fullName || u.username}
+                                            </p>
+                                            <p className="text-slate-500 text-xs">{u.email}</p>
+                                            <p className="text-slate-600 text-xs">@{u.username}</p>
+                                        </td>
+
+                                        {/* Role badge */}
+                                        <td className="text-center px-4 py-4">
                                         <span className={`text-xs font-bold px-2.5 py-1
                                                           rounded-full border ${ROLE_STYLES[u.role] || ""}`}>
                                             {u.role}
                                         </span>
-                                    </td>
+                                        </td>
 
-                                    {/* Blocked status */}
-                                    <td className="text-center px-4 py-4">
-                                        {u.blocked ? (
-                                            <span className="text-xs bg-red-900/40 text-red-400
+                                        {/* Blocked status */}
+                                        <td className="text-center px-4 py-4">
+                                            {u.blocked ? (
+                                                <span className="text-xs bg-red-900/40 text-red-400
                                                              border border-red-500/30 px-2 py-0.5
                                                              rounded-full font-semibold">
                                                 🚫 Blocked
                                             </span>
-                                        ) : (
-                                            <span className="text-xs bg-green-900/20 text-green-500
+                                            ) : (
+                                                <span className="text-xs bg-green-900/20 text-green-500
                                                              border border-green-500/20 px-2 py-0.5
                                                              rounded-full">
                                                 ✓ Active
                                             </span>
-                                        )}
-                                    </td>
+                                            )}
+                                        </td>
 
-                                    {/* Holdings + joined */}
-                                    <td className="text-right px-4 py-4 hidden md:table-cell">
-                                        <p className="text-slate-300 text-xs">
-                                            {u.holdingCount} holdings
-                                        </p>
-                                        <p className="text-slate-600 text-xs">
-                                            {u.transactionCount} txns
-                                        </p>
-                                    </td>
-                                    <td className="text-right px-4 py-4 hidden md:table-cell">
-                                        <p className="text-slate-400 text-xs">
-                                            {fmtDate(u.createdAt)}
-                                        </p>
-                                    </td>
+                                        {/* Holdings + joined */}
+                                        <td className="text-right px-4 py-4 hidden md:table-cell">
+                                            <p className="text-slate-300 text-xs">
+                                                {u.holdingCount} holdings
+                                            </p>
+                                            <p className="text-slate-600 text-xs">
+                                                {u.transactionCount} txns
+                                            </p>
+                                        </td>
+                                        <td className="text-right px-4 py-4 hidden md:table-cell">
+                                            <p className="text-slate-400 text-xs">
+                                                {fmtDate(u.createdAt)}
+                                            </p>
+                                        </td>
 
-                                    {/* Actions */}
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-center justify-end gap-2">
-
-                                            {/* Promote / Demote */}
-                                            <button
-                                                disabled={isBusy}
-                                                onClick={() => handleRoleChange(u.id, u.role)}
-                                                className={`text-xs px-3 py-1.5 rounded-xl
-                                                            font-semibold transition-colors
-                                                            disabled:opacity-40 disabled:cursor-not-allowed
-                                                            ${u.role === "CLIENT"
-                                                    ? "bg-purple-900/40 text-purple-400 hover:bg-purple-900/70 border border-purple-500/30"
-                                                    : "bg-blue-900/40 text-blue-400 hover:bg-blue-900/70 border border-blue-500/30"}`}
-                                                title={u.role === "CLIENT" ? "Promote to Admin" : "Demote to Client"}>
-                                                {isBusy ? "…" : u.role === "CLIENT" ? "↑ Make Admin" : "↓ Make Client"}
-                                            </button>
-
-                                            {/* Block / Unblock */}
-                                            <button
-                                                disabled={isBusy}
-                                                onClick={() => {
-                                                    if (!u.blocked) {
-                                                        setConfirm({
-                                                            type: "block", userId: u.id,
-                                                            username: u.username,
-                                                        });
-                                                    } else {
-                                                        handleBlock(u.id, true);
-                                                    }
-                                                }}
-                                                className={`text-xs px-3 py-1.5 rounded-xl
-                                                            font-semibold transition-colors
-                                                            disabled:opacity-40 disabled:cursor-not-allowed
-                                                            ${u.blocked
-                                                    ? "bg-green-900/30 text-green-400 hover:bg-green-900/50 border border-green-500/30"
-                                                    : "bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 border border-amber-500/30"}`}
-                                                title={u.blocked ? "Unblock user" : "Block user"}>
-                                                {isBusy ? "…" : u.blocked ? "✓ Unblock" : "🚫 Block"}
-                                            </button>
-
-                                            {/* Delete */}
-                                            <button
-                                                disabled={isBusy}
-                                                onClick={() => setConfirm({
-                                                    type: "delete", userId: u.id,
-                                                    username: u.username,
-                                                })}
-                                                className="text-xs px-3 py-1.5 rounded-xl
-                                                           font-semibold transition-colors
-                                                           bg-red-900/30 text-red-400
-                                                           hover:bg-red-900/60 border border-red-500/30
-                                                           disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Delete account permanently">
-                                                🗑 Delete
-                                            </button>
-
-                                            {/* Reset Password */}
-                                            <button
-                                                disabled={isBusy}
-                                                onClick={() => setConfirm({
-                                                    type: "resetPassword", userId: u.id, username: u.username,
-                                                })}
-                                                className="text-xs px-3 py-1.5 rounded-xl font-semibold
-                                                           transition-colors bg-slate-700/60 text-slate-400
-                                                           hover:bg-slate-700 border border-slate-600
-                                                           disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Generate a temporary password">
-                                                🔑 Reset PW
-                                            </button>
-                                            {/* Reset Passkey */}
-                                            <button
-                                                disabled={isBusy}
-                                                onClick={() => setConfirm({
-                                                    type: "resetPasskey", userId: u.id, username: u.username,
-                                                })}
-                                                className="text-xs px-3 py-1.5 rounded-xl font-semibold
-                                                           transition-colors bg-amber-900/20 text-amber-400
-                                                           hover:bg-amber-900/40 border border-amber-500/30
-                                                           disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Reset passkey — user will be forced to set a new one">
-                                                🔑 Reset Key
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </table>
-                </div>
+                                        {/* Actions */}
+                                        <td className="px-5 py-4">
+                                            {renderActions(u)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             )}
 
             {/* Confirmation modals */}
