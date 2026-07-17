@@ -3,14 +3,32 @@ import { getNotes, deleteNote, updateNote } from "../api/notes";
 import NoteEditor from "./NoteEditor";
 
 function fmtWhen(iso) {
-    if (!iso) return "";
     return new Date(iso).toLocaleString("en-IN", {
         day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
     });
 }
 function fmtDate(iso) {
-    if (!iso) return "";
     return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Status line: next upcoming reminder (+count), else "reminded", else "added".
+function ReminderStatus({ note }) {
+    const upcoming = (note.reminders || []).filter(r => !r.fired)
+        .sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt));
+    const fired = (note.reminders || []).filter(r => r.fired);
+
+    if (upcoming.length > 0) {
+        return (
+            <span className="text-amber-300/90 font-semibold">
+                ⏰ {fmtWhen(upcoming[0].remindAt)}
+                {upcoming.length > 1 && <span className="text-amber-300/60"> +{upcoming.length - 1} more</span>}
+            </span>
+        );
+    }
+    if (fired.length > 0) {
+        return <span className="text-slate-500">reminded {fmtWhen(fired[fired.length - 1].firedAt || fired[fired.length - 1].remindAt)}</span>;
+    }
+    return <span className="text-slate-600">added {fmtDate(note.createdAt)}</span>;
 }
 
 export default function NotesPanel() {
@@ -60,7 +78,7 @@ export default function NotesPanel() {
                 <div className="text-center py-12">
                     <p className="text-slate-400 text-sm">No notes yet.</p>
                     <p className="text-slate-600 text-xs mt-1">
-                        Jot a stock idea, a sector view, or your own learning — link stocks and set a reminder if you want.
+                        Jot a stock idea, a sector view, or your own learning — link stocks and set reminders if you want.
                     </p>
                     <button onClick={() => setEditor("new")}
                             className="mt-4 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white
@@ -74,7 +92,6 @@ export default function NotesPanel() {
                         <div key={n.id}
                              className={"bg-slate-800 border border-slate-700/60 rounded-xl p-3 " +
                              (n.done ? "opacity-55" : "")}>
-                            {/* linked stock chips */}
                             {n.stocks?.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mb-1.5">
                                     {n.stocks.map(s => (
@@ -93,14 +110,8 @@ export default function NotesPanel() {
                             </p>
 
                             <div className="flex items-center justify-between mt-2">
-                                <div className="flex items-center gap-2 text-[11px]">
-                                    {n.remindAt ? (
-                                        <span className="text-amber-300/90 font-semibold">⏰ {fmtWhen(n.remindAt)}</span>
-                                    ) : n.lastRemindedAt ? (
-                                        <span className="text-slate-500">reminded {fmtWhen(n.lastRemindedAt)}</span>
-                                    ) : (
-                                        <span className="text-slate-600">added {fmtDate(n.createdAt)}</span>
-                                    )}
+                                <div className="text-[11px]">
+                                    <ReminderStatus note={n} />
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <button onClick={() => toggleDone(n)} disabled={busyId === n.id}
