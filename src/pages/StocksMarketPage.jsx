@@ -308,13 +308,14 @@ function StockCard({ stock, price, holding, dragging, over,
                     : "border-slate-700 hover:border-slate-600 ")
             }
         >
-            {/* Remove button */}
+            {/* Remove button — clear tap target on mobile, subtle hover-reveal on desktop */}
             <button
                 onClick={e => { e.stopPropagation(); onRemove(); }}
-                className="absolute top-1 right-1 w-4 h-4 rounded opacity-100
+                className="absolute top-1 right-1 w-6 h-6 md:w-4 md:h-4 rounded-md opacity-100
                            md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center
-                           text-slate-500 hover:text-white hover:bg-red-600/70 active:bg-red-600/70
-                           transition-all text-[10px] z-10"
+                           bg-slate-900/80 md:bg-transparent border border-slate-600 md:border-0
+                           text-slate-300 md:text-slate-500 hover:text-white hover:bg-red-600/70
+                           active:bg-red-600/70 transition-all text-xs md:text-[10px] z-10"
             >✕</button>
 
             {/* Row 1  logo + symbol + name */}

@@ -151,10 +151,12 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
         </button>;
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[160] flex items-end sm:items-center
-                        justify-center sm:p-4">
-            <div className="bg-slate-800 border border-slate-700 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl
-                            shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+             onClick={onClose}>
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            <div className="relative bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl
+                            shadow-2xl flex flex-col" style={{ maxHeight: "85dvh" }}
+                 onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 shrink-0">
                     <p className="text-white font-bold">{editing ? "Edit note" : "New note"}</p>
                     <button onClick={onClose} className="text-slate-500 hover:text-white text-lg">✕</button>
@@ -251,10 +253,8 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
                     {error && <p className="text-red-400 text-xs mt-3 mb-1">{error}</p>}
                 </div>
 
-                {/* Sticky footer — always visible, clears the bottom nav / home indicator */}
-                <div className="shrink-0 flex items-center gap-2 px-4 border-t border-slate-700/50"
-                     style={{ paddingTop: "0.75rem",
-                         paddingBottom: "calc(0.9rem + env(safe-area-inset-bottom))" }}>
+                {/* Footer — always visible; modal is centered so nothing overlaps it */}
+                <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-4 border-t border-slate-700/50">
                     <button onClick={onClose}
                             className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600
                                        text-slate-200 text-sm font-semibold transition-colors">
