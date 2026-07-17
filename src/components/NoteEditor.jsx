@@ -146,84 +146,90 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
         </button>;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center
-                        justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-end sm:items-center
+                        justify-center sm:p-4">
             <div className="bg-slate-800 border border-slate-700 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl
-                            p-4 shadow-2xl max-h-[92vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-3">
+                            shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between px-4 pt-4 pb-3 shrink-0">
                     <p className="text-white font-bold">{editing ? "Edit note" : "New note"}</p>
                     <button onClick={onClose} className="text-slate-500 hover:text-white text-lg">✕</button>
                 </div>
 
-                {/* Linked stock chips (top, stable) */}
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                    {stocks.map(s => (
-                        <span key={s.symbol}
-                              className="inline-flex items-center gap-1.5 bg-blue-500/15 text-blue-300
+                <div className="flex-1 overflow-y-auto px-4">
+
+                    {/* Linked stock chips (top, stable) */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {stocks.map(s => (
+                            <span key={s.symbol}
+                                  className="inline-flex items-center gap-1.5 bg-blue-500/15 text-blue-300
                                          border border-blue-500/35 text-xs font-semibold px-2 py-1 rounded-lg">
                             {s.symbol}
-                            <button onClick={() => removeStock(s.symbol)} className="text-blue-300/60 hover:text-blue-200">✕</button>
+                                <button onClick={() => removeStock(s.symbol)} className="text-blue-300/60 hover:text-blue-200">✕</button>
                         </span>
-                    ))}
-                    {stocks.length === 0 && !showSearch && (
-                        <span className="text-slate-600 text-xs self-center">No stock linked (optional)</span>
-                    )}
-                </div>
-
-                {/* Free text */}
-                <textarea
-                    value={body}
-                    onChange={e => setBody(e.target.value)}
-                    rows={5}
-                    autoFocus={!editing && stocks.length === 0}
-                    placeholder="What are you thinking? A stock idea, a sector view, or just your own learning… (any language)"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5
-                               text-white text-sm leading-relaxed placeholder-slate-600
-                               focus:outline-none focus:border-blue-500 resize-none"
-                />
-
-                {/* + Link stock */}
-                {showSearch
-                    ? <LinkStockSearch onPick={addStock} onClose={() => setShowSearch(false)} />
-                    : <button onClick={() => setShowSearch(true)}
-                              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold
-                                   bg-blue-500/15 text-blue-300 border border-blue-500/35
-                                   px-3 py-1.5 rounded-lg hover:bg-blue-500/25 transition-colors">
-                        🔗 Link stock
-                    </button>
-                }
-
-                {/* Reminder */}
-                <div className="mt-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500 font-semibold mr-1">⏰ Remind:</span>
-                        {pill("none", "No reminder")}
-                        {pill("tom", "Tomorrow")}
-                        {pill("2d", "In 2 days")}
-                        {pill("wk", "Next week")}
-                        {pill("custom", "Custom")}
+                        ))}
+                        {stocks.length === 0 && !showSearch && (
+                            <span className="text-slate-600 text-xs self-center">No stock linked (optional)</span>
+                        )}
                     </div>
 
-                    {pick === "custom" && (
-                        <input
-                            type="datetime-local"
-                            value={toLocalInput(remindAt)}
-                            onChange={e => setRemindAt(e.target.value ? new Date(e.target.value) : null)}
-                            className="mt-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2
-                                       text-white text-sm focus:outline-none focus:border-amber-500"
-                        />
-                    )}
+                    {/* Free text */}
+                    <textarea
+                        value={body}
+                        onChange={e => setBody(e.target.value)}
+                        rows={5}
+                        autoFocus={!editing && stocks.length === 0}
+                        placeholder="What are you thinking? A stock idea, a sector view, or just your own learning… (any language)"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5
+                               text-white text-sm leading-relaxed placeholder-slate-600
+                               focus:outline-none focus:border-blue-500 resize-none"
+                    />
 
-                    {remindAt && (
-                        <p className="text-amber-300/80 text-[11px] mt-1.5">
-                            Nudges you on {fmtRemind(remindAt)}
-                        </p>
-                    )}
+                    {/* + Link stock */}
+                    {showSearch
+                        ? <LinkStockSearch onPick={addStock} onClose={() => setShowSearch(false)} />
+                        : <button onClick={() => setShowSearch(true)}
+                                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold
+                                   bg-blue-500/15 text-blue-300 border border-blue-500/35
+                                   px-3 py-1.5 rounded-lg hover:bg-blue-500/25 transition-colors">
+                            🔗 Link stock
+                        </button>
+                    }
+
+                    {/* Reminder */}
+                    <div className="mt-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] text-slate-500 font-semibold mr-1">⏰ Remind:</span>
+                            {pill("none", "No reminder")}
+                            {pill("tom", "Tomorrow")}
+                            {pill("2d", "In 2 days")}
+                            {pill("wk", "Next week")}
+                            {pill("custom", "Custom")}
+                        </div>
+
+                        {pick === "custom" && (
+                            <input
+                                type="datetime-local"
+                                value={toLocalInput(remindAt)}
+                                onChange={e => setRemindAt(e.target.value ? new Date(e.target.value) : null)}
+                                className="mt-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2
+                                       text-white text-sm focus:outline-none focus:border-amber-500"
+                            />
+                        )}
+
+                        {remindAt && (
+                            <p className="text-amber-300/80 text-[11px] mt-1.5">
+                                Nudges you on {fmtRemind(remindAt)}
+                            </p>
+                        )}
+                    </div>
+
+                    {error && <p className="text-red-400 text-xs mt-3 mb-1">{error}</p>}
                 </div>
 
-                {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
-
-                <div className="flex items-center gap-2 mt-4">
+                {/* Sticky footer — always visible, clears the bottom nav / home indicator */}
+                <div className="shrink-0 flex items-center gap-2 px-4 border-t border-slate-700/50"
+                     style={{ paddingTop: "0.75rem",
+                         paddingBottom: "calc(0.9rem + env(safe-area-inset-bottom))" }}>
                     <button onClick={onClose}
                             className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600
                                        text-slate-200 text-sm font-semibold transition-colors">
