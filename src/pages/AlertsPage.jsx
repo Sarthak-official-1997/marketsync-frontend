@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getAlerts, toggleAlert, deleteAlert } from "../api/portfolio";
 import { searchStocks, getStockPrice } from "../api/portfolio";
 import StockLogo    from "../components/StockLogo";
+import NotesPanel   from "../components/NotesPanel";
 import PriceAlertModal from "../components/PriceAlertModal";
 import PushToggle from "../components/PushToggle";
 import { sendTestPush } from "../utils/push";
@@ -384,15 +385,17 @@ export default function AlertsPage() {
             </div>
 
             {/* Search to set new alert */}
-            <div className="bg-slate-800 border border-slate-700/60 rounded-2xl p-4">
-                <p className="text-white font-semibold text-sm mb-3">
-                    + Set New Alert
-                </p>
-                <StockSearchForAlert onSelect={handleSelectStock} />
-                <p className="text-slate-600 text-xs mt-2">
-                    Search any NSE/BSE stock or index to set a price or % change alert
-                </p>
-            </div>
+            {tab !== "notes" && (
+                <div className="bg-slate-800 border border-slate-700/60 rounded-2xl p-4">
+                    <p className="text-white font-semibold text-sm mb-3">
+                        + Set New Alert
+                    </p>
+                    <StockSearchForAlert onSelect={handleSelectStock} />
+                    <p className="text-slate-600 text-xs mt-2">
+                        Search any NSE/BSE stock or index to set a price or % change alert
+                    </p>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-1 bg-slate-800/60 p-1 rounded-xl w-fit">
@@ -400,6 +403,7 @@ export default function AlertsPage() {
                     ["active",    `Active (${activeCount})`],
                     ["triggered", `Triggered (${triggeredCount})`],
                     ["all",       `All (${alerts.length})`],
+                    ["notes",     `📝 Notes`],
                 ].map(([id, label]) => (
                     <button key={id} onClick={() => setTab(id)}
                             className={
@@ -413,8 +417,10 @@ export default function AlertsPage() {
                 ))}
             </div>
 
-            {/* Alert list */}
-            {loading ? (
+            {/* Alert list — or Notes panel on the notes tab */}
+            {tab === "notes" ? (
+                <NotesPanel />
+            ) : loading ? (
                 <div className="space-y-3">
                     {[1,2,3].map(i => (
                         <div key={i} className="h-20 bg-slate-800 rounded-xl animate-pulse" />
