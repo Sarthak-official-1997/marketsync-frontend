@@ -17,6 +17,9 @@ export const updateWatchlist    = (id, { name, color })    => api.patch(`/watchl
 /** DELETE /api/watchlists/{id} — delete a list (the default list is protected server-side). */
 export const deleteWatchlist    = (id)                     => api.delete(`/watchlists/${id}`);
 
+/** DELETE /api/watchlists/{listId}/stock/{stockId} — remove a stock from ONE specific list. */
+export const removeStockFromList = (listId, stockId)       => api.delete(`/watchlists/${listId}/stock/${stockId}`);
+
 /** POST /api/watchlists/add-stock — add one stock to several lists at once (skips lists it's already in). */
 export const addStockToLists    = (stockId, watchlistIds)  => api.post("/watchlists/add-stock", { stockId, watchlistIds });
 
