@@ -5,8 +5,12 @@ import StockTransactionPanel from "./StockTransactionPanel";
 import PriceAlertModal       from "./PriceAlertModal";
 import { getHoldings }       from "../api/portfolio";
 import StockLogo             from "./StockLogo";
-// PIECE 1: Fixed imports to include removeFromWatchlist (and optionally getWatchlist if needed by your API)
-import { getStockPrice, getStockReturns, getStockChart, addToWatchlist, removeFromWatchlist } from "../api/portfolio";
+import { getStockPrice, getStockReturns, getStockChart } from "../api/portfolio";
+// Multiple-watchlists: the Watch button now opens a multi-select sheet.
+import {
+    getWatchlists, getListsForStock, addStockToLists,
+    removeStockFromList, createWatchlist,
+} from "../api/watchlists";
 import { useToast } from "../context/ToastContext";
 import {
     AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -86,15 +90,22 @@ export default function StockDetailModal({ stock, onClose }) {
     const [retLoading,   setRL]          = useState(true);
     const [chartLoading, setCL]          = useState(true);
     const [showReturns,  setShowReturns] = useState(false);
-    const [addingWatch,  setAddingWatch] = useState(false);
     const [onBoard,      setOnBoard]      = useState(false);
     const [activeIdx,    setActiveIdx]   = useState(null);
     const [showSectionPicker, setShowSectionPicker] = useState(false);
     const [boardSections,     setBoardSections]     = useState([]);
 
-    // PIECE 2: Declared missing reactive state variables for Watchlist functionality
-    const [inWatchlist, setInWatchlist]         = useState(false);
-    const [watchlistItemId, setWatchlistItemId] = useState(null);
+    // ── Multiple-watchlists state ────────────────────────────────────────────
+    // listIds = ids of the user's lists that currently contain this stock.
+    // Drives the Watch button colour; the sheet lets you tick/untick lists.
+    const [listIds,       setListIds]       = useState(new Set());
+    const [watchSheetOpen, setWatchSheetOpen] = useState(false);
+    const [allLists,      setAllLists]      = useState([]);
+    const [listsLoading,  setListsLoading]  = useState(false);
+    const [busyListId,    setBusyListId]    = useState(null);   // list id (or "new") mid-request
+    const [newListName,   setNewListName]   = useState("");
+    const inAnyList = listIds.size > 0;
+
     // verticalPadding: controls Y-axis zoom via the chart slider (0.002=Tight → 0.08=Wide)
     const [verticalPadding, setVerticalPadding] = useState(0.01);
 
@@ -110,26 +121,19 @@ export default function StockDetailModal({ stock, onClose }) {
         return marketOpen ? TIMEFRAMES[0] : TIMEFRAMES[3];
     });
 
-    // Timeframe row auto-centering: keep the active pill centered inside its own
-    // horizontal scroller so the default (e.g. 1D) is never half-clipped at the edge,
-    // and a selected 1W/1M scrolls into the middle instead of hiding in the corner.
+    // Timeframe row auto-centering
     const tfScrollRef = useRef(null);
     const tfActiveRef = useRef(null);
     const centerActiveTf = useCallback(() => {
         const container = tfScrollRef.current;
         const active = tfActiveRef.current;
         if (!container || !active) return;
-        // Nothing to center if the row isn't actually overflowing.
         if (container.scrollWidth <= container.clientWidth + 1) return;
         const cRect = container.getBoundingClientRect();
         const aRect = active.getBoundingClientRect();
-        // horizontal delta needed to put the active pill in the container's centre
         const delta = (aRect.left - cRect.left) - (container.clientWidth - active.clientWidth) / 2;
         container.scrollBy({ left: delta, behavior: "auto" });
     }, []);
-    // Re-centre whenever the active timeframe changes. On first open the modal's
-    // layout is still settling (chart mounts, fonts load), so a single frame often
-    // fires before the row is scrollable — fire a few times over ~260ms to be safe.
     useEffect(() => {
         const raf = requestAnimationFrame(centerActiveTf);
         const t1 = setTimeout(centerActiveTf, 80);
@@ -137,7 +141,6 @@ export default function StockDetailModal({ stock, onClose }) {
         return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
     }, [tf, centerActiveTf]);
 
-    // PIECE 3: Updated initialization effect to handle incoming watchlist state properties
     useEffect(() => {
         if (!stock) return;
         setQuote(null); setReturns(null); setChartData([]);
@@ -146,14 +149,6 @@ export default function StockDetailModal({ stock, onClose }) {
         getStockPrice(stock.symbol)
             .then(r => {
                 setQuote(r.data);
-                // Silently parse if backend tells us it's already watchlisted in the payload
-                if (r.data?.inWatchlist !== undefined) {
-                    setInWatchlist(r.data.inWatchlist);
-                    setWatchlistItemId(r.data.watchlistItemId || null);
-                }
-                // ── Always re-save to recently viewed with fresh % data ──
-                // Works regardless of how the modal was opened (marquee, watchlist,
-                // board, search — all go through here)
                 trackStockView({
                     id:            stock.id,
                     symbol:        stock.symbol,
@@ -171,12 +166,19 @@ export default function StockDetailModal({ stock, onClose }) {
             .finally(() => setRL(false));
     }, [stock?.symbol]);
 
+    // Which of the user's lists already contain this stock (drives Watch button).
+    useEffect(() => {
+        if (!stock?.id) { setListIds(new Set()); return; }
+        getListsForStock(stock.id)
+            .then(r => setListIds(new Set(r.data || [])))
+            .catch(() => setListIds(new Set()));
+    }, [stock?.id]);
+
     useEffect(() => {
         if (!stock) return;
         setCL(true); setChartData([]);
         getStockChart(stock.symbol, stock.exchange, tf.interval, tf.range)
             .then(r => {
-                // Raw points from backend — timeLabel = "HH:mm" for intraday
                 const raw = (r.data?.dataPoints || [])
                     .filter(p => p.close != null)
                     .map(p => ({
@@ -187,9 +189,6 @@ export default function StockDetailModal({ stock, onClose }) {
                 let pts = raw;
 
                 if (tf.intraday) {
-                    // Build the FULL 09:15-15:30 slot grid (75 × 5-min slots).
-                    // Future slots get close=null so the line stops at current time
-                    // but the X-axis extends to 15:30 — matching how broker apps look.
                     const slots = [];
                     for (let m = 9 * 60 + 15; m <= 15 * 60 + 30; m += 5) {
                         slots.push(
@@ -201,10 +200,6 @@ export default function StockDetailModal({ stock, onClose }) {
                     raw.forEach(p => { dataMap[p.date] = p.close; });
                     pts = slots.map(time => ({ date: time, close: dataMap[time] ?? null }));
                 } else {
-                    // For multi-day timeframes (15m, 1h, 1D, 1W, 1M):
-                    // Filter out any null/missing points so there are no gaps between
-                    // trading sessions. Recharts activeDot freezes at the last real
-                    // point before a null — removing nulls fixes the stuck dot bug.
                     pts = raw.filter(p => p.close != null);
                 }
 
@@ -220,7 +215,6 @@ export default function StockDetailModal({ stock, onClose }) {
             getBoardApi()
                 .then(res => setOnBoard((res.data || []).some(s => s.symbol === stock.symbol)))
                 .catch(() => {});
-            // Load sections from localStorage for section picker
             try {
                 const raw = localStorage.getItem("ms_board_sections_v2");
                 if (raw) {
@@ -235,7 +229,6 @@ export default function StockDetailModal({ stock, onClose }) {
         return () => window.removeEventListener("ms_board_updated", checkBoard);
     }, [stock?.symbol]);
 
-    // Fetch user holdings to know if SELL button should show + hint in form
     useEffect(() => {
         if (!stock?.symbol) return;
         getHoldings().then(res => {
@@ -250,6 +243,61 @@ export default function StockDetailModal({ stock, onClose }) {
         return () => document.removeEventListener("keydown", h);
     }, [onClose]);
 
+    // ── Watch-sheet handlers ─────────────────────────────────────────────────
+    const openWatchSheet = () => {
+        setWatchSheetOpen(true);
+        setListsLoading(true);
+        getWatchlists()
+            .then(r => setAllLists(r.data || []))
+            .catch(() => toast.error("Couldn't load your lists"))
+            .finally(() => setListsLoading(false));
+    };
+
+    const toggleList = async (list) => {
+        if (!stock?.id) { toast.error("Missing stock ID"); return; }
+        const inList = listIds.has(list.id);
+        setBusyListId(list.id);
+        try {
+            if (inList) {
+                await removeStockFromList(list.id, stock.id);
+                setListIds(prev => { const n = new Set(prev); n.delete(list.id); return n; });
+                toast.success(`Removed from ${list.name}`);
+            } else {
+                await addStockToLists(stock.id, [list.id]);
+                setListIds(prev => new Set(prev).add(list.id));
+                toast.success(`Added to ${list.name}`);
+            }
+            window.dispatchEvent(new Event("watchlist:changed"));
+        } catch (err) {
+            toast.error(err.userMessage || "Failed");
+        } finally {
+            setBusyListId(null);
+        }
+    };
+
+    const createAndAdd = async () => {
+        const name = newListName.trim();
+        if (!name || !stock?.id) return;
+        setBusyListId("new");
+        try {
+            const res = await createWatchlist(name);
+            const newId = res.data?.id;
+            if (newId) {
+                await addStockToLists(stock.id, [newId]);
+                setListIds(prev => new Set(prev).add(newId));
+            }
+            const lr = await getWatchlists();
+            setAllLists(lr.data || []);
+            setNewListName("");
+            toast.success(`Created "${name}" and added`);
+            window.dispatchEvent(new Event("watchlist:changed"));
+        } catch (err) {
+            toast.error(err.userMessage || "Failed to create list");
+        } finally {
+            setBusyListId(null);
+        }
+    };
+
     if (!stock) return null;
 
     const pl        = parseFloat(quote?.changePercent || 0);
@@ -258,7 +306,6 @@ export default function StockDetailModal({ stock, onClose }) {
     const tvUrl     = "https://www.tradingview.com/chart/?symbol="
         + (stock.exchange || "NSE") + ":" + stock.symbol + "&interval=W";
 
-    // Chart derived values — ignore null slots when computing direction/firstPrice
     const realPts    = chartData.filter(p => p.close != null);
     const isUp       = realPts.length >= 2
         && realPts[realPts.length - 1].close >= realPts[0].close;
@@ -274,8 +321,6 @@ export default function StockDetailModal({ stock, onClose }) {
         && returns?.returns
         && Object.keys(returns.returns).length > 0;
 
-    // Y-axis domain: uses verticalPadding so the slider controls zoom level
-    // Tight (0.002) = price fills the chart, Wide (0.08) = more breathing room
     const yDomain = realPts.length > 0
         ? [
             () => Math.min(...realPts.map(p => p.close)) * (1 - verticalPadding),
@@ -284,13 +329,8 @@ export default function StockDetailModal({ stock, onClose }) {
         : ["auto", "auto"];
 
     // ── RENDER ─────────────────────────────────────────────────────────────────
-    // FIX: wrap everything in <> so txPanel and alertModal can be siblings of
-    // the main modal div within the same return statement.
     return createPortal(
         <>
-            {/* On mobile: align to bottom so it feels like a sheet, not a floating dialog.
-                On desktop: center it. items-end on mobile allows the sheet to sit flush
-                at the bottom edge (though we use 100dvh so it covers everything anyway). */}
             <div
                 className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center"
                 onClick={onClose}
@@ -300,12 +340,6 @@ export default function StockDetailModal({ stock, onClose }) {
                 <div
                     className="relative z-50 bg-slate-900 flex flex-col"
                     style={isMobile ? {
-                        // Full-screen on mobile: no 16px gaps on sides that cause the
-                        // chart container to be ~350px wide instead of ~390px, which
-                        // made the Recharts ResponsiveContainer think it had less space
-                        // and rendered the chart clipped/bleeding outside its box.
-                        // 100dvh = dynamic viewport height (accounts for browser chrome).
-                        // safe-area-inset-* = notch/home-bar padding on iPhone.
                         width: "100vw",
                         height: "100dvh",
                         maxWidth: "100vw",
@@ -314,9 +348,6 @@ export default function StockDetailModal({ stock, onClose }) {
                         border: "none",
                         paddingTop: "env(safe-area-inset-top, 0px)",
                         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-                        // Backstop only: clip anything that overflows the sheet width.
-                        // Do NOT set touch-action here — it would kill horizontal
-                        // swipe on the inner timeframe / returns scroller rows.
                         overflowX: "hidden",
                     } : {
                         width: "calc(100vw - 32px)",
@@ -331,11 +362,6 @@ export default function StockDetailModal({ stock, onClose }) {
                 >
                     {/* ── TOP BAR ── */}
                     {isMobile ? (
-                        /* ── Mobile top bar — FIXED, never scrolls ──
-                           Row 1: logo · symbol · price · BUY · SELL · ✕
-                           Row 2: secondary actions (Watch, Board, TradingView, Alert) — scrollable
-                           BUY and SELL are in row 1 so they are ALWAYS visible regardless of
-                           how far the user has scrolled the chart/returns below. */
                         <div className="flex-shrink-0 border-b border-slate-700/60 px-3 pt-3 pb-2">
 
                             {/* Row 1: identity + price + primary CTAs + close */}
@@ -362,21 +388,18 @@ export default function StockDetailModal({ stock, onClose }) {
                                         </div>
                                     )}
                                 </div>
-                                {/* BUY — always visible, never in a scroll row */}
                                 <button
                                     onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
                                     className="flex-shrink-0 text-xs font-bold px-3.5 py-2 rounded-lg
                                                bg-green-600 active:bg-green-700 text-white">
                                     BUY
                                 </button>
-                                {/* SELL — always visible */}
                                 <button
                                     onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
                                     className="flex-shrink-0 text-xs font-bold px-3.5 py-2 rounded-lg
                                                bg-red-600 active:bg-red-700 text-white">
                                     SELL
                                 </button>
-                                {/* Close */}
                                 <button
                                     onClick={onClose}
                                     className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-800
@@ -386,37 +409,14 @@ export default function StockDetailModal({ stock, onClose }) {
                                 </button>
                             </div>
 
-                            {/* Row 2: secondary actions — scrollable horizontally, that's fine */}
+                            {/* Row 2: secondary actions — scrollable horizontally */}
                             <div className="flex gap-1.5 overflow-x-auto pb-1"
                                  style={{ scrollbarWidth: "none" }}>
                                 <button
-                                    onClick={async () => {
-                                        setAddingWatch(true);
-                                        try {
-                                            if (inWatchlist && watchlistItemId) {
-                                                await removeFromWatchlist(watchlistItemId);
-                                                setInWatchlist(false); setWatchlistItemId(null);
-                                                toast.success(`${stock.symbol} removed from watchlist`);
-                                            } else {
-                                                if (!stock?.id) { toast.error("Missing stock ID"); return; }
-                                                const res = await addToWatchlist({ stockId: stock.id });
-                                                setInWatchlist(true);
-                                                setWatchlistItemId(res.data?.id || null);
-                                                toast.success(`${stock.symbol} added to watchlist`);
-                                            }
-                                            // Tell any mounted WatchlistPage to refetch immediately.
-                                            window.dispatchEvent(new Event("watchlist:changed"));
-                                        } catch (err) {
-                                            const msg = err.response?.data?.message || "";
-                                            if (msg.toLowerCase().includes("already")) {
-                                                setInWatchlist(true); toast.info("Already in watchlist");
-                                            } else { toast.error(msg || "Failed"); }
-                                        } finally { setAddingWatch(false); }
-                                    }}
-                                    disabled={addingWatch}
+                                    onClick={e => { e.stopPropagation(); openWatchSheet(); }}
                                     className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
-                                    (inWatchlist ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
-                                    {addingWatch ? "…" : inWatchlist ? "✓ Watch" : "👁 Watch"}
+                                    (inAnyList ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
+                                    {inAnyList ? "✓ Watch" : "👁 Watch"}
                                 </button>
                                 <button
                                     onClick={async (e) => {
@@ -491,45 +491,21 @@ export default function StockDetailModal({ stock, onClose }) {
                                     </div>
                                 ) : null}
 
-                                {/* Watchlist toggle — green=watchlisted, hover→red to remove */}
+                                {/* Watchlist — opens the multi-select sheet */}
                                 <button
-                                    onClick={async () => {
-                                        setAddingWatch(true);
-                                        try {
-                                            if (inWatchlist && watchlistItemId) {
-                                                await removeFromWatchlist(watchlistItemId);
-                                                setInWatchlist(false); setWatchlistItemId(null);
-                                                toast.success(`${stock.symbol} removed from watchlist`);
-                                            } else {
-                                                if (!stock?.id) { toast.error("Missing stock ID"); return; }
-                                                const res = await addToWatchlist({ stockId: stock.id });
-                                                setInWatchlist(true);
-                                                setWatchlistItemId(res.data?.id || null);
-                                                toast.success(`${stock.symbol} added to watchlist`);
-                                            }
-                                            // Tell any mounted WatchlistPage to refetch immediately.
-                                            window.dispatchEvent(new Event("watchlist:changed"));
-                                        } catch (err) {
-                                            const msg = err.response?.data?.message || "";
-                                            if (msg.toLowerCase().includes("already")) {
-                                                setInWatchlist(true); toast.info("Already in watchlist");
-                                            } else { toast.error(msg || "Failed"); }
-                                        } finally { setAddingWatch(false); }
-                                    }}
-                                    disabled={addingWatch}
+                                    onClick={openWatchSheet}
                                     className={
                                         "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
-                                        "rounded-xl transition-all whitespace-nowrap disabled:opacity-50 " +
-                                        (inWatchlist
-                                            ? "bg-green-700 hover:bg-red-700 text-white ring-1 ring-green-500/40"
+                                        "rounded-xl transition-all whitespace-nowrap " +
+                                        (inAnyList
+                                            ? "bg-green-700 hover:bg-green-600 text-white ring-1 ring-green-500/40"
                                             : "bg-slate-700 hover:bg-slate-600 text-white")
                                     }>
-                                    {addingWatch ? "…" : inWatchlist ? "✓ Watchlisted" : "👁 Watchlist"}
+                                    {inAnyList ? "✓ Watchlisted" : "👁 Watchlist"}
                                 </button>
 
                                 {/* Add to Board */}
                                 <div className="relative">
-                                    {/* Section picker dropdown */}
                                     {showSectionPicker && !onBoard && (
                                         <div className="absolute top-full right-0 mt-1 bg-slate-800
                                                 border border-slate-700 rounded-xl shadow-xl
@@ -543,12 +519,10 @@ export default function StockDetailModal({ stock, onClose }) {
                                                         onClick={async e => {
                                                             e.stopPropagation();
                                                             setShowSectionPicker(false);
-                                                            // Add to board API (pinned list)
                                                             await addToBoard({
                                                                 id: stock.id, symbol: stock.symbol,
                                                                 name: stock.name, exchange: stock.exchange,
                                                             });
-                                                            // Dispatch with target section info
                                                             window.dispatchEvent(new CustomEvent(
                                                                 "ms_board_add_to_section",
                                                                 { detail: { symbol: stock.symbol, sectionId: sec.id } }
@@ -572,10 +546,8 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 setOnBoard(false);
                                                 toast.success(`${stock.symbol} removed from board`);
                                             } else if (boardSections.length > 1) {
-                                                // Multiple sections — show picker
                                                 setShowSectionPicker(v => !v);
                                             } else {
-                                                // Single section or no sections — add directly
                                                 const added = await addToBoard({
                                                     id: stock.id, symbol: stock.symbol,
                                                     name: stock.name, exchange: stock.exchange,
@@ -615,7 +587,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                     TradingView
                                 </a>
 
-                                {/* Alert bell — glows on hover */}
+                                {/* Alert bell */}
                                 <button
                                     onClick={e => { e.stopPropagation(); setAlertModal(true); }}
                                     title="Set price alert"
@@ -626,7 +598,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                     🔔
                                 </button>
 
-                                {/* BUY — always visible */}
+                                {/* BUY */}
                                 <button
                                     onClick={e => { e.stopPropagation(); setTxPanel("BUY"); }}
                                     className="px-4 py-2.5 bg-green-600 hover:bg-green-700
@@ -634,7 +606,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                     BUY
                                 </button>
 
-                                {/* SELL — always visible; panel shows holding hint */}
+                                {/* SELL */}
                                 <button
                                     onClick={e => { e.stopPropagation(); setTxPanel("SELL"); }}
                                     className="px-4 py-2.5 bg-red-600 hover:bg-red-700
@@ -660,7 +632,7 @@ export default function StockDetailModal({ stock, onClose }) {
                     )}
                     {/* ── end TOP BAR ── */}
 
-                    {/* ── SCROLLABLE BODY ── flex-1 so it takes remaining height, overflow-y-auto so only this scrolls. Header above never moves. overflow-x hidden so the whole body can never be dragged sideways — inner rows scroll themselves. paddingBottom on mobile clears the fixed bottom nav so the last returns row (5Y) isn't hidden behind it. */}
+                    {/* ── SCROLLABLE BODY ── */}
                     <div style={{
                         flex: "1 1 0",
                         overflowY: "auto",
@@ -683,7 +655,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                     ["52W Low",    fmt(quote.weekLow52,     quote.currency)],
                                     ["Data",       quote.dataSource || "—"],
                                 ]
-                                    /* On mobile show only the first 3 — Day High/Low/Prev Close */
                                     .filter((_, i) => !isMobile || i < 3)
                                     .map(([label, value]) => (
                                         <div key={label} className={`bg-slate-900 py-3 ${isMobile ? "px-3" : "px-5"}`}>
@@ -695,10 +666,6 @@ export default function StockDetailModal({ stock, onClose }) {
                         )}
 
                         {/* ── CHART SECTION ── */}
-                        {/* px-2 on mobile: the YAxis needs ~48px, chart line needs the rest.
-                        px-6 on desktop was fine because the modal is wider.
-                        On a 390px phone: px-6 = 48px total side padding → chart only 342px.
-                        px-2 = 16px total → chart gets 374px. Meaningful difference for Recharts. */}
                         <div className={`flex flex-col flex-shrink-0 pt-4 pb-2 ${isMobile ? "px-2" : "px-6"}`}>
 
                             {/* Chart controls */}
@@ -720,7 +687,6 @@ export default function StockDetailModal({ stock, onClose }) {
 
                                 <div className={isMobile ? "flex flex-col gap-2" : "flex items-center gap-4"}
                                      style={{ minWidth: 0 }}>
-                                    {/* Vertical slider — desktop only, takes up too much mobile width */}
                                     {!isMobile && (
                                         <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/40">
                                             <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vertical View:</span>
@@ -740,7 +706,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                         </div>
                                     )}
 
-                                    {/* Original Timeframe Selectors */}
                                     <div className={isMobile ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}
                                          style={{ minWidth: 0 }}>
                                         <div ref={tfScrollRef} className={
@@ -766,7 +731,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 </button>
                                             ))}
                                         </div>
-                                        {/* Active timeframe description */}
                                         <p className="text-xs text-white/70 pr-1 font-medium tracking-wide">
                                             {tf.desc}
                                         </p>
@@ -809,12 +773,10 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 tick={{ fill: "#475569", fontSize: 11 }}
                                                 tickFormatter={d => {
                                                     if (!d) return "";
-                                                    // Intraday: already "HH:mm" — pass through
                                                     if (tf.intraday) return d;
                                                     const p = d.toString().split("T")[0].split("-");
                                                     return p.length >= 2 ? p[2] + "/" + p[1] : d;
                                                 }}
-                                                // Intraday: fixed 30-min marks covering full 09:15-15:30 session
                                                 ticks={tf.intraday ? INTRADAY_TICKS : undefined}
                                                 interval={tf.intraday ? 0 : "preserveStartEnd"}
                                                 axisLine={false}
@@ -828,11 +790,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                                         ? (v / 1000).toFixed(1) + "k"
                                                         : v.toFixed(0))
                                                 }
-                                                // Intraday: compute domain from real points only
-                                                // (null future slots would collapse the axis to 0)
                                                 domain={yDomain}
-                                                // On mobile: 48px is enough for "₹2.7k" labels.
-                                                // 64px on desktop for full "₹2,678" style labels.
                                                 width={isMobile ? 48 : 64}
                                                 axisLine={false}
                                                 tickLine={false}
@@ -860,10 +818,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 isAnimationActive={false}
                                                 activeDot={false}
                                             />
-                                            {/* Snapped crosshair: line and dot both snap to nearest data point.
-                                            cursor=false on Tooltip disables Recharts free-moving line.
-                                            activeIdx from onMouseMove gives the exact data-point index.
-                                            Both the ReferenceLine and the dot use the same date/value. */}
                                             {activeIdx != null && chartData[activeIdx]?.close != null && (
                                                 <ReferenceLine
                                                     x={chartData[activeIdx].date}
@@ -926,9 +880,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                 <span className={"flex-shrink-0 text-slate-400 transition-transform " + (showReturns ? "rotate-180" : "")}>▼</span>
                             </button>
 
-                            {/* Return-period pills: their own horizontal scroller, OUTSIDE the
-                                toggle button so a sideways swipe scrolls instead of toggling.
-                                min-width:0 lets it clip+scroll rather than widen the body. */}
                             {returnsOk && (
                                 <div className="flex gap-2 mt-2 overflow-x-auto pb-1"
                                      style={{ minWidth: 0, width: "100%", scrollbarWidth: "none" }}>
@@ -967,10 +918,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                     ) : !returnsOk ? (
                                         <p className="text-slate-400 text-sm text-center p-5">Not available</p>
                                     ) : (
-                                        /* Sample 1 — stacked rows: name + start-price sub-line on
-                                           the left, big absolute % on the right, CAGR as a small
-                                           secondary line. No table and no fixed min-width, so this
-                                           can never be wider than the phone → no horizontal leak. */
                                         <div className="px-4">
                                             {RETURN_PERIODS.map(({ key }) => {
                                                 const r = returns.returns?.[key];
@@ -1017,6 +964,99 @@ export default function StockDetailModal({ stock, onClose }) {
                     </div>{/* end scrollable body */}
                 </div>{/* end modal card */}
             </div>{/* end backdrop */}
+
+            {/* Add-to-watchlists sheet — own portal so it sits above StockDetailModal (z-[300]) */}
+            {watchSheetOpen && createPortal(
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4"
+                     onClick={() => setWatchSheetOpen(false)}>
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+                    <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-[360px] flex flex-col"
+                         style={{ maxHeight: "80dvh" }}
+                         onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <StockLogo symbol={stock.symbol} name={stock.name} size={24} />
+                                <div className="min-w-0">
+                                    <p className="text-white font-bold text-sm leading-none truncate">
+                                        Add {stock.symbol} to lists
+                                    </p>
+                                    <p className="text-slate-500 text-[11px] mt-0.5">
+                                        In {listIds.size} list{listIds.size !== 1 ? "s" : ""}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setWatchSheetOpen(false)}
+                                    className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400
+                                               flex items-center justify-center active:bg-slate-700">
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* List rows */}
+                        <div className="flex-1 overflow-y-auto p-2" style={{ minHeight: 0 }}>
+                            {listsLoading ? (
+                                <div className="p-6 text-center text-slate-500 text-sm">Loading lists…</div>
+                            ) : allLists.length === 0 ? (
+                                <div className="p-6 text-center text-slate-500 text-sm">
+                                    No lists yet — create one below.
+                                </div>
+                            ) : allLists.map(list => {
+                                const inList = listIds.has(list.id);
+                                const busy   = busyListId === list.id;
+                                return (
+                                    <button key={list.id} onClick={() => toggleList(list)} disabled={busy}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                                                       hover:bg-slate-800 active:bg-slate-800 transition-colors
+                                                       text-left disabled:opacity-50">
+                                        <span className="flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center
+                                                         justify-center transition-colors"
+                                              style={{ borderColor: inList ? "#7c3aed" : "#475569",
+                                                  background:  inList ? "#7c3aed" : "transparent" }}>
+                                            {inList && (
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                                     stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M20 6 9 17l-5-5"/>
+                                                </svg>
+                                            )}
+                                        </span>
+                                        {list.color && (
+                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                  style={{ background: list.color }} />
+                                        )}
+                                        <span className="flex-1 min-w-0 text-white text-sm font-semibold truncate">
+                                            {list.name}
+                                        </span>
+                                        {list.isDefault && (
+                                            <span className="text-[9px] text-slate-500 uppercase tracking-wide flex-shrink-0">
+                                                default
+                                            </span>
+                                        )}
+                                        {busy && <span className="text-slate-500 text-xs flex-shrink-0">…</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* New list */}
+                        <div className="p-3 border-t border-slate-700/60 flex gap-2">
+                            <input type="text" value={newListName}
+                                   onChange={e => setNewListName(e.target.value)}
+                                   onKeyDown={e => { if (e.key === "Enter") createAndAdd(); }}
+                                   placeholder="＋ New list name"
+                                   className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
+                                              text-white text-sm focus:outline-none focus:border-purple-500" />
+                            <button onClick={createAndAdd}
+                                    disabled={!newListName.trim() || busyListId === "new"}
+                                    className="px-4 py-2 bg-purple-600 text-white text-sm font-semibold
+                                               rounded-xl disabled:opacity-40">
+                                {busyListId === "new" ? "…" : "Create"}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* Transaction panel — own portal so it renders above StockDetailModal (z-[300]) */}
             {txPanel && createPortal(
