@@ -1975,6 +1975,49 @@ export default function StocksMarketPage() {
         }
     }, [sections, canvasWidth]);
 
+    // -- Reconcile: every pinned stock (id>0) must live in a non-index section --
+    // Timing-independent safety net. The ms_board_updated injection in loadBoard
+    // can miss (race while sections are null/_raw, or no non-index section exists),
+    // leaving a stock "on board" in the pinned list but absent from the grid.
+    // This runs whenever pinned/sections settle and places any orphaned symbol —
+    // so a stock added from ANY entry point appears on the grid the first time.
+    useEffect(() => {
+        if (!sections || sections._raw) return;           // wait for real sections
+        const real   = sectionsArray(sections);
+        const placed = new Set(real.flatMap(s => s.symbols || []));
+        const orphans = pinned
+            .filter(s => (s.id || 0) > 0 && !placed.has(s.symbol))
+            .map(s => s.symbol);
+        if (orphans.length === 0) return;
+
+        setSections(prev => {
+            const arr       = sectionsArray(prev);
+            const placedNow = new Set(arr.flatMap(s => s.symbols || []));
+            const toAdd     = orphans.filter(sym => !placedNow.has(sym));
+            if (toAdd.length === 0) return prev;
+
+            const firstNonIndex = arr.findIndex(s => s.type !== "index");
+            if (firstNonIndex >= 0) {
+                return arr.map((s, i) =>
+                    i === firstNonIndex
+                        ? { ...s, symbols: [...(s.symbols || []), ...toAdd] }
+                        : s
+                );
+            }
+            // No non-index section exists — create one to hold the orphans.
+            return [
+                ...arr,
+                {
+                    id:        `sec_${Date.now()}`,
+                    title:     "My Board",
+                    symbols:   toAdd,
+                    x: 20, y: 20, w: 420, h: 260,
+                    cardScale: 1,
+                },
+            ];
+        });
+    }, [pinned, sections]);
+
     // -- Holdings map ----------------------------------------------------------
     useEffect(() => {
         getHoldings()
