@@ -25,6 +25,7 @@ import haptics from "../utils/haptics";
 import InstallAppButton from "./InstallAppButton";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
+import FloatingBubble from "./FloatingBubble";
 
 // ── Inline mobile hook — no external file dependency ──────────────────────────
 function useMobile() {
@@ -230,7 +231,6 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
     // MF links live behind a single expandable tile so the stock-first app
     // isn't dominated by mutual-fund entries in the drawer.
     const mfLinks = [
-        { label: "MF Market",       to: "/mf",              icon: "📊" },
         { label: "MF Market",       to: "/mf",              icon: "📊" },
         { label: "MF Holdings",     to: "/mf/holdings",     icon: "💼" },
         { label: "MF Transactions", to: "/mf/transactions", icon: "🔄" },
@@ -546,6 +546,9 @@ export default function Layout({ children, portfolioSummary }) {
 
     return (
         <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
+
+            {/* Global floating launcher — Notes + AI Folyo. Respects Settings prefs. */}
+            <FloatingBubble />
 
             {/* ── Mobile header — shown only on small screens ── */}
             {isMobile && (
