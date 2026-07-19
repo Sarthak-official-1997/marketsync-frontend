@@ -225,15 +225,34 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore }) {
 function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
     const navigate = useNavigate();
     const go = (to) => { onClose(); navigate(to); };
-    const items = [
-        { label: "MF Market",          to: "/mf",               icon: "📊" },
-        { label: "MF Holdings",        to: "/mf/holdings",      icon: "💼" },
-        { label: "MF Transactions",    to: "/mf/transactions",  icon: "🔄" },
-        { label: "MF Watchlist",       to: "/mf/watchlist",     icon: "👁" },
-        { label: "Alerts",             to: "/stocks/alerts",    icon: "🔔" },
-        { label: "Combined Portfolio", to: "/portfolio",         icon: "⊞" },
-        { label: "Settings",           to: "/settings",          icon: "⚙️" },
+    const [mfExpanded, setMfExpanded] = useState(false);
+
+    // MF links live behind a single expandable tile so the stock-first app
+    // isn't dominated by mutual-fund entries in the drawer.
+    const mfLinks = [
+        { label: "MF Market",       to: "/mf",              icon: "📊" },
+        { label: "MF Holdings",     to: "/mf/holdings",     icon: "💼" },
+        { label: "MF Transactions", to: "/mf/transactions", icon: "🔄" },
+        { label: "MF Watchlist",    to: "/mf/watchlist",    icon: "👁" },
     ];
+    // Creator / Admin links intentionally NOT here — they live in Settings now.
+    const mainTiles = [
+        { label: "Alerts",             to: "/stocks/alerts", icon: "🔔" },
+        { label: "Combined Portfolio", to: "/portfolio",     icon: "⊞"  },
+        { label: "Settings",           to: "/settings",      icon: "⚙️" },
+    ];
+
+    const tileStyle = {
+        display: "flex", flexDirection: "column",
+        alignItems: "center", gap: 6,
+        padding: "12px 8px",
+        background: "#1e293b",
+        border: "1px solid rgba(51,65,85,0.6)",
+        borderRadius: 12, cursor: "pointer",
+        color: "#cbd5e1",
+    };
+    const labelStyle = { fontSize: 11, fontWeight: 500, textAlign: "center", lineHeight: 1.3 };
+
     return (
         <>
             <div onClick={onClose}
@@ -248,67 +267,44 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
                 borderTop: "1px solid rgba(51,65,85,0.6)",
                 borderRadius: "16px 16px 0 0",
                 padding: "16px",
+                maxHeight: "70vh", overflowY: "auto",
             }}>
                 <div style={{ width: 40, height: 4, background: "#334155",
                     borderRadius: 2, margin: "0 auto 16px" }} />
+
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    {items.map(item => (
-                        <button key={item.to} onClick={() => go(item.to)}
-                                style={{
-                                    display: "flex", flexDirection: "column",
-                                    alignItems: "center", gap: 6,
-                                    padding: "12px 8px",
-                                    background: "#1e293b",
-                                    border: "1px solid rgba(51,65,85,0.6)",
-                                    borderRadius: 12, cursor: "pointer",
-                                    color: "#cbd5e1",
-                                }}>
+                    {/* Mutual Funds — expandable */}
+                    <button onClick={() => setMfExpanded(v => !v)}
+                            style={{ ...tileStyle,
+                                borderColor: mfExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
+                        <span style={{ fontSize: 22 }}>📊</span>
+                        <span style={labelStyle}>Mutual Funds {mfExpanded ? "▲" : "▼"}</span>
+                    </button>
+                    {mainTiles.map(item => (
+                        <button key={item.to} onClick={() => go(item.to)} style={tileStyle}>
                             <span style={{ fontSize: 22 }}>{item.icon}</span>
-                            <span style={{ fontSize: 11, fontWeight: 500,
-                                textAlign: "center", lineHeight: 1.3 }}>
-                                {item.label}
-                            </span>
+                            <span style={labelStyle}>{item.label}</span>
                         </button>
                     ))}
                 </div>
 
-                {/* Install-to-home-screen shortcut (+ enables alert notifications) */}
-                <InstallAppButton />
-                {(isAdmin || isCreator) && (
-                    <div style={{ marginTop: 12, paddingTop: 12,
-                        borderTop: "1px solid rgba(51,65,85,0.4)" }}>
-                        <p style={{ fontSize: 10, color: "#475569", fontWeight: 600,
-                            textTransform: "uppercase", letterSpacing: "0.08em",
-                            marginBottom: 8 }}>
-                            {isCreator ? "👑 Creator" : "Admin"}
-                        </p>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {[
-                                { to: "/admin",           label: "Dashboard" },
-                                { to: "/admin/clients",   label: "Clients"   },
-                                { to: "/admin/analytics", label: "Analytics" },
-                                // Creator-only — mirrors the desktop sidebar so creators
-                                // get the full menu on mobile too.
-                                ...(isCreator ? [
-                                    { to: "/admin/notifications", label: "Notifications" },
-                                    { to: "/admin/users",         label: "Users"         },
-                                    { to: "/admin/ai-report",     label: "AI Report"     },
-                                ] : []),
-                            ].map(l => (
-                                <button key={l.to} onClick={() => go(l.to)}
-                                        style={{
-                                            padding: "6px 12px",
-                                            background: "#1e293b",
-                                            border: "1px solid rgba(51,65,85,0.6)",
-                                            borderRadius: 8, cursor: "pointer",
-                                            color: "#94a3b8", fontSize: 12,
-                                        }}>
-                                    {l.label}
-                                </button>
-                            ))}
-                        </div>
+                {/* MF sub-tiles — revealed when the Mutual Funds tile is tapped */}
+                {mfExpanded && (
+                    <div style={{ marginTop: 8, padding: 8,
+                        background: "rgba(30,41,59,0.45)", borderRadius: 12,
+                        display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                        {mfLinks.map(item => (
+                            <button key={item.to} onClick={() => go(item.to)}
+                                    style={{ ...tileStyle, padding: "10px 8px", background: "#0f172a" }}>
+                                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                                <span style={{ ...labelStyle, fontSize: 10.5 }}>{item.label}</span>
+                            </button>
+                        ))}
                     </div>
                 )}
+
+                {/* Install-to-home-screen shortcut (+ enables alert notifications) */}
+                <InstallAppButton />
             </div>
         </>
     );
@@ -902,6 +898,7 @@ export default function Layout({ children, portfolioSummary }) {
                             <div className="h-px bg-slate-700/40 my-2" />
 
                             <NavLink to="/portfolio" icon="⊞" label="Combined Portfolio" exact />
+                            <NavLink to="/settings" icon="⚙️" label="Settings" exact />
 
                             {isAdmin && (
                                 <>

@@ -1,6 +1,6 @@
 // src/pages/SettingsPage.jsx
-// Dedicated settings surface — consolidates account actions, appearance, the
-// floating-bubble preferences (per-device), and the creator menu into one place.
+// Dedicated settings surface. Every section is collapsible and starts collapsed,
+// so the page opens compact instead of one long scroll.
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,15 +11,18 @@ import ChangePasswordModal from "../components/ChangePasswordModal";
 import RevealPasswordModal from "../components/RevealPasswordModal";
 import { getBubblePrefs, setBubblePrefs } from "../utils/bubblePrefs";
 
-// Small labelled section wrapper.
-function Section({ icon, title, children }) {
+// Collapsible section. Header is a toggle; body only renders when open.
+function Section({ icon, title, children, defaultOpen = false }) {
+    const [open, setOpen] = useState(defaultOpen);
     return (
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-700/50 flex items-center gap-2">
+            <button type="button" onClick={() => setOpen(v => !v)}
+                    className="w-full px-4 py-3.5 flex items-center gap-2 hover:bg-slate-700/30 transition-colors">
                 <span className="text-base">{icon}</span>
-                <p className="text-sm font-bold text-white">{title}</p>
-            </div>
-            <div className="p-3 space-y-1">{children}</div>
+                <p className="text-sm font-bold text-white flex-1 text-left">{title}</p>
+                <span className={"text-slate-500 text-xs transition-transform " + (open ? "rotate-180" : "")}>▼</span>
+            </button>
+            {open && <div className="p-3 space-y-1 border-t border-slate-700/50">{children}</div>}
         </div>
     );
 }
@@ -51,7 +54,6 @@ export default function SettingsPage() {
     const [showChangePw, setShowChangePw] = useState(false);
     const [showRevealPw, setShowRevealPw] = useState(false);
 
-    // Bubble prefs (per-device, localStorage). Local state mirrors storage.
     const [bubble, setBubble] = useState(getBubblePrefs());
     const updateBubble = (patch) => setBubble(setBubblePrefs(patch));
 
@@ -63,7 +65,6 @@ export default function SettingsPage() {
         navigate("/login");
     };
 
-    // transparency stored 0–0.8; show slider as an intuitive 0–100% "see-through"
     const transparencyPct = Math.round((bubble.transparency / 0.8) * 100);
 
     const creatorLinks = [
@@ -76,7 +77,7 @@ export default function SettingsPage() {
     ];
 
     return (
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="max-w-2xl mx-auto space-y-3">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -147,7 +148,7 @@ export default function SettingsPage() {
                         className="w-full h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-purple-500"
                     />
                     <p className="text-[11px] text-slate-600 mt-2">
-                        Higher transparency lets you see content behind the bubble. This setting is saved on this device only.
+                        Higher transparency lets you see content behind the bubble. Saved on this device only.
                     </p>
                 </div>
             </Section>
