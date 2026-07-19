@@ -102,18 +102,21 @@ export default function FloatingBubble() {
 
     return (
         <>
+            {/* Self-contained keyframe so the component needs no global CSS. */}
+            <style>{"@keyframes fabPop{from{opacity:0;transform:translateY(6px) scale(.9)}to{opacity:1;transform:none}}"}</style>
+
             {/* Sub-bubbles */}
             {open && (
                 <>
                     <SubBubble
-                        pos={{ x: pos.x, y: pos.y - 64 }}
-                        emoji="✨" label="AI Folyo" color="#7c3aed" onLeft={onLeft}
+                        bubbleX={pos.x} y={pos.y - 62}
+                        emoji="✨" label="AI Folyo" color="#7c3aed" side={onLeft ? "left" : "right"}
                         opacity={opacity}
                         onClick={() => { setOpen(false); setShowAi(true); }}
                     />
                     <SubBubble
-                        pos={{ x: pos.x, y: pos.y - 124 }}
-                        emoji="📝" label="Notes" color="#0891b2" onLeft={onLeft}
+                        bubbleX={pos.x} y={pos.y - 120}
+                        emoji="📝" label="Notes" color="#0891b2" side={onLeft ? "left" : "right"}
                         opacity={opacity}
                         onClick={() => {
                             setOpen(false);
@@ -163,38 +166,53 @@ export default function FloatingBubble() {
 }
 
 // -- A single fan-out action bubble -------------------------------------------
-function SubBubble({ pos, emoji, label, color, onClick, onLeft, opacity }) {
+// The 44px icon is centred under the 52px main bubble; the label opens AWAY from
+// the nearest screen edge (leftward when the bubble is right-snapped, rightward
+// when left-snapped) so it never gets crammed against the edge.
+function SubBubble({ bubbleX, y, emoji, label, color, onClick, side, opacity }) {
+    const ICON = 44;
+    const iconLeft = bubbleX + (SIZE - ICON) / 2;   // centre icon under the bubble
+    const isRight  = side === "right";
+
+    // Anchor so the icon stays under the bubble; content flows toward open space.
+    const anchor = isRight
+        ? { right: Math.max(MARGIN, window.innerWidth - (iconLeft + ICON)) }
+        : { left:  iconLeft };
+
+    const icon = (
+        <span style={{
+            width: ICON, height: ICON, borderRadius: "50%",
+            background: color, color: "white", fontSize: 18,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.4)", flexShrink: 0,
+        }}>{emoji}</span>
+    );
+    const chip = (
+        <span style={{
+            background: "#1e293b", color: "#e2e8f0",
+            fontSize: 12, fontWeight: 600,
+            padding: "5px 10px", borderRadius: 8,
+            border: "1px solid rgba(51,65,85,0.6)",
+            whiteSpace: "nowrap",
+        }}>{label}</span>
+    );
+
     return (
         <button
             onClick={onClick}
             style={{
                 position: "fixed",
-                left: pos.x, top: pos.y,
+                top: y, ...anchor,
                 zIndex: 9499,
                 display: "flex", alignItems: "center", gap: 8,
-                flexDirection: onLeft ? "row" : "row-reverse",
                 background: "transparent", border: "none",
                 cursor: "pointer", opacity,
                 animation: "fabPop .16s ease",
             }}
         >
-            <span style={{
-                width: 44, height: 44, borderRadius: "50%",
-                background: color, color: "white", fontSize: 18,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.4)", flexShrink: 0,
-            }}>
-                {emoji}
-            </span>
-            <span style={{
-                background: "#1e293b", color: "#e2e8f0",
-                fontSize: 12, fontWeight: 600,
-                padding: "5px 10px", borderRadius: 8,
-                border: "1px solid rgba(51,65,85,0.6)",
-                whiteSpace: "nowrap",
-            }}>
-                {label}
-            </span>
+            {/* Right-snapped: label then icon (icon sits on the right, under the bubble).
+                Left-snapped: icon then label. */}
+            {isRight ? <>{chip}{icon}</> : <>{icon}{chip}</>}
         </button>
     );
 }
