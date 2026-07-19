@@ -32,6 +32,7 @@ import AlertsPage          from "./pages/AlertsPage";
 import HoldingsPage        from "./pages/HoldingsPage";
 import TransactionsPage    from "./pages/TransactionsPage";
 import WatchlistPage       from "./pages/WatchlistPage";
+import SettingsPage        from "./pages/SettingsPage";
 
 // MF
 import MfMarketPage        from "./pages/MfMarketPage";
@@ -230,6 +231,13 @@ function AppShell() {
                     <Route path="/portfolio" element={
                         <ErrorBoundary locationKey={locationKey} fallbackTitle="Combined portfolio failed to load">
                             <CombinedPortfolio />
+                        </ErrorBoundary>
+                    } />
+
+                    {/* -- SETTINGS -- */}
+                    <Route path="/settings" element={
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Settings failed to load">
+                            <SettingsPage />
                         </ErrorBoundary>
                     } />
 
