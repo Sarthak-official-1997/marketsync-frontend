@@ -422,16 +422,18 @@ export default function StockDetailModal({ stock, onClose }) {
                                     onClick={async (e) => {
                                         e.stopPropagation();
                                         if (onBoard) {
-                                            await removeFromBoard(stock.symbol);
-                                            setOnBoard(false);
-                                            toast.success(`${stock.symbol} removed from board`);
+                                            const r = await removeFromBoard(stock.symbol);
+                                            if (!r) { toast.error("Couldn't remove from board"); }
+                                            else if (r.removed) { setOnBoard(false); toast.success(`${stock.symbol} removed from board`); }
+                                            else { setOnBoard(false); toast.info(`${stock.symbol} wasn't on your board`); }
                                         } else {
-                                            const added = await addToBoard({
+                                            const r = await addToBoard({
                                                 id: stock.id, symbol: stock.symbol,
                                                 name: stock.name, exchange: stock.exchange,
                                             });
-                                            if (added) { setOnBoard(true); toast.success(`${stock.symbol} added to board`); }
-                                            else { toast.error(`${stock.symbol} already on board`); }
+                                            if (!r) { toast.error("Couldn't add to board"); }
+                                            else if (r.added) { setOnBoard(true); toast.success(`${stock.symbol} added to board`); }
+                                            else if (r.alreadyPresent) { setOnBoard(true); toast.info(`${stock.symbol} is already on your board`); }
                                         }
                                     }}
                                     className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
@@ -519,16 +521,19 @@ export default function StockDetailModal({ stock, onClose }) {
                                                         onClick={async e => {
                                                             e.stopPropagation();
                                                             setShowSectionPicker(false);
-                                                            await addToBoard({
+                                                            const r = await addToBoard({
                                                                 id: stock.id, symbol: stock.symbol,
                                                                 name: stock.name, exchange: stock.exchange,
                                                             });
-                                                            window.dispatchEvent(new CustomEvent(
-                                                                "ms_board_add_to_section",
-                                                                { detail: { symbol: stock.symbol, sectionId: sec.id } }
-                                                            ));
-                                                            setOnBoard(true);
-                                                            toast.success(`${stock.symbol} added to "${sec.title}"`);
+                                                            if (!r) { toast.error("Couldn't add to board"); }
+                                                            else {
+                                                                window.dispatchEvent(new CustomEvent(
+                                                                    "ms_board_add_to_section",
+                                                                    { detail: { symbol: stock.symbol, sectionId: sec.id } }
+                                                                ));
+                                                                setOnBoard(true);
+                                                                toast.success(`${stock.symbol} added to "${sec.title}"`);
+                                                            }
                                                         }}
                                                         className="w-full text-left px-3 py-2.5 text-sm
                                                            text-slate-300 hover:bg-slate-700
@@ -542,22 +547,20 @@ export default function StockDetailModal({ stock, onClose }) {
                                         onClick={async e => {
                                             e.stopPropagation();
                                             if (onBoard) {
-                                                await removeFromBoard(stock.symbol);
-                                                setOnBoard(false);
-                                                toast.success(`${stock.symbol} removed from board`);
+                                                const r = await removeFromBoard(stock.symbol);
+                                                if (!r) { toast.error("Couldn't remove from board"); }
+                                                else if (r.removed) { setOnBoard(false); toast.success(`${stock.symbol} removed from board`); }
+                                                else { setOnBoard(false); toast.info(`${stock.symbol} wasn't on your board`); }
                                             } else if (boardSections.length > 1) {
                                                 setShowSectionPicker(v => !v);
                                             } else {
-                                                const added = await addToBoard({
+                                                const r = await addToBoard({
                                                     id: stock.id, symbol: stock.symbol,
                                                     name: stock.name, exchange: stock.exchange,
                                                 });
-                                                if (added) {
-                                                    setOnBoard(true);
-                                                    toast.success(`${stock.symbol} added to board`);
-                                                } else {
-                                                    toast.error(`${stock.symbol} already on board`);
-                                                }
+                                                if (!r) { toast.error("Couldn't add to board"); }
+                                                else if (r.added) { setOnBoard(true); toast.success(`${stock.symbol} added to board`); }
+                                                else if (r.alreadyPresent) { setOnBoard(true); toast.info(`${stock.symbol} is already on your board`); }
                                             }
                                         }}
                                         className={
