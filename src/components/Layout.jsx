@@ -231,6 +231,7 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
     // isn't dominated by mutual-fund entries in the drawer.
     const mfLinks = [
         { label: "MF Market",       to: "/mf",              icon: "📊" },
+        { label: "MF Market",       to: "/mf",              icon: "📊" },
         { label: "MF Holdings",     to: "/mf/holdings",     icon: "💼" },
         { label: "MF Transactions", to: "/mf/transactions", icon: "🔄" },
         { label: "MF Watchlist",    to: "/mf/watchlist",    icon: "👁" },
@@ -311,29 +312,38 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
 }
 
 // -- Board helpers ------------------------------------------------------------
+// The backend is now authoritative: POST is idempotent and returns
+// { added, alreadyPresent, ... }; DELETE returns { removed }. These helpers
+// pass that truth back to callers so the UI never guesses or retries.
 
 export async function addToBoard(stock) {
     try {
-        await addToBoardApi({
+        const res = await addToBoardApi({
             symbol:   stock.symbol,
             name:     stock.name     || stock.companyName || stock.symbol,
             exchange: stock.exchange || "NSE",
         });
         window.dispatchEvent(new Event("ms_board_updated"));
-        return true;
+        // { added: bool, alreadyPresent: bool, ...row }
+        return res.data || { added: true, alreadyPresent: false };
     } catch {
-        return false;
+        return null;   // genuine failure (network / auth)
     }
 }
 
 export async function removeFromBoard(symbol) {
     try {
-        await removeFromBoardApi(symbol);
+        const res = await removeFromBoardApi(symbol);
         window.dispatchEvent(new Event("ms_board_updated"));
-    } catch {}
+        // { removed: bool, symbol }
+        return res.data || { removed: true };
+    } catch {
+        return null;   // genuine failure
+    }
 }
 
 export function getBoardStocks() { return []; }
+
 
 const STOCKS_LINKS = [
     { to: "/stocks",              icon: "📊", label: "Market"       },
