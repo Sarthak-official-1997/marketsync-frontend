@@ -1,16 +1,22 @@
 // src/api/notes.js
-// Notes CRUD. Reuses the shared axios instance (JWT + interceptors) from portfolio.js.
+// Personal research notes. Matches the existing backend contract:
+//   NoteDto      { id, body, stocks:[{symbol,name,exchange}], reminders:[{remindAt,fired,firedAt}], done, createdAt }
+//   Create/PATCH { body, stocks:[{symbol,name,exchange}], reminders:[ISO datetime], done? }
+// Reuses the shared axios instance (JWT + interceptors) from portfolio.js.
 
 import { api } from "./portfolio";
 
-/** GET /api/notes — user's notes (pinned first, newest first). Optional text filter q. */
-export const getNotes   = (q)         => api.get("/notes", q ? { params: { q } } : undefined);
+/** GET /api/notes — all of the user's notes. */
+export const getNotes         = ()            => api.get("/notes");
 
-/** POST /api/notes — { content, linkedSymbols?, remindAt?, pinned? } */
-export const createNote = (payload)   => api.post("/notes", payload);
+/** GET /api/notes/by-stock/{symbol} — notes linking a given stock. */
+export const getNotesByStock  = (symbol)      => api.get(`/notes/by-stock/${symbol}`);
 
-/** PATCH /api/notes/{id} — partial update; only provided fields change. */
-export const updateNote = (id, patch) => api.patch(`/notes/${id}`, patch);
+/** POST /api/notes — { body, stocks?, reminders? }. Only body is required. */
+export const createNote       = (payload)     => api.post("/notes", payload);
 
-/** DELETE /api/notes/{id} */
-export const deleteNote = (id)        => api.delete(`/notes/${id}`);
+/** PATCH /api/notes/{id} — { body?, stocks?, reminders?, done? }. Null fields unchanged. */
+export const updateNote       = (id, patch)   => api.patch(`/notes/${id}`, patch);
+
+/** DELETE /api/notes/{id} — returns 204. */
+export const deleteNote       = (id)          => api.delete(`/notes/${id}`);
