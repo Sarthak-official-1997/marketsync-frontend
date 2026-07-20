@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import AiChatModal from "./AiChatModal";
-import { useToast } from "../context/ToastContext";
+import NotesPanel from "./NotesPanel";
 import {
     getBubblePrefs, setBubblePrefs, BUBBLE_PREFS_EVENT,
 } from "../utils/bubblePrefs";
@@ -24,11 +24,11 @@ function loadPos() {
 }
 
 export default function FloatingBubble() {
-    const toast = useToast();
     const [prefs,    setPrefs]    = useState(getBubblePrefs());
     const [pos,      setPos]      = useState(loadPos);
     const [open,     setOpen]     = useState(false);   // sub-bubbles fanned out
     const [showAi,   setShowAi]   = useState(false);
+    const [showNotes, setShowNotes] = useState(false);
     const [dragging, setDragging] = useState(false);
 
     const dragState = useRef({ active: false, moved: false, dx: 0, dy: 0 });
@@ -118,11 +118,7 @@ export default function FloatingBubble() {
                         bubbleX={pos.x} y={pos.y - 120}
                         emoji="📝" label="Notes" color="#0891b2" side={onLeft ? "left" : "right"}
                         opacity={opacity}
-                        onClick={() => {
-                            setOpen(false);
-                            // Notes panel isn't built yet — stub until that unit lands.
-                            toast.info("Notes are coming soon");
-                        }}
+                        onClick={() => { setOpen(false); setShowNotes(true); }}
                     />
                 </>
             )}
@@ -161,6 +157,7 @@ export default function FloatingBubble() {
             </button>
 
             {showAi && <AiChatModal onClose={() => setShowAi(false)} />}
+            {showNotes && <NotesPanel onClose={() => setShowNotes(false)} />}
         </>
     );
 }

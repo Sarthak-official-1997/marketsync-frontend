@@ -1,11 +1,16 @@
 // src/api/notes.js
+// Notes CRUD. Reuses the shared axios instance (JWT + interceptors) from portfolio.js.
+
 import { api } from "./portfolio";
 
-// Personal research notes. A note is free text + zero-to-many linked stocks
-// + an optional reminder time. See NoteController on the backend.
+/** GET /api/notes — user's notes (pinned first, newest first). Optional text filter q. */
+export const getNotes   = (q)         => api.get("/notes", q ? { params: { q } } : undefined);
 
-export const getNotes        = ()              => api.get("/notes").then(r => r.data);
-export const getNotesByStock = (symbol)        => api.get(`/notes/by-stock/${encodeURIComponent(symbol)}`).then(r => r.data);
-export const createNote      = (data)          => api.post("/notes", data).then(r => r.data);
-export const updateNote      = (id, data)      => api.patch(`/notes/${id}`, data).then(r => r.data);
-export const deleteNote      = (id)            => api.delete(`/notes/${id}`).then(r => r.data);
+/** POST /api/notes — { content, linkedSymbols?, remindAt?, pinned? } */
+export const createNote = (payload)   => api.post("/notes", payload);
+
+/** PATCH /api/notes/{id} — partial update; only provided fields change. */
+export const updateNote = (id, patch) => api.patch(`/notes/${id}`, patch);
+
+/** DELETE /api/notes/{id} */
+export const deleteNote = (id)        => api.delete(`/notes/${id}`);

@@ -7,8 +7,6 @@ import { useNavigate } from "react-router-dom";
 import { useTheme, THEMES } from "../context/ThemeContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth } from "../context/AuthContext";
-import ChangePasswordModal from "../components/ChangePasswordModal";
-import RevealPasswordModal from "../components/RevealPasswordModal";
 import { getBubblePrefs, setBubblePrefs } from "../utils/bubblePrefs";
 
 // Collapsible section. Header is a toggle; body only renders when open.
@@ -49,21 +47,10 @@ export default function SettingsPage() {
     const navigate = useNavigate();
     const { theme, themeId, setThemeId } = useTheme();
     const { hidden: valuesHidden, toggle: togglePrivacy } = usePrivacy();
-    const { user, logout, isCreator } = useAuth();
-
-    const [showChangePw, setShowChangePw] = useState(false);
-    const [showRevealPw, setShowRevealPw] = useState(false);
+    const { user, isCreator } = useAuth();
 
     const [bubble, setBubble] = useState(getBubblePrefs());
     const updateBubble = (patch) => setBubble(setBubblePrefs(patch));
-
-    const handleLogout = () => {
-        localStorage.removeItem("ms_board_stocks");
-        localStorage.removeItem("ms_recently_visited");
-        localStorage.removeItem("ms_recently_viewed_mf");
-        logout();
-        navigate("/login");
-    };
 
     const transparencyPct = Math.round((bubble.transparency / 0.8) * 100);
 
@@ -153,16 +140,6 @@ export default function SettingsPage() {
                 </div>
             </Section>
 
-            {/* Account */}
-            <Section icon="👤" title="Account">
-                <Row icon="🔒" label="Change password"
-                     onClick={() => setShowChangePw(true)} />
-                <Row icon="🔓" label="View / recover password"
-                     sub="Reveal your saved password"
-                     onClick={() => setShowRevealPw(true)} />
-                <Row icon="🚪" label="Logout" danger onClick={handleLogout} />
-            </Section>
-
             {/* Creator menu — only for CREATOR role */}
             {isCreator && (
                 <Section icon="👑" title="Creator">
@@ -174,9 +151,6 @@ export default function SettingsPage() {
                 </Section>
             )}
 
-            {/* Modals */}
-            {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
-            {showRevealPw && <RevealPasswordModal onClose={() => setShowRevealPw(false)} />}
         </div>
     );
 }

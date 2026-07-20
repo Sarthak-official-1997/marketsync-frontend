@@ -42,7 +42,29 @@ function useMobile() {
 
 
 // ── Inline MobileHeader ───────────────────────────────────────────────────────
-function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary, onMoreOpen }) {
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary, onChangePw, onRevealPw, onLogout }) {
+    const navigate = useNavigate();
+    const { theme, themeId, setThemeId } = useTheme();
+    const [acctOpen,      setAcctOpen]      = useState(false);
+    const [themeExpanded, setThemeExpanded] = useState(false);
+    const acctRef = useRef(null);
+
+    useEffect(() => {
+        if (!acctOpen) return;
+        const h = (e) => {
+            if (acctRef.current && !acctRef.current.contains(e.target)) {
+                setAcctOpen(false); setThemeExpanded(false);
+            }
+        };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [acctOpen]);
+
+    const menuRow = {
+        width: "100%", display: "flex", alignItems: "center", gap: 10,
+        padding: "11px 14px", background: "transparent", border: "none",
+        cursor: "pointer", color: "#e2e8f0", fontSize: 13, textAlign: "left",
+    };
     const initial    = (user?.fullName || user?.username || "?")[0].toUpperCase();
     const totalValue = parseFloat(portfolioSummary?.totalValue || 0);
     const totalPL    = parseFloat(portfolioSummary?.totalPL    || 0);
@@ -146,20 +168,95 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                 )}
             </button>
 
-            {/* Profile — tapping opens the More drawer (same as tapping More tab).
-                Was a dead <div> before; changed to <button> so it's tappable,
-                keyboard-accessible, and semantically correct. */}
-            <button
-                onClick={onMoreOpen}
-                style={{
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: "#7c3aed", display: "flex",
-                    alignItems: "center", justifyContent: "center",
-                    color: "white", fontWeight: 700, fontSize: 14, flexShrink: 0,
-                    border: "none", cursor: "pointer",
-                }}>
-                {initial}
-            </button>
+            {/* Profile avatar — opens the account dropdown (Settings, password,
+                theme, logout). Phone-app style; does NOT open the More drawer. */}
+            <div ref={acctRef} style={{ position: "relative", flexShrink: 0 }}>
+                <button
+                    onClick={() => setAcctOpen(v => !v)}
+                    style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: "#7c3aed", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        color: "white", fontWeight: 700, fontSize: 14,
+                        border: "none", cursor: "pointer",
+                    }}>
+                    {initial}
+                </button>
+
+                {acctOpen && (
+                    <div style={{
+                        position: "absolute", top: 42, right: 0, width: 236,
+                        background: "#0f172a", border: "1px solid rgba(51,65,85,0.6)",
+                        borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
+                        zIndex: 60, overflow: "hidden",
+                    }}>
+                        {/* User header */}
+                        <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
+                            <div style={{ color: "white", fontWeight: 700, fontSize: 13 }}>
+                                {user?.fullName || user?.username}
+                            </div>
+                            <div style={{ color: "#64748b", fontSize: 11, marginTop: 2, overflow: "hidden",
+                                textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {user?.email || user?.username}
+                            </div>
+                        </div>
+
+                        {/* Settings */}
+                        <button style={menuRow}
+                                onClick={() => { setAcctOpen(false); navigate("/settings"); }}>
+                            <span>⚙️</span> Settings
+                        </button>
+
+                        {/* Change password */}
+                        <button style={menuRow}
+                                onClick={() => { setAcctOpen(false); onChangePw && onChangePw(); }}>
+                            <span>🔒</span> Change password
+                        </button>
+
+                        {/* View / recover password */}
+                        <button style={menuRow}
+                                onClick={() => { setAcctOpen(false); onRevealPw && onRevealPw(); }}>
+                            <span>🔓</span> View / recover password
+                        </button>
+
+                        {/* Theme — expands inline */}
+                        <button style={{ ...menuRow, borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                                onClick={() => setThemeExpanded(v => !v)}>
+                            <span>🎨</span>
+                            <span style={{ flex: 1 }}>Theme</span>
+                            <span style={{ fontSize: 12 }}>{theme?.emoji}</span>
+                            <span style={{ fontSize: 10, color: "#64748b",
+                                transform: themeExpanded ? "rotate(180deg)" : "none",
+                                transition: "transform .15s" }}>▼</span>
+                        </button>
+                        {themeExpanded && (
+                            <div style={{ maxHeight: 220, overflowY: "auto", background: "#0b1220" }}>
+                                {THEMES.map(t => (
+                                    <button key={t.id}
+                                            onClick={() => setThemeId(t.id)}
+                                            style={{
+                                                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                                                padding: "9px 14px 9px 30px", background: "transparent",
+                                                border: "none", cursor: "pointer", textAlign: "left",
+                                                color: themeId === t.id ? "#a78bfa" : "#cbd5e1", fontSize: 12.5,
+                                            }}>
+                                        <span>{t.emoji}</span>
+                                        <span style={{ flex: 1 }}>{t.name}</span>
+                                        {themeId === t.id && <span style={{ color: "#a78bfa" }}>✓</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Logout */}
+                        <button style={{ ...menuRow, color: "#f87171",
+                            borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                                onClick={() => { setAcctOpen(false); onLogout && onLogout(); }}>
+                            <span>🚪</span> Logout
+                        </button>
+                    </div>
+                )}
+            </div>
         </header>
     );
 }
@@ -559,7 +656,9 @@ export default function Layout({ children, portfolioSummary }) {
                     user={user}
                     onInboxOpen={() => setShowInbox(true)}
                     portfolioSummary={portfolioSummary}
-                    onMoreOpen={() => setShowMore(true)}
+                    onChangePw={() => setShowChangePw(true)}
+                    onRevealPw={() => setShowRevealPw(true)}
+                    onLogout={handleLogout}
                 />
             )}
 
@@ -848,12 +947,6 @@ export default function Layout({ children, portfolioSummary }) {
                             )}
                         </div>
 
-                        {showChangePw && (
-                            <ChangePasswordModal onClose={() => setShowChangePw(false)} />
-                        )}
-                        {showRevealPw && (
-                            <RevealPasswordModal onClose={() => setShowRevealPw(false)} />
-                        )}
                     </div>
                 </header>
             )}
@@ -992,6 +1085,8 @@ export default function Layout({ children, portfolioSummary }) {
                 />
             )}
 
+            {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
+            {showRevealPw && <RevealPasswordModal onClose={() => setShowRevealPw(false)} />}
             {showAiChat && <AiChatModal onClose={() => setShowAiChat(false)} />}
             {showInbox && (
                 <InboxPanel
