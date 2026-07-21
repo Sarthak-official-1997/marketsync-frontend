@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import StockLogo from "./StockLogo";
-import { getIndexConstituents, getStockChart } from "../api/portfolio";
+import { getIndexConstituents, getStockChart, getIndices } from "../api/portfolio";
 import StockDetailModal from "./StockDetailModal";
 import { useMobile } from "../hooks/useMobile";
 
@@ -91,13 +91,63 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
 
     const indexName = INDEX_NAMES[activeSymbol] || activeSymbol;
 
+    // If constituents come back empty, retry twice (short backoff) before
+    // giving up and falling back to just the index's live value/% — so the
+    // person never sees a bare, unexplained blank list.
+    const MAX_RETRIES = 2;
+    const [retryCount,   setRetryCount]   = useState(0);
+    const [showValueOnly, setShowValueOnly] = useState(false);
+    const [indexValue,    setIndexValue]    = useState(null);
+
     useEffect(() => {
+        let cancelled = false;
         setLoading(true);
         setError(null);
-        getIndexConstituents(activeSymbol)
-            .then(res => setConstituents(res.data || []))
-            .catch(() => setError("Failed to load constituents. Please try again."))
-            .finally(() => setLoading(false));
+        setShowValueOnly(false);
+        setIndexValue(null);
+        setRetryCount(0);
+
+        const attempt = (n) => {
+            getIndexConstituents(activeSymbol)
+                .then(res => {
+                    if (cancelled) return;
+                    const data = res.data || [];
+                    if (data.length > 0 || n >= MAX_RETRIES) {
+                        setConstituents(data);
+                        setLoading(false);
+                        if (data.length === 0) fallbackToValueOnly();
+                    } else {
+                        setRetryCount(n + 1);
+                        setTimeout(() => { if (!cancelled) attempt(n + 1); }, 1200);
+                    }
+                })
+                .catch(() => {
+                    if (cancelled) return;
+                    if (n >= MAX_RETRIES) {
+                        setLoading(false);
+                        fallbackToValueOnly();
+                    } else {
+                        setRetryCount(n + 1);
+                        setTimeout(() => { if (!cancelled) attempt(n + 1); }, 1200);
+                    }
+                });
+        };
+
+        const fallbackToValueOnly = () => {
+            // Constituents genuinely unavailable — show just the index's
+            // live value/% instead of a blank, unexplained list.
+            getIndices()
+                .then(r => {
+                    if (cancelled) return;
+                    const idx = (r.data || []).find(i => i.symbol === activeSymbol);
+                    setIndexValue(idx || null);
+                    setShowValueOnly(true);
+                })
+                .catch(() => { if (!cancelled) setShowValueOnly(true); });
+        };
+
+        attempt(0);
+        return () => { cancelled = true; };
     }, [activeSymbol]);
 
     // Close the switcher dropdown on outside click.
@@ -198,7 +248,7 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                                     </div>
                                 )}
                             </div>
-                            {!loading && !error && (
+                            {!loading && !error && !showValueOnly && (
                                 <div className="flex items-center gap-3 text-xs">
                                     <span className="text-slate-500">{constituents.length} stocks</span>
                                     <span className="text-green-400 font-medium">{gainers} ▲</span>
@@ -207,16 +257,18 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                             )}
                         </div>
 
-                        {/* Search */}
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search symbol, name, sector..."
-                            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5
-                                   text-white text-xs focus:outline-none focus:border-blue-500
-                                   w-56 flex-shrink-0"
-                        />
+                        {/* Search — hidden in the value-only fallback, nothing to search */}
+                        {!showValueOnly && (
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="Search symbol, name, sector..."
+                                className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5
+                                       text-white text-xs focus:outline-none focus:border-blue-500
+                                       w-56 flex-shrink-0"
+                            />
+                        )}
 
                         <button onClick={onClose}
                                 className="w-8 h-8 flex items-center justify-center rounded-xl
@@ -267,7 +319,9 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                                 <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent
                                             rounded-full animate-spin" />
                                 <p className="text-slate-500 text-sm">
-                                    Loading {indexName} constituents from NSE...
+                                    {retryCount > 0
+                                        ? `Still trying to load ${indexName} constituents... (attempt ${retryCount + 1} of ${MAX_RETRIES + 1})`
+                                        : `Loading ${indexName} constituents from NSE...`}
                                 </p>
                                 <p className="text-slate-600 text-xs">
                                     First load may take 20-30 seconds
@@ -281,13 +335,40 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                             </div>
                         )}
 
-                        {!loading && !error && displayed.length === 0 && (
+                        {/* Constituents genuinely unavailable after retries — show the
+                            index's live value instead of a bare empty list, so the
+                            person always gets something useful, not a blank screen. */}
+                        {!loading && !error && showValueOnly && (
+                            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                                <p className="text-3xl">📊</p>
+                                {indexValue ? (
+                                    <>
+                                        <p className="text-white font-bold text-2xl tabular-nums">
+                                            {parseFloat(indexValue.value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                        </p>
+                                        <p className={"text-sm font-semibold " +
+                                        (parseFloat(indexValue.changePercent || 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                                            {parseFloat(indexValue.changePercent || 0) >= 0 ? "▲ +" : "▼ "}
+                                            {Math.abs(parseFloat(indexValue.changePercent || 0)).toFixed(2)}%
+                                        </p>
+                                    </>
+                                ) : null}
+                                <p className="text-slate-500 text-sm max-w-sm">
+                                    Constituents for {indexName} aren't available right now — showing the index value only.
+                                </p>
+                                <p className="text-slate-600 text-xs">
+                                    This usually resolves on its own; try again in a little while.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !error && !showValueOnly && displayed.length === 0 && (
                             <div className="flex items-center justify-center py-20">
                                 <p className="text-slate-500 text-sm">No stocks match your search</p>
                             </div>
                         )}
 
-                        {!loading && !error && displayed.map((c, i) => {
+                        {!loading && !error && !showValueOnly && displayed.map((c, i) => {
                             const chg    = parseFloat(c.changePercent || 0);
                             const up     = chg >= 0;
                             const price  = parseFloat(c.currentPrice  || 0);
