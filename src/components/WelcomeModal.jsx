@@ -18,10 +18,11 @@ export function SetupChecklist({ onDismiss }) {
     const [expanded, setExpanded] = useState(!isMobile);
 
     const steps = [
-        { id: "registered", label: "Account created",             sub: "You're in",                            alwaysDone: true },
-        { id: "board",      label: "Pin a stock to your board",   sub: "Search any stock → click Board"                        },
-        { id: "transaction",label: "Add your first transaction",  sub: "Manually or via AI import"                             },
-        { id: "alert",      label: "Set a price alert",           sub: "Alerts → + New Alert"                                  },
+        { id: "registered", label: "Account created",                  sub: "You're in",                            alwaysDone: true },
+        { id: "board",      label: "Pin a stock to your board",        sub: "Search any stock → click Board"                        },
+        { id: "transaction",label: "Add your first transaction (optional)", sub: "Manually or via AI import"                        },
+        { id: "alert",      label: "Set a price alert",                sub: "Open any stock → tap the bell"                         },
+        { id: "watchlist",  label: "Add a stock to your watchlist",    sub: "Open any stock → tap the star"                         },
     ];
 
     const markDone = (id) => {

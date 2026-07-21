@@ -794,9 +794,14 @@ function BoardSection({
                     ) : null;
                 })()}
 
-                {/* Controls */}
-                <div className="flex items-center gap-1 flex-shrink-0
-                                opacity-0 group-hover/header:opacity-100 transition-opacity"
+                {/* Controls — permanently visible until this section has its first
+                    real pinned stock (a first-time user has no reason to know
+                    hovering reveals "+ Add stock"). Reverts to hover-only once
+                    populated, so it stays out of the way for returning users. */}
+                <div className={"flex items-center gap-1 flex-shrink-0 transition-opacity " +
+                (section.symbols.filter(sym => allPinned.some(p => p.symbol === sym)).length === 0
+                    ? "opacity-100"
+                    : "opacity-0 group-hover/header:opacity-100")}
                      onMouseDown={e => e.stopPropagation()}>
                     {/* Card size - / + buttons */}
                     <div className="flex items-center gap-0.5 mr-0.5">
