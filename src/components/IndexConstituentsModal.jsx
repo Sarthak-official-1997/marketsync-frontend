@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import StockLogo from "./StockLogo";
 import { getIndexConstituents, getStockChart } from "../api/portfolio";
@@ -72,6 +72,13 @@ const SORT_FIELDS = [
 
 export default function IndexConstituentsModal({ symbol, onClose }) {
     const isMobile = useMobile();
+    // The index shown can be switched from the dropdown without closing the
+    // modal — activeSymbol drives everything below; the `symbol` prop only
+    // seeds the initial value when the modal first opens.
+    const [activeSymbol, setActiveSymbol] = useState(symbol);
+    const [switcherOpen,  setSwitcherOpen] = useState(false);
+    const switcherRef = useRef(null);
+
     const [constituents, setConstituents] = useState([]);
     const [loading,      setLoading]      = useState(true);
     const [error,        setError]        = useState(null);
@@ -80,16 +87,33 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
     const [search,       setSearch]       = useState("");
     const [detailStock,  setDetailStock]  = useState(null);
 
-    const indexName = INDEX_NAMES[symbol] || symbol;
+    const indexName = INDEX_NAMES[activeSymbol] || activeSymbol;
 
     useEffect(() => {
         setLoading(true);
         setError(null);
-        getIndexConstituents(symbol)
+        getIndexConstituents(activeSymbol)
             .then(res => setConstituents(res.data || []))
             .catch(() => setError("Failed to load constituents. Please try again."))
             .finally(() => setLoading(false));
-    }, [symbol]);
+    }, [activeSymbol]);
+
+    // Close the switcher dropdown on outside click.
+    useEffect(() => {
+        if (!switcherOpen) return;
+        const h = (e) => {
+            if (switcherRef.current && !switcherRef.current.contains(e.target)) setSwitcherOpen(false);
+        };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [switcherOpen]);
+
+    const switchIndex = (sym) => {
+        if (sym === activeSymbol) { setSwitcherOpen(false); return; }
+        setActiveSymbol(sym);
+        setSwitcherOpen(false);
+        setSearch("");           // fresh context for the newly chosen index
+    };
 
     const handleSort = (key) => {
         if (sortKey === key) {
@@ -147,9 +171,30 @@ export default function IndexConstituentsModal({ symbol, onClose }) {
                     <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-800
                                 flex-shrink-0 flex-wrap gap-y-2">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl
-                                        px-3 py-1.5">
-                                <span className="text-blue-300 font-bold text-sm">{indexName}</span>
+                            {/* Index name — tap to switch to a different index without closing the modal */}
+                            <div ref={switcherRef} className="relative flex-shrink-0">
+                                <button onClick={() => setSwitcherOpen(v => !v)}
+                                        className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-500/30
+                                                   rounded-xl px-3 py-1.5 hover:bg-blue-500/30 transition-colors">
+                                    <span className="text-blue-300 font-bold text-sm">{indexName}</span>
+                                    <span className={"text-blue-400 text-[10px] transition-transform " +
+                                    (switcherOpen ? "rotate-180" : "")}>▼</span>
+                                </button>
+
+                                {switcherOpen && (
+                                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-slate-800
+                                                    border border-slate-700 rounded-xl shadow-2xl z-10 overflow-hidden">
+                                        {Object.entries(INDEX_NAMES).map(([sym, name]) => (
+                                            <button key={sym} onClick={() => switchIndex(sym)}
+                                                    className={"w-full flex items-center justify-between px-3.5 py-2.5 text-left " +
+                                                    "text-sm transition-colors hover:bg-slate-700/60 " +
+                                                    (sym === activeSymbol ? "text-blue-300 font-semibold bg-slate-700/40" : "text-slate-300")}>
+                                                {name}
+                                                {sym === activeSymbol && <span className="text-blue-400 text-xs">✓</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             {!loading && !error && (
                                 <div className="flex items-center gap-3 text-xs">
