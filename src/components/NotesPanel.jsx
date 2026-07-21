@@ -1,17 +1,16 @@
 // src/components/NotesPanel.jsx
-// Notes surface matching the existing backend: body text, $-mention stock links
-// (full {symbol,name,exchange}), reminders (each fires once), and a done flag.
-// Portal overlay — mobile full-screen, desktop centered. Opened from the bubble
-// and the /notes route.
+// Notes list surface. Shows saved notes; create/edit happen in NoteEditor
+// (the "🔗 Link stock" + multi-reminder modal). No $-mention — stocks are
+// linked explicitly in the editor. Portal overlay: mobile full-screen,
+// desktop centered. Opened from the floating bubble and the /notes route.
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 import { useToast } from "../context/ToastContext";
-import { searchStocks } from "../api/portfolio";
-import { getNotes, createNote, updateNote, deleteNote } from "../api/notes";
+import { getNotes, deleteNote, updateNote } from "../api/notes";
+import NoteEditor from "./NoteEditor";
 
-// Relative "time ago".
 function timeAgo(iso) {
     if (!iso) return "";
     const then = new Date(iso).getTime();
@@ -24,56 +23,25 @@ function timeAgo(iso) {
     return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-// Format a reminder time for display.
 function fmtRemind(iso) {
     if (!iso) return "";
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-// Convert a datetime-local input value to an ISO string (backend wants ISO).
-function localToIso(local) {
-    if (!local) return null;
-    const d = new Date(local);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-// Stock chip (full link object).
-function StockChip({ symbol, onRemove }) {
-    return (
-        <span className="inline-flex items-center gap-1 bg-blue-900/40 text-blue-300
-                         text-[11px] font-semibold px-2 py-0.5 rounded-full">
-            ${symbol}
-            {onRemove && (
-                <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                        className="text-blue-400 hover:text-white leading-none">✕</button>
-            )}
-        </span>
-    );
+    return d.toLocaleString("en-IN", {
+        weekday: "short", day: "numeric", month: "short",
+        hour: "numeric", minute: "2-digit", hour12: true,
+    });
 }
 
 export default function NotesPanel({ onClose }) {
     const isMobile = useMobile();
     const toast = useToast();
 
-    const [notes,   setNotes]   = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [search,  setSearch]  = useState("");
-
-    // Composer draft
-    const [body,     setBody]     = useState("");
-    const [stocks,   setStocks]   = useState([]);   // [{symbol,name,exchange}]
-    const [reminders,setReminders]= useState([]);   // [isoString] (new/unfired times to send)
-    const [editing,  setEditing]  = useState(null);
-    const [saving,   setSaving]   = useState(false);
-    const [remindDraft, setRemindDraft] = useState("");   // datetime-local input value
-
-    // $-mention
-    const [mentionOpen,    setMentionOpen]    = useState(false);
-    const [mentionResults, setMentionResults] = useState([]);
-    const mentionDebounce = useRef(null);
-    const textareaRef     = useRef(null);
+    const [notes,       setNotes]       = useState([]);
+    const [loading,     setLoading]     = useState(true);
+    const [search,      setSearch]      = useState("");
+    const [editorOpen,  setEditorOpen]  = useState(false);
+    const [editingNote, setEditingNote] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -86,79 +54,19 @@ export default function NotesPanel({ onClose }) {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const h = (e) => { if (e.key === "Escape") onClose(); };
+        const h = (e) => { if (e.key === "Escape" && !editorOpen) onClose(); };
         document.addEventListener("keydown", h);
         return () => document.removeEventListener("keydown", h);
-    }, [onClose]);
+    }, [onClose, editorOpen]);
 
-    // Detect trailing "$word" → search stocks (no brace-quantifier regex by design).
-    const onBodyChange = (e) => {
-        const val = e.target.value;
-        setBody(val);
-        const cursor = e.target.selectionStart || val.length;
-        const match  = val.slice(0, cursor).match(/\$([A-Za-z]+)$/);
-        if (match) {
-            setMentionOpen(true);
-            clearTimeout(mentionDebounce.current);
-            mentionDebounce.current = setTimeout(() => {
-                searchStocks(match[1])
-                    .then(res => setMentionResults((res.data && res.data.content) || []))
-                    .catch(() => setMentionResults([]));
-            }, 250);
-        } else {
-            setMentionOpen(false);
-            setMentionResults([]);
-        }
-    };
-
-    // Pick a stock → strip the "$word", add a full link object.
-    const pickMention = (s) => {
-        setBody(prev => prev.replace(/\$([A-Za-z]+)$/, "").replace(/\s+$/, "") + " ");
-        setStocks(prev => prev.some(x => x.symbol === s.symbol)
-            ? prev
-            : [...prev, { symbol: s.symbol, name: s.name || s.symbol, exchange: s.exchange || "NSE" }]);
-        setMentionOpen(false);
-        setMentionResults([]);
-        textareaRef.current?.focus();
-    };
-
-    const addReminder = () => {
-        const iso = localToIso(remindDraft);
-        if (!iso) { toast.error("Pick a valid date & time"); return; }
-        if (new Date(iso).getTime() < Date.now()) { toast.error("Reminder time is in the past"); return; }
-        setReminders(prev => prev.includes(iso) ? prev : [...prev, iso]);
-        setRemindDraft("");
-    };
-
-    const resetComposer = () => {
-        setBody(""); setStocks([]); setReminders([]); setEditing(null); setRemindDraft("");
-    };
-
-    const beginEdit = (n) => {
-        setEditing(n.id);
-        setBody(n.body || "");
-        setStocks((n.stocks || []).map(s => ({ symbol: s.symbol, name: s.name, exchange: s.exchange })));
-        // Only carry forward UNFIRED reminders (backend keeps fired ones as history).
-        setReminders((n.reminders || []).filter(r => !r.fired).map(r => r.remindAt));
-        setMentionOpen(false);
-        textareaRef.current?.focus();
-    };
-
-    const save = () => {
-        const text = body.trim();
-        if (!text) { toast.error("Write something first"); return; }
-        setSaving(true);
-        const payload = { body: text, stocks, reminders };
-        const req = editing != null ? updateNote(editing, payload) : createNote(payload);
-        req
-            .then(() => { resetComposer(); load(); toast.success(editing != null ? "Note updated" : "Note saved"); })
-            .catch(() => toast.error("Couldn't save note"))
-            .finally(() => setSaving(false));
-    };
+    const openNew  = () => { setEditingNote(null); setEditorOpen(true); };
+    const openEdit = (n) => { setEditingNote(n); setEditorOpen(true); };
+    const closeEditor = () => { setEditorOpen(false); setEditingNote(null); };
+    const onSaved = () => { closeEditor(); load(); };
 
     const remove = (id) => {
         deleteNote(id)
-            .then(() => { setNotes(prev => prev.filter(n => n.id !== id)); if (editing === id) resetComposer(); })
+            .then(() => setNotes(prev => prev.filter(n => n.id !== id)))
             .catch(() => toast.error("Couldn't delete note"));
     };
 
@@ -169,7 +77,9 @@ export default function NotesPanel({ onClose }) {
     };
 
     const filtered = search.trim()
-        ? notes.filter(n => (n.body || "").toLowerCase().includes(search.trim().toLowerCase()))
+        ? notes.filter(n =>
+            (n.body || "").toLowerCase().includes(search.trim().toLowerCase()) ||
+            (n.stocks || []).some(s => (s.symbol || "").toLowerCase().includes(search.trim().toLowerCase())))
         : notes;
 
     return createPortal(
@@ -201,96 +111,15 @@ export default function NotesPanel({ onClose }) {
                             <span className="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded-full">{notes.length}</span>
                         )}
                     </div>
-                    <button onClick={onClose}
-                            className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
-                                       text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">✕</button>
-                </div>
-
-                {/* Composer */}
-                <div className="flex-shrink-0 px-4 py-3 border-b border-slate-700/50 space-y-2 relative">
-                    <textarea
-                        ref={textareaRef}
-                        value={body}
-                        onChange={onBodyChange}
-                        placeholder="Write a note… type $ to link a stock (e.g. $RELIANCE)"
-                        rows={isMobile ? 3 : 2}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5
-                                   text-white text-sm placeholder-slate-500 resize-none
-                                   focus:outline-none focus:border-blue-500"
-                    />
-
-                    {/* $-mention dropdown */}
-                    {mentionOpen && mentionResults.length > 0 && (
-                        <div className="absolute left-4 right-4 top-[64px] z-10 bg-slate-800 border border-slate-600
-                                        rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto">
-                            {mentionResults.slice(0, 8).map(s => (
-                                <button key={s.id || s.symbol} onClick={() => pickMention(s)}
-                                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-700/60
-                                                   transition-colors text-left border-b border-slate-700/40 last:border-0">
-                                    <div className="min-w-0">
-                                        <p className="text-white text-xs font-bold">{s.symbol}</p>
-                                        <p className="text-slate-500 text-[10px] truncate">{s.name}</p>
-                                    </div>
-                                    {s.exchange && (
-                                        <span className="text-[9px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">
-                                            {s.exchange}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Linked stock chips */}
-                    {stocks.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {stocks.map(s => (
-                                <StockChip key={s.symbol} symbol={s.symbol}
-                                           onRemove={() => setStocks(prev => prev.filter(x => x.symbol !== s.symbol))} />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Reminder draft chips + add control */}
-                    {reminders.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {reminders.map(iso => (
-                                <span key={iso} className="inline-flex items-center gap-1 bg-amber-900/30 text-amber-300
-                                                           text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                                    ⏰ {fmtRemind(iso)}
-                                    <button onClick={() => setReminders(prev => prev.filter(x => x !== iso))}
-                                            className="text-amber-400 hover:text-white leading-none">✕</button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
                     <div className="flex items-center gap-2">
-                        <input
-                            type="datetime-local"
-                            value={remindDraft}
-                            onChange={e => setRemindDraft(e.target.value)}
-                            className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5
-                                       text-slate-200 text-xs focus:outline-none focus:border-amber-500"
-                        />
-                        <button onClick={addReminder}
-                                className="px-3 py-1.5 bg-amber-600/20 text-amber-300 border border-amber-500/40
-                                           text-xs font-semibold rounded-lg hover:bg-amber-600/30 transition-colors flex-shrink-0">
-                            + Reminder
+                        <button onClick={openNew}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white
+                                           text-xs font-semibold rounded-lg transition-colors">
+                            + New note
                         </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button onClick={save} disabled={saving || !body.trim()}
-                                className="flex-1 sm:flex-none px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
-                                           text-white text-sm font-semibold rounded-xl transition-colors">
-                            {saving ? "Saving…" : editing != null ? "Update note" : "Save note"}
-                        </button>
-                        {editing != null && (
-                            <button onClick={resetComposer}
-                                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded-xl transition-colors">
-                                Cancel
-                            </button>
-                        )}
+                        <button onClick={onClose}
+                                className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
+                                           text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">✕</button>
                     </div>
                 </div>
 
@@ -298,7 +127,7 @@ export default function NotesPanel({ onClose }) {
                 {notes.length > 0 && (
                     <div className="flex-shrink-0 px-4 py-2 border-b border-slate-700/40">
                         <input value={search} onChange={e => setSearch(e.target.value)}
-                               placeholder="Search notes…"
+                               placeholder="Search notes or linked stocks…"
                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5
                                           text-white text-xs placeholder-slate-500 focus:outline-none focus:border-blue-500" />
                     </div>
@@ -314,9 +143,16 @@ export default function NotesPanel({ onClose }) {
                     ) : filtered.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="text-3xl mb-2">📝</p>
-                            <p className="text-slate-400 text-sm">
-                                {search.trim() ? "No notes match your search." : "No notes yet — write your first one above."}
+                            <p className="text-slate-400 text-sm mb-4">
+                                {search.trim() ? "No notes match your search." : "No notes yet."}
                             </p>
+                            {!search.trim() && (
+                                <button onClick={openNew}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white
+                                                   text-sm font-semibold rounded-xl transition-colors">
+                                    + Write your first note
+                                </button>
+                            )}
                         </div>
                     ) : (
                         filtered.map(n => {
@@ -338,7 +174,7 @@ export default function NotesPanel({ onClose }) {
                                                     (n.done ? "text-green-400 bg-green-500/10" : "text-slate-500 hover:text-green-400 hover:bg-slate-700")}>
                                                 ✓
                                             </button>
-                                            <button onClick={() => beginEdit(n)} title="Edit"
+                                            <button onClick={() => openEdit(n)} title="Edit"
                                                     className="w-7 h-7 rounded-lg flex items-center justify-center text-sm
                                                                text-slate-500 hover:text-blue-400 hover:bg-slate-700 transition-colors">✏️</button>
                                             <button onClick={() => remove(n.id)} title="Delete"
@@ -347,10 +183,16 @@ export default function NotesPanel({ onClose }) {
                                         </div>
                                     </div>
 
-                                    {/* Linked stocks */}
+                                    {/* Linked stocks — plain symbol chips (no $) */}
                                     {(n.stocks && n.stocks.length > 0) && (
                                         <div className="flex flex-wrap gap-1.5 mt-2">
-                                            {n.stocks.map(s => <StockChip key={s.symbol} symbol={s.symbol} />)}
+                                            {n.stocks.map(s => (
+                                                <span key={s.symbol}
+                                                      className="inline-flex items-center gap-1 bg-blue-500/15 text-blue-300
+                                                                 border border-blue-500/35 text-[11px] font-semibold px-2 py-0.5 rounded-lg">
+                                                    {s.symbol}
+                                                </span>
+                                            ))}
                                         </div>
                                     )}
 
@@ -358,15 +200,15 @@ export default function NotesPanel({ onClose }) {
                                     {(upcoming.length > 0 || fired.length > 0) && (
                                         <div className="flex flex-wrap gap-1.5 mt-2">
                                             {upcoming.map((r, i) => (
-                                                <span key={"u" + i} className="inline-flex items-center gap-1 bg-amber-900/30 text-amber-300
-                                                                               text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                                <span key={"u" + i} className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300
+                                                                               border border-amber-500/40 text-[10px] font-semibold px-2 py-0.5 rounded-lg">
                                                     ⏰ {fmtRemind(r.remindAt)}
                                                 </span>
                                             ))}
                                             {fired.map((r, i) => (
                                                 <span key={"f" + i} className="inline-flex items-center gap-1 bg-slate-700/50 text-slate-500
-                                                                               text-[10px] px-2 py-0.5 rounded-full">
-                                                    ✓ fired {fmtRemind(r.firedAt || r.remindAt)}
+                                                                               text-[10px] px-2 py-0.5 rounded-lg">
+                                                    ✓ {fmtRemind(r.firedAt || r.remindAt)}
                                                 </span>
                                             ))}
                                         </div>
@@ -379,6 +221,15 @@ export default function NotesPanel({ onClose }) {
                     )}
                 </div>
             </div>
+
+            {/* Create / edit modal — the real editor with Link stock + reminders */}
+            {editorOpen && (
+                <NoteEditor
+                    note={editingNote}
+                    onClose={closeEditor}
+                    onSaved={onSaved}
+                />
+            )}
         </div>,
         document.body
     );

@@ -1,7 +1,11 @@
 // src/api/notes.js
-// Personal research notes. Matches the existing backend contract:
-//   NoteDto      { id, body, stocks:[{symbol,name,exchange}], reminders:[{remindAt,fired,firedAt}], done, createdAt }
-//   Create/PATCH { body, stocks:[{symbol,name,exchange}], reminders:[ISO datetime], done? }
+// Personal research notes. Matches the backend contract:
+//   NoteDto      { id, body, stocks:[{symbol,name,exchange}],
+//                  reminders:[{remindAt,fired,firedAt,repeatDays}], done, createdAt }
+//   Create/PATCH { body, stocks:[{symbol,name,exchange}]?,
+//                  reminders:[{remindAt, repeatDays}]?, done? }
+// repeatDays null/0 = fires once; otherwise the reminder re-schedules itself
+// every N days after firing (handled server-side by NoteScheduler).
 // Reuses the shared axios instance (JWT + interceptors) from portfolio.js.
 
 import { api } from "./portfolio";

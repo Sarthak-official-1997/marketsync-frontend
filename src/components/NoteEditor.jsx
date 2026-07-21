@@ -95,13 +95,19 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
             : initialStock ? [{ symbol: initialStock.symbol, name: initialStock.name, exchange: initialStock.exchange }]
                 : []
     );
-    // Multiple reminders — array of Date objects (only the upcoming/unfired ones are editable).
+    // Multiple reminders — {date: Date, repeatDays: number|null} (only the
+    // upcoming/unfired ones are editable; repeatDays null/0 = fires once).
     const [reminders, setReminders] = useState(
-        (note?.reminders || []).filter(r => !r.fired).map(r => new Date(r.remindAt))
+        (note?.reminders || []).filter(r => !r.fired)
+            .map(r => ({ date: new Date(r.remindAt), repeatDays: r.repeatDays || null }))
     );
     const [showSearch, setShowSearch] = useState(false);
     const [showCustom, setShowCustom] = useState(false);
     const [customVal, setCustomVal]   = useState("");
+    // Repeat toggle — when on, quick pills (Tomorrow/2 days/Next week) repeat on
+    // that same cadence, and Custom asks for an explicit "every N days" value.
+    const [repeatOn, setRepeatOn]           = useState(false);
+    const [customRepeatDays, setCustomRepeatDays] = useState("");
     const [busy, setBusy]   = useState(false);
     const [error, setError] = useState("");
 
@@ -111,17 +117,18 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
     };
     const removeStock = (sym) => setStocks(prev => prev.filter(x => x.symbol !== sym));
 
-    const addReminder = (d) => {
-        setReminders(prev => prev.some(x => sameMinute(x, d))
+    const addReminder = (d, repeatDays = null) => {
+        setReminders(prev => prev.some(x => sameMinute(x.date, d))
             ? prev
-            : [...prev, d].sort((a, b) => a - b));
+            : [...prev, { date: d, repeatDays }].sort((a, b) => a.date - b.date));
     };
     const removeReminder = (idx) => setReminders(prev => prev.filter((_, i) => i !== idx));
 
     const addCustom = () => {
         if (!customVal) return;
-        addReminder(new Date(customVal));
-        setCustomVal(""); setShowCustom(false);
+        const repeat = repeatOn && customRepeatDays ? parseInt(customRepeatDays, 10) : null;
+        addReminder(new Date(customVal), (repeat && repeat > 0) ? repeat : null);
+        setCustomVal(""); setCustomRepeatDays(""); setShowCustom(false);
     };
 
     const save = async () => {
@@ -130,7 +137,7 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
         const payload = {
             body: body.trim(),
             stocks,
-            reminders: reminders.map(d => d.toISOString()),
+            reminders: reminders.map(r => ({ remindAt: r.date.toISOString(), repeatDays: r.repeatDays || null })),
         };
         try {
             const saved = editing ? await updateNote(note.id, payload) : await createNote(payload);
@@ -143,7 +150,7 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
     };
 
     const quick = (label, days) =>
-        <button type="button" onClick={() => addReminder(atMorning(days))}
+        <button type="button" onClick={() => addReminder(atMorning(days), repeatOn ? days : null)}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full border
                        bg-slate-800 border-slate-700 text-slate-300 hover:border-amber-500/50
                        hover:text-amber-300 transition-colors">
@@ -151,7 +158,7 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
         </button>;
 
     return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-[9700] flex items-center justify-center p-4"
              onClick={onClose}>
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <div className="relative bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl
@@ -208,16 +215,30 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
                         {/* selected reminder chips */}
                         {reminders.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-2">
-                                {reminders.map((d, i) => (
+                                {reminders.map((r, i) => (
                                     <span key={i}
                                           className="inline-flex items-center gap-1.5 bg-amber-500/15 text-amber-300
                                                      border border-amber-500/40 text-[11px] font-semibold px-2 py-1 rounded-lg">
-                                        ⏰ {fmtRemind(d)}
+                                        ⏰ {fmtRemind(r.date)}
+                                        {r.repeatDays ? (
+                                            <span className="text-amber-400/70 font-normal">
+                                                🔁 every {r.repeatDays === 7 ? "week" : r.repeatDays + "d"}
+                                            </span>
+                                        ) : null}
                                         <button onClick={() => removeReminder(i)} className="text-amber-300/60 hover:text-amber-200">✕</button>
                                     </span>
                                 ))}
                             </div>
                         )}
+
+                        {/* Repeat toggle — applies to whatever is added next via quick pills / custom */}
+                        <button type="button" onClick={() => setRepeatOn(v => !v)}
+                                className={"inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border mb-1.5 transition-colors " +
+                                (repeatOn
+                                    ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
+                                    : "bg-slate-800 border-slate-700 text-slate-400 hover:border-amber-500/40")}>
+                            🔁 Repeat {repeatOn ? "on" : "off"}
+                        </button>
 
                         {/* quick-add pills */}
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -231,9 +252,14 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
                                 + Custom
                             </button>
                         </div>
+                        {repeatOn && (
+                            <p className="text-[10px] text-amber-400/70 mt-1">
+                                Quick picks repeat on their own cadence (e.g. "Next week" → every week).
+                            </p>
+                        )}
 
                         {showCustom && (
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
                                 <input
                                     type="datetime-local"
                                     value={customVal}
@@ -241,6 +267,19 @@ export default function NoteEditor({ note, initialStock, onClose, onSaved }) {
                                     className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2
                                                text-white text-sm focus:outline-none focus:border-amber-500"
                                 />
+                                {repeatOn && (
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[11px] text-slate-500">every</span>
+                                        <input
+                                            type="number" min="1" placeholder="N"
+                                            value={customRepeatDays}
+                                            onChange={e => setCustomRepeatDays(e.target.value)}
+                                            className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2
+                                                       text-white text-sm text-center focus:outline-none focus:border-amber-500"
+                                        />
+                                        <span className="text-[11px] text-slate-500">days</span>
+                                    </div>
+                                )}
                                 <button onClick={addCustom}
                                         className="text-xs font-semibold bg-amber-500/20 border border-amber-500/40
                                                    text-amber-300 px-3 py-2 rounded-xl">
