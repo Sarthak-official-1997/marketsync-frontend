@@ -1,26 +1,32 @@
 // src/hooks/useCoachmark.js
-// Tiny one-time-ever coachmark gate. Each coachmark has a unique id; once
-// dismissed it never shows again for that person (persisted in localStorage,
-// same pattern as other per-device prefs in this app).
+// Tiny one-time-ever coachmark gate, scoped PER USER (not per device/browser).
+// A plain device-wide key would make every account tested on the same phone
+// inherit whichever coachmarks the previous account already dismissed —
+// exactly the bug found in SetupChecklist's STEPS_KEY. Scoping by user id
+// avoids that: a fresh account always sees its own coachmarks once.
 
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 
 const KEY_PREFIX = "folyo_coachmark_seen:";
 
 export function useCoachmark(id) {
+    const { user } = useAuth();
+    const scopedKey = KEY_PREFIX + (user?.id || user?.username || "anon") + ":" + id;
+
     const [seen, setSeen] = useState(() => {
-        try { return localStorage.getItem(KEY_PREFIX + id) === "1"; }
+        try { return localStorage.getItem(scopedKey) === "1"; }
         catch { return true; } // fail safe — never show if storage is unavailable
     });
 
     useEffect(() => {
-        try { setSeen(localStorage.getItem(KEY_PREFIX + id) === "1"); }
+        try { setSeen(localStorage.getItem(scopedKey) === "1"); }
         catch {}
-    }, [id]);
+    }, [scopedKey]);
 
     const dismiss = () => {
         setSeen(true);
-        try { localStorage.setItem(KEY_PREFIX + id, "1"); } catch {}
+        try { localStorage.setItem(scopedKey, "1"); } catch {}
     };
 
     return { active: !seen, dismiss };

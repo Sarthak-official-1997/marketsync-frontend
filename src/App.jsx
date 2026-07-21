@@ -291,6 +291,7 @@ function AppShell() {
 
             {showChecklist && (
                 <SetupChecklist
+                    user={user}
                     onDismiss={() => {
                         const key = `ms_checklist_dismissed_${user?.id || user?.username}`;
                         localStorage.setItem(key, "1");

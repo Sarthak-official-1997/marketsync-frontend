@@ -2,9 +2,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 
-// Persists as a floating card on dashboard until all steps done
-export function SetupChecklist({ onDismiss }) {
-    const STEPS_KEY = "ms_setup_steps";
+// Persists as a floating card on dashboard until all steps done.
+// STEPS_KEY is scoped per-user — without this, testing multiple accounts on
+// the same device/browser would make every account inherit whichever steps
+// the LAST account had already marked done (or fully complete), silently
+// hiding the checklist for every subsequent fresh account on that device.
+export function SetupChecklist({ user, onDismiss }) {
+    const STEPS_KEY = `ms_setup_steps_${user?.id || user?.username || "anon"}`;
 
     const loadDone = () => {
         try { return JSON.parse(localStorage.getItem(STEPS_KEY) || "[]"); }
