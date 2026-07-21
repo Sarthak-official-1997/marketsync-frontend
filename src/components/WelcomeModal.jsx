@@ -32,13 +32,11 @@ export function SetupChecklist({ onDismiss }) {
     if (allDone) return null;
 
     return createPortal(
-        <div style={{
+        <div className="bg-slate-900 border border-slate-700/60" style={{
             position: "fixed", bottom: "24px", right: "24px",
             width: "250px", maxWidth: "calc(100vw - 32px)", zIndex: 150,
-            background: "var(--color-background-primary)",
-            border: ".5px solid var(--color-border-secondary)",
             borderRadius: "16px",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
             overflow: "hidden",
         }}>
             {/* Amber top line */}
@@ -51,18 +49,17 @@ export function SetupChecklist({ onDismiss }) {
                         ✨
                     </div>
                     <div style={{ flex:1 }}>
-                        <div style={{ fontSize:"12px", fontWeight:500, color:"var(--color-text-primary)" }}>
+                        <div className="text-white" style={{ fontSize:"12px", fontWeight:500 }}>
                             Setup — {doneCount} of {steps.length} done
                         </div>
                     </div>
-                    <button onClick={onDismiss}
+                    <button onClick={onDismiss} className="text-slate-400 hover:text-white"
                             style={{ background:"none", border:"none", cursor:"pointer",
-                                color:"var(--color-text-secondary)", fontSize:"14px",
-                                lineHeight:1, padding:"2px" }}>✕</button>
+                                fontSize:"14px", lineHeight:1, padding:"2px" }}>✕</button>
                 </div>
 
                 {/* Progress bar */}
-                <div style={{ height:"3px", background:"var(--color-border-tertiary)",
+                <div className="bg-slate-700" style={{ height:"3px",
                     borderRadius:"2px", marginBottom:"10px" }}>
                     <div style={{ height:"100%", borderRadius:"2px", background:"#f59e0b",
                         width: `${(doneCount / steps.length) * 100}%`,
@@ -75,28 +72,27 @@ export function SetupChecklist({ onDismiss }) {
                     return (
                         <div key={s.id}
                              onClick={() => !done && markDone(s.id)}
+                             className="border-b border-slate-700/50 last:border-b-0"
                              style={{
                                  display:"flex", alignItems:"flex-start", gap:"8px",
                                  padding:"6px 0", cursor: done ? "default" : "pointer",
-                                 borderBottom:".5px solid var(--color-border-tertiary)",
                              }}>
                             {/* Check circle */}
-                            <div style={{
+                            <div className={done ? "" : "bg-slate-800 border border-slate-600"} style={{
                                 width:"18px", height:"18px", borderRadius:"50%", flexShrink:0, marginTop:"1px",
-                                background: done ? "#EAF3DE" : "var(--color-background-secondary)",
-                                border: done ? "none" : ".5px solid var(--color-border-secondary)",
+                                background: done ? "#EAF3DE" : undefined,
                                 display:"flex", alignItems:"center", justifyContent:"center",
                             }}>
                                 {done && <span style={{ fontSize:"10px", color:"#3B6D11" }}>✓</span>}
                             </div>
                             <div>
-                                <div style={{ fontSize:"11px", fontWeight:500,
-                                    color: done ? "var(--color-text-secondary)" : "var(--color-text-primary)",
-                                    textDecoration: done ? "line-through" : "none" }}>
+                                <div className={done ? "text-slate-500" : "text-white"}
+                                     style={{ fontSize:"11px", fontWeight:500,
+                                         textDecoration: done ? "line-through" : "none" }}>
                                     {s.label}
                                 </div>
                                 {!done && (
-                                    <div style={{ fontSize:"10px", color:"var(--color-text-secondary)", marginTop:"1px" }}>
+                                    <div className="text-slate-500" style={{ fontSize:"10px", marginTop:"1px" }}>
                                         {s.sub}
                                     </div>
                                 )}
@@ -105,7 +101,7 @@ export function SetupChecklist({ onDismiss }) {
                     );
                 })}
 
-                <div style={{ fontSize:"10px", color:"var(--color-text-secondary)",
+                <div className="text-slate-500" style={{ fontSize:"10px",
                     textAlign:"center", marginTop:"8px" }}>
                     Click a step to mark it done
                 </div>

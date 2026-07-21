@@ -8,6 +8,7 @@
 // the `define` block in vite.config.js.
 // ─────────────────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 
 // Guarded reads so this never throws if the define block is missing (tests, etc).
 const BUILD_ID   = typeof __BUILD_ID__   !== "undefined" ? __BUILD_ID__   : "dev";
@@ -26,6 +27,10 @@ function relTime(iso) {
 }
 
 export default function BuildBadge() {
+    // Creator-only — this is a dev tool for checking which build is live;
+    // regular users (including a brand-new signup) should never see it.
+    const { isCreator } = useAuth();
+
     const [open, setOpen] = useState(true);
     const [, tick] = useState(0);
 
@@ -34,6 +39,8 @@ export default function BuildBadge() {
         const t = setInterval(() => tick(n => n + 1), 15000);
         return () => clearInterval(t);
     }, []);
+
+    if (!isCreator) return null;
 
     // Collapsed: a tiny tappable dot in the corner so it never blocks the UI.
     if (!open) {
