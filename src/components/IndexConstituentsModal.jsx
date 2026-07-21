@@ -56,11 +56,13 @@ function fmtCap(cap) {
 }
 
 const INDEX_NAMES = {
-    "^NSEI":      "NIFTY 50",
-    "^BSESN":     "SENSEX",
-    "^NSEBANK":   "BANK NIFTY",
-    "^NSEMDCP50": "MIDCAP SELECT",
-    "^NSESMCP":   "SMALLCAP 100",
+    "^NSEI":                "NIFTY 50",
+    "^NSEBANK":             "BANK NIFTY",
+    "^NSEMDCP50":           "MIDCAP SELECT",
+    "NIFTYSMLCAP250.NS":    "SMALLCAP 250",
+    "NIFTY_MICROCAP250.NS": "MICROCAP 250",
+    // ^BSESN (SENSEX) removed — it's a BSE index; NSE has no constituent
+    // file for it, so "View constituents" can't be supported for it here.
 };
 
 const SORT_FIELDS = [

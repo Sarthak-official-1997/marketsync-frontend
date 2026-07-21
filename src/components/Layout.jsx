@@ -355,12 +355,12 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
         <>
             <div onClick={onClose}
                  style={{
-                     position: "fixed", inset: 0, zIndex: 8998,
+                     position: "fixed", inset: 0, zIndex: 9098,
                      backgroundColor: "rgba(0,0,0,0.6)",
                  }} />
             <div style={{
                 position: "fixed", bottom: 64, left: 0, right: 0,
-                zIndex: 8999,
+                zIndex: 9099,
                 backgroundColor: "#0f172a",
                 borderTop: "1px solid rgba(51,65,85,0.6)",
                 borderRadius: "16px 16px 0 0",
