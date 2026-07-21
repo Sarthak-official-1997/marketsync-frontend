@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getPasskeyStatus } from "../api/user";
 import PasskeySetupModal from "./PasskeySetupModal";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,13 @@ export default function PasskeyBlocker({ children }) {
     const [checked,        setChecked]        = useState(false);
     const [needsPasskey,   setNeedsPasskey]   = useState(false);
     const [showSetupModal, setShowSetupModal] = useState(false);
+
+    // Measure the banner's REAL rendered height and use that as the content's
+    // top padding — a hardcoded guess (previously pt-14) doesn't account for
+    // the description wrapping to 2-3 lines on narrower/mobile screens, which
+    // was causing the header/search bar to render partly underneath the banner.
+    const bannerRef = useRef(null);
+    const [bannerHeight, setBannerHeight] = useState(0);
 
     useEffect(() => {
         if (!user) { setChecked(true); return; }
@@ -22,6 +29,17 @@ export default function PasskeyBlocker({ children }) {
             .catch(() => setChecked(true));
     }, [user]);
 
+    useEffect(() => {
+        if (!needsPasskey || !bannerRef.current) return;
+        const el = bannerRef.current;
+        const measure = () => setBannerHeight(el.offsetHeight);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        window.addEventListener("resize", measure);
+        return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+    }, [needsPasskey]);
+
     if (!checked) return null;
 
     if (!needsPasskey) return children;
@@ -33,26 +51,32 @@ export default function PasskeyBlocker({ children }) {
     // blurred, non-dismissable modal — that forcing is removed.)
     return (
         <>
-            {/* Persistent banner — no close button, no dismiss */}
-            <div className="fixed top-0 left-0 right-0 z-[80]
+            {/* Persistent banner — no close button, no dismiss.
+                Stacks to two rows on narrow screens (icon+text on top, full-width
+                button below) instead of squeezing everything into one row, which
+                was at risk of overflow/crowding on phone widths. */}
+            <div ref={bannerRef}
+                 className="fixed top-0 left-0 right-0 z-[80]
                             bg-amber-600 border-b border-amber-500
                             shadow-lg">
                 <div className="max-w-4xl mx-auto px-4 py-3
-                                flex items-center gap-4">
-                    <span className="text-xl flex-shrink-0">🔑</span>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-slate-900 font-bold text-sm">
-                            Passkey not set up
-                        </p>
-                        <p className="text-slate-800 text-xs mt-0.5">
-                            Without a passkey you cannot recover your password
-                            if you forget it — and you'll have to ask Sarthak
-                            every time. Takes 30 seconds to set up.
-                        </p>
+                                flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                    <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                        <span className="text-xl flex-shrink-0">🔑</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-slate-900 font-bold text-sm">
+                                Passkey not set up
+                            </p>
+                            <p className="text-slate-800 text-xs mt-0.5">
+                                Without a passkey you cannot recover your password
+                                if you forget it — and you'll have to ask Sarthak
+                                every time. Takes 30 seconds to set up.
+                            </p>
+                        </div>
                     </div>
                     <button
                         onClick={() => setShowSetupModal(true)}
-                        className="flex-shrink-0 px-5 py-2 bg-slate-900
+                        className="flex-shrink-0 w-full sm:w-auto px-5 py-2 bg-slate-900
                                    hover:bg-slate-800 text-amber-400 text-sm
                                    font-bold rounded-xl transition-colors
                                    whitespace-nowrap">
@@ -61,8 +85,11 @@ export default function PasskeyBlocker({ children }) {
                 </div>
             </div>
 
-            {/* Push content down so banner doesn't overlap */}
-            <div className="pt-14">
+            {/* Push content down by the banner's ACTUAL measured height, not a
+                guessed constant — guarantees no overlap on any screen size or
+                text-wrap scenario. Falls back to a sane default before the
+                first measurement lands (avoids a 0px flash). */}
+            <div style={{ paddingTop: bannerHeight || 56 }}>
                 {children}
             </div>
 

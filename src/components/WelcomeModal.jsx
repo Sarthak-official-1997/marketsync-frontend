@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useMobile } from "../hooks/useMobile";
 
 // Persists as a floating card on dashboard until all steps done
 export function SetupChecklist({ onDismiss }) {
@@ -11,6 +12,10 @@ export function SetupChecklist({ onDismiss }) {
     };
 
     const [done, setDone] = useState(loadDone);
+    const isMobile = useMobile();
+    // On mobile, start collapsed to a small pill so it never eats screen space
+    // or fights the bottom nav / floating bubble for the same corner.
+    const [expanded, setExpanded] = useState(!isMobile);
 
     const steps = [
         { id: "registered", label: "Account created",             sub: "You're in",                            alwaysDone: true },
@@ -31,8 +36,39 @@ export function SetupChecklist({ onDismiss }) {
 
     if (allDone) return null;
 
+    // ── Mobile, collapsed: a small pill on the LEFT (bottom nav sits below,
+    // the floating bubble owns the right side) — tap to expand into the
+    // full checklist. Never permanently occupies screen space on a phone. ──
+    if (isMobile && !expanded) {
+        return createPortal(
+            <button
+                onClick={() => setExpanded(true)}
+                className="bg-slate-900 border border-amber-500/50 text-white"
+                style={{
+                    position: "fixed",
+                    bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 10px)",
+                    left: "12px", zIndex: 150,
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "7px 12px", borderRadius: 999,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                    fontSize: 12, fontWeight: 600,
+                }}>
+                <span>✨</span>
+                <span>Setup {doneCount}/{steps.length}</span>
+            </button>,
+            document.body
+        );
+    }
+
     return createPortal(
-        <div className="bg-slate-900 border border-slate-700/60" style={{
+        <div className="bg-slate-900 border border-slate-700/60" style={isMobile ? {
+            position: "fixed",
+            bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 10px)",
+            left: "12px", right: "12px", zIndex: 150,
+            borderRadius: "16px",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+            overflow: "hidden",
+        } : {
             position: "fixed", bottom: "24px", right: "24px",
             width: "250px", maxWidth: "calc(100vw - 32px)", zIndex: 150,
             borderRadius: "16px",
@@ -53,6 +89,12 @@ export function SetupChecklist({ onDismiss }) {
                             Setup — {doneCount} of {steps.length} done
                         </div>
                     </div>
+                    {isMobile && (
+                        <button onClick={() => setExpanded(false)} className="text-slate-400 hover:text-white"
+                                title="Minimize"
+                                style={{ background:"none", border:"none", cursor:"pointer",
+                                    fontSize:"12px", lineHeight:1, padding:"2px" }}>▼</button>
+                    )}
                     <button onClick={onDismiss} className="text-slate-400 hover:text-white"
                             style={{ background:"none", border:"none", cursor:"pointer",
                                 fontSize:"14px", lineHeight:1, padding:"2px" }}>✕</button>
