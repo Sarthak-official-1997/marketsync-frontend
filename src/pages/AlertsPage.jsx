@@ -7,7 +7,7 @@ import { getAlerts, toggleAlert, deleteAlert } from "../api/portfolio";
 import { searchStocks, getStockPrice } from "../api/portfolio";
 import StockLogo    from "../components/StockLogo";
 import NotesPanel   from "../components/NotesPanel";
-import PriceAlertModal from "../components/PriceAlertModal";
+import TradeSetupModal from "../components/TradeSetupModal";
 import PushToggle from "../components/PushToggle";
 import { sendTestPush } from "../utils/push";
 import { useToast } from "../context/ToastContext";
@@ -458,9 +458,11 @@ export default function AlertsPage() {
                 </div>
             )}
 
-            {/* PriceAlertModal — opened by stock search */}
+            {/* TradeSetupModal — opened by stock search. Replaces the old
+                PriceAlertModal: this now covers Simple condition (Above/Below/
+                Equals) AND Trade setup (entry/target/stop-loss, AI or manual). */}
             {alertStock && (
-                <PriceAlertModal
+                <TradeSetupModal
                     stock={alertStock}
                     currentPrice={alertPrice}
                     onClose={() => { setAlertStock(null); setAlertPrice(null); }}
