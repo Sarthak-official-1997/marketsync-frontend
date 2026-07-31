@@ -142,3 +142,12 @@ export const getAlerts                              = ()          => api.get("/a
 export const createAlert                            = (data)      => api.post("/alerts", data);
 export const toggleAlert                            = (id)        => api.patch(`/alerts/${id}/toggle`);
 export const deleteAlert                            = (id)        => api.delete(`/alerts/${id}`);
+export const createTradeSetupAlert                   = (data)      => api.post("/alerts/trade-setup", data);
+export const deleteTradeSetupAlert                   = (tradeSetupId) => api.delete(`/alerts/trade-setup/${tradeSetupId}`);
+export const extractTradeSetup = (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/alerts/extract-trade-setup", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+};

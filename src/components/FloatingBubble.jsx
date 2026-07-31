@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import AiChatModal from "./AiChatModal";
 import NotesPanel from "./NotesPanel";
+import { useNavigate } from "react-router-dom";
 import {
     getBubblePrefs, setBubblePrefs, BUBBLE_PREFS_EVENT,
 } from "../utils/bubblePrefs";
@@ -29,6 +30,7 @@ export default function FloatingBubble() {
     const [open,     setOpen]     = useState(false);   // sub-bubbles fanned out
     const [showAi,   setShowAi]   = useState(false);
     const [showNotes, setShowNotes] = useState(false);
+    const navigate = useNavigate();
     const [dragging, setDragging] = useState(false);
 
     const dragState = useRef({ active: false, moved: false, dx: 0, dy: 0 });
@@ -119,6 +121,12 @@ export default function FloatingBubble() {
                         emoji="📝" label="Notes" color="#0891b2" side={onLeft ? "left" : "right"}
                         opacity={opacity}
                         onClick={() => { setOpen(false); setShowNotes(true); }}
+                    />
+                    <SubBubble
+                        bubbleX={pos.x} y={pos.y - 178}
+                        emoji="🔔" label="Alerts" color="#d97706" side={onLeft ? "left" : "right"}
+                        opacity={opacity}
+                        onClick={() => { setOpen(false); navigate("/stocks/alerts"); }}
                     />
                 </>
             )}
