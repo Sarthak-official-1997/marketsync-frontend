@@ -81,10 +81,13 @@ function AppShell() {
     const [notifsChecked, setNotifsChecked] = useState(false);
     const [showWelcome, setShowWelcome] = useState(false);
     const [showChecklist, setShowChecklist] = useState(false);
-    const { user } = useAuth();
+    const { user, isCreator } = useAuth();
 
+    // CREATOR never sees onboarding nudges (Welcome modal, setup checklist,
+    // or the stock-modal coachmark) on any device — Sarthak already knows
+    // the app; these exist for genuinely new client accounts.
     useEffect(() => {
-        if (!user) return;
+        if (!user || isCreator) return;
         const welcomeKey   = `ms_welcomed_${user.id || user.username}`;
         const checklistKey = `ms_checklist_dismissed_${user.id || user.username}`;
         if (user?.firstLogin && !localStorage.getItem(welcomeKey)) {
@@ -92,7 +95,7 @@ function AppShell() {
         } else if (localStorage.getItem(welcomeKey) && !localStorage.getItem(checklistKey)) {
             setShowChecklist(true);
         }
-    }, [user?.id]);
+    }, [user?.id, isCreator]);
 
     useEffect(() => {
         if (!user) return;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
+import { useAuth } from "../context/AuthContext";
 
 // Persists as a floating card on dashboard until all steps done.
 // STEPS_KEY is scoped per-user — without this, testing multiple accounts on
@@ -8,6 +9,7 @@ import { useMobile } from "../hooks/useMobile";
 // the LAST account had already marked done (or fully complete), silently
 // hiding the checklist for every subsequent fresh account on that device.
 export function SetupChecklist({ user, onDismiss }) {
+    const { isCreator } = useAuth();
     const STEPS_KEY = `ms_setup_steps_${user?.id || user?.username || "anon"}`;
 
     const loadDone = () => {
@@ -22,11 +24,11 @@ export function SetupChecklist({ user, onDismiss }) {
     const [expanded, setExpanded] = useState(!isMobile);
 
     const steps = [
-        { id: "registered", label: "Account created",                  sub: "You're in",                            alwaysDone: true },
-        { id: "board",      label: "Pin a stock to your board",        sub: "Search any stock → click Board"                        },
-        { id: "transaction",label: "Add your first transaction (optional)", sub: "Manually or via AI import"                        },
-        { id: "alert",      label: "Set a price alert",                sub: "Open any stock → tap the bell"                         },
-        { id: "watchlist",  label: "Add a stock to your watchlist",    sub: "Open any stock → tap the star"                         },
+        { id: "registered", label: "Account created",                       sub: "You're in",                     alwaysDone: true },
+        { id: "board",      label: "Pin a stock to your board",             sub: "Search any stock → click Board"                  },
+        { id: "transaction",label: "Add your first transaction (optional)", sub: "Manually or via AI import"                       },
+        { id: "alert",      label: "Set a price alert",                     sub: "Open any stock → tap the bell"                   },
+        { id: "watchlist",  label: "Add a stock to your watchlist",         sub: "Open any stock → tap the star"                   },
     ];
 
     const markDone = (id) => {
@@ -39,6 +41,8 @@ export function SetupChecklist({ user, onDismiss }) {
     const allDone = steps.every(s => isDone(s.id));
     const doneCount = steps.filter(s => isDone(s.id)).length;
 
+    // CREATOR never sees this — Sarthak already knows the app.
+    if (isCreator) return null;
     if (allDone) return null;
 
     // ── Mobile, collapsed: a small pill on the LEFT (bottom nav sits below,
@@ -113,7 +117,6 @@ export function SetupChecklist({ user, onDismiss }) {
                         transition:"width .4s ease" }} />
                 </div>
 
-                {/* Steps */}
                 {steps.map(s => {
                     const done = isDone(s.id);
                     return (
@@ -124,7 +127,6 @@ export function SetupChecklist({ user, onDismiss }) {
                                  display:"flex", alignItems:"flex-start", gap:"8px",
                                  padding:"6px 0", cursor: done ? "default" : "pointer",
                              }}>
-                            {/* Check circle */}
                             <div className={done ? "" : "bg-slate-800 border border-slate-600"} style={{
                                 width:"18px", height:"18px", borderRadius:"50%", flexShrink:0, marginTop:"1px",
                                 background: done ? "#EAF3DE" : undefined,
@@ -157,16 +159,6 @@ export function SetupChecklist({ user, onDismiss }) {
         document.body
     );
 }
-
-// ── Main two-screen welcome modal ────────────────────────────────────────────
-
-const SECURITY_FACTS = [
-    { icon: "🔒", label: "Password encrypted",       detail: "Bcrypt hashing — we never store your raw password",        badge: "Active"    },
-    { icon: "👁️", label: "No broker credentials",    detail: "AI import reads screenshots only — no logins ever touched", badge: "Read-only" },
-    { icon: "🗄️", label: "Your data stays yours",    detail: "Not sold, not shared, not used for advertising",            badge: "Private"   },
-    { icon: "🔑", label: "JWT-secured sessions",     detail: "Signed tokens — only you can access your account",          badge: "Secured"   },
-    { icon: "🚫", label: "No ads, ever",              detail: "FOLYO is a tool for you — not an ad platform",              badge: "Ad-free"   },
-];
 
 export default function WelcomeModal({ user, onClose }) {
     const [screen, setScreen] = useState(1); // 1 = security, 2 = checklist preview

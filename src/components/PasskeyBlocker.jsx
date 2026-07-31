@@ -4,20 +4,23 @@ import PasskeySetupModal from "./PasskeySetupModal";
 import { useAuth } from "../context/AuthContext";
 
 export default function PasskeyBlocker({ children }) {
-    const { user } = useAuth();
+    const { user, isCreator } = useAuth();
+    // CREATOR is exempt on any device — Sarthak needs to freely test as
+    // himself without setup nudges ever appearing. Everyone else keeps the
+    // normal, per-device passkey banner behavior.
     const [checked,        setChecked]        = useState(false);
     const [needsPasskey,   setNeedsPasskey]   = useState(false);
     const [showSetupModal, setShowSetupModal] = useState(false);
 
     // Measure the banner's REAL rendered height and use that as the content's
-    // top padding — a hardcoded guess (previously pt-14) doesn't account for
-    // the description wrapping to 2-3 lines on narrower/mobile screens, which
-    // was causing the header/search bar to render partly underneath the banner.
+    // top padding — a hardcoded guess doesn't account for the description
+    // wrapping to 2-3 lines on narrower/mobile screens, which was causing the
+    // header/search bar to render partly underneath the banner.
     const bannerRef = useRef(null);
     const [bannerHeight, setBannerHeight] = useState(0);
 
     useEffect(() => {
-        if (!user) { setChecked(true); return; }
+        if (!user || isCreator) { setChecked(true); return; }
 
         getPasskeyStatus()
             .then(res => {
@@ -27,7 +30,7 @@ export default function PasskeyBlocker({ children }) {
                 setChecked(true);
             })
             .catch(() => setChecked(true));
-    }, [user]);
+    }, [user, isCreator]);
 
     useEffect(() => {
         if (!needsPasskey || !bannerRef.current) return;
@@ -44,17 +47,15 @@ export default function PasskeyBlocker({ children }) {
 
     if (!needsPasskey) return children;
 
-    // Passkey not set up yet — for EVERY role we now show a persistent (but
-    // non-blocking) top banner instead of forcing setup. The user can skip and keep
-    // using the app; the banner returns on every load until the passkey is set up,
-    // then disappears for good. (Previously CLIENT users were hard-blocked behind a
-    // blurred, non-dismissable modal — that forcing is removed.)
+    // Passkey not set up yet — for CLIENT/ADMIN we show a persistent (but
+    // non-blocking) top banner instead of forcing setup. The user can skip and
+    // keep using the app; the banner returns on every load until the passkey
+    // is set up, then disappears for good. CREATOR never sees this at all.
     return (
         <>
             {/* Persistent banner — no close button, no dismiss.
                 Stacks to two rows on narrow screens (icon+text on top, full-width
-                button below) instead of squeezing everything into one row, which
-                was at risk of overflow/crowding on phone widths. */}
+                button below) instead of squeezing everything into one row. */}
             <div ref={bannerRef}
                  className="fixed top-0 left-0 right-0 z-[80]
                             bg-amber-600 border-b border-amber-500
@@ -86,9 +87,7 @@ export default function PasskeyBlocker({ children }) {
             </div>
 
             {/* Push content down by the banner's ACTUAL measured height, not a
-                guessed constant — guarantees no overlap on any screen size or
-                text-wrap scenario. Falls back to a sane default before the
-                first measurement lands (avoids a 0px flash). */}
+                guessed constant — guarantees no overlap on any screen size. */}
             <div style={{ paddingTop: bannerHeight || 56 }}>
                 {children}
             </div>
