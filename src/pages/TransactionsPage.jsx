@@ -7,6 +7,7 @@ import StockTransactionPanel from "../components/StockTransactionPanel";
 import StockLogo from "../components/StockLogo";
 import {useToast} from "../context/ToastContext";
 import AiTradeImportModal from "../components/AiTradeImportModal";
+import ExcelImportModal from "../components/ExcelImportModal";
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -546,6 +547,7 @@ export default function TransactionsPage() {
     const [calMonth,       setCalMonth]       = useState(new Date().getMonth());
     const [expandedSymbol, setExpanded]       = useState(null);
     const [showAiImport,   setShowAiImport]   = useState(false);
+    const [showExcelImport, setShowExcelImport] = useState(false);
     const toast = useToast();
 
     const load = async () => {
@@ -700,6 +702,12 @@ export default function TransactionsPage() {
                                        rounded-xl transition-colors">
                         ✨ AI Import
                     </button>
+                    <button onClick={() => setShowExcelImport(true)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600
+                                       hover:bg-emerald-700 text-white text-sm font-semibold
+                                       rounded-xl transition-colors">
+                        📊 Import Excel
+                    </button>
                     <button onClick={() => { setPrefilledDate(null); setShowAdd(true); }}
                             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600
                                        hover:bg-blue-700 text-white text-sm font-semibold
@@ -800,6 +808,12 @@ export default function TransactionsPage() {
                                            transition-colors">
                             ✨ AI Import
                         </button>
+                        <button onClick={() => setShowExcelImport(true)}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700
+                                           text-white text-sm font-semibold rounded-xl
+                                           transition-colors">
+                            📊 Import Excel
+                        </button>
                         <button onClick={() => { setPrefilledDate(null); setShowAdd(true); }}
                                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700
                                            text-white text-sm font-semibold rounded-xl
@@ -875,6 +889,13 @@ export default function TransactionsPage() {
                 <AiTradeImportModal
                     onClose={() => setShowAiImport(false)}
                     onImported={() => { setShowAiImport(false); load(); }}
+                />
+            )}
+
+            {showExcelImport && (
+                <ExcelImportModal
+                    onClose={() => setShowExcelImport(false)}
+                    onImported={() => load()}
                 />
             )}
 

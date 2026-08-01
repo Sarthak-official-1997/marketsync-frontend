@@ -151,3 +151,15 @@ export const extractTradeSetup = (file) => {
         headers: { "Content-Type": "multipart/form-data" },
     });
 };
+
+// -- Excel/CSV transaction import — distinct from the image-based AI trade
+// import. Upload returns a PREVIEW only (nothing saved); confirm actually
+// creates the transactions from the person's reviewed/edited rows.
+export const importExcelPreview = (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/transactions/import-excel", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+};
+export const confirmExcelImport = (rows) => api.post("/transactions/import-excel/confirm", { rows });
