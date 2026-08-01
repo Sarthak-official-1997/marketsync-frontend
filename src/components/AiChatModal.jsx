@@ -320,7 +320,7 @@ export default function AiChatModal({ onClose }) {
 
     return (
         <>
-            <div className="fixed inset-0 z-[60] flex items-end md:items-center
+            <div className="fixed inset-0 z-[9600] flex items-end md:items-center
                         justify-center p-0 md:p-4"
                  style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)" }}
                  onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -328,7 +328,7 @@ export default function AiChatModal({ onClose }) {
                     "bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden transition-all duration-200 " +
                     (isMaximized
                         ? "w-full h-full rounded-none"
-                        : "w-full md:max-w-2xl h-[92vh] md:h-[85vh] rounded-t-3xl md:rounded-2xl")
+                        : "w-full md:max-w-2xl h-[92dvh] md:h-[85vh] rounded-t-3xl md:rounded-2xl")
                 }>
                     {/* Grabber handle — mobile only, signals swipe-down-to-close */}
                     {isMobile && !isMaximized && (
@@ -629,8 +629,9 @@ export default function AiChatModal({ onClose }) {
                     </div>
 
                     {/* ── Input area ── */}
-                    <div className="flex-shrink-0 px-4 pb-4 pt-3 border-t border-slate-700/60
-                                bg-slate-900/80">
+                    <div className="flex-shrink-0 px-4 pt-3 border-t border-slate-700/60
+                                bg-slate-900/80"
+                         style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}>
                         {/* Level indicator above input when chat has started */}
                         {!isEmpty && (
                             <div className="flex items-center gap-1.5 mb-2">
