@@ -40,12 +40,9 @@ function GroupedAlertCard({ symbol, alertsForSymbol, livePrices, onToggle, onDel
     if (simpleAlerts.length > 0) parts.push(`${simpleAlerts.length} Simple`);
     if (setupIds.length > 0) parts.push(`${setupIds.length} Quick Trade`);
 
-    if (total === 1) {
-        // Single alert on this stock — no point wrapping it in a group card.
-        const a = alertsForSymbol[0];
-        return <AlertCard alert={a} livePrice={livePrices[a.symbol]} onToggle={onToggle} onDelete={onDelete} />;
-    }
-
+    // Every stock — even with just one alert — gets the same collapsed
+    // header (symbol + count), for consistency. Collapsed by default always;
+    // nothing auto-opens.
     return (
         <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
             <button onClick={() => setExpanded(v => !v)}
