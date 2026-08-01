@@ -50,7 +50,7 @@ function GroupedAlertCard({ symbol, alertsForSymbol, livePrices, onToggle, onDel
                 <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-white font-bold text-sm">{symbol}</span>
                     <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex-shrink-0">
-                        {total} alerts
+                        {total} {total === 1 ? "alert" : "alerts"}
                     </span>
                     <span className="text-[11px] text-slate-500 truncate">{parts.join(" · ")}</span>
                 </div>
