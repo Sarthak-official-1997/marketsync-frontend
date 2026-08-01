@@ -6,7 +6,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import AiChatModal from "./AiChatModal";
 import NotesPanel from "./NotesPanel";
-import { useNavigate } from "react-router-dom";
+import SimpleAlertModal from "./SimpleAlertModal";
+import QuickTradeModal from "./QuickTradeModal";
 import {
     getBubblePrefs, setBubblePrefs, BUBBLE_PREFS_EVENT,
 } from "../utils/bubblePrefs";
@@ -26,11 +27,16 @@ function loadPos() {
 
 export default function FloatingBubble() {
     const [prefs,    setPrefs]    = useState(getBubblePrefs());
-    const [pos,      setPos]      = useState(loadPos);
+    // Clamp immediately on mount too (not just on resize) — a position
+    // saved on a narrow phone screen could otherwise sit correctly within
+    // bounds on a wide desktop viewport in theory, but this guards against
+    // any stale/corrupted stored value putting the bubble off-screen.
+    const [pos,      setPos]      = useState(() => clampToViewport(loadPos()));
     const [open,     setOpen]     = useState(false);   // sub-bubbles fanned out
     const [showAi,   setShowAi]   = useState(false);
     const [showNotes, setShowNotes] = useState(false);
-    const navigate = useNavigate();
+    const [showSimpleAlert, setShowSimpleAlert] = useState(false);
+    const [showQuickTrade,  setShowQuickTrade]  = useState(false);
     const [dragging, setDragging] = useState(false);
 
     const dragState = useRef({ active: false, moved: false, dx: 0, dy: 0 });
@@ -124,9 +130,15 @@ export default function FloatingBubble() {
                     />
                     <SubBubble
                         bubbleX={pos.x} y={pos.y - 178}
-                        emoji="🔔" label="Alerts" color="#d97706" side={onLeft ? "left" : "right"}
+                        emoji="🔔" label="Simple Alert" color="#d97706" side={onLeft ? "left" : "right"}
                         opacity={opacity}
-                        onClick={() => { setOpen(false); navigate("/stocks/alerts"); }}
+                        onClick={() => { setOpen(false); setShowSimpleAlert(true); }}
+                    />
+                    <SubBubble
+                        bubbleX={pos.x} y={pos.y - 236}
+                        emoji="⚡" label="Quick Trade" color="#dc2626" side={onLeft ? "left" : "right"}
+                        opacity={opacity}
+                        onClick={() => { setOpen(false); setShowQuickTrade(true); }}
                     />
                 </>
             )}
@@ -166,6 +178,8 @@ export default function FloatingBubble() {
 
             {showAi && <AiChatModal onClose={() => setShowAi(false)} />}
             {showNotes && <NotesPanel onClose={() => setShowNotes(false)} />}
+            {showSimpleAlert && <SimpleAlertModal onClose={() => setShowSimpleAlert(false)} />}
+            {showQuickTrade && <QuickTradeModal onClose={() => setShowQuickTrade(false)} />}
         </>
     );
 }

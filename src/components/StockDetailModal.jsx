@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 import StockTransactionPanel from "./StockTransactionPanel";
-import PriceAlertModal       from "./PriceAlertModal";
-import { useCoachmark }      from "../hooks/useCoachmark";
+import TradeSetupModal       from "./TradeSetupModal";
 import { getHoldings }       from "../api/portfolio";
 import StockLogo             from "./StockLogo";
 import { getStockPrice, getStockReturns, getStockChart } from "../api/portfolio";
@@ -92,9 +91,6 @@ export default function StockDetailModal({ stock, onClose }) {
     const [chartLoading, setCL]          = useState(true);
     const [showReturns,  setShowReturns] = useState(false);
     const [onBoard,      setOnBoard]      = useState(false);
-    // First-time-ever spotlight on Watch + Alert — shown once, ever, per person.
-    const { active: coachActive, dismiss: coachDismiss } = useCoachmark("stock_modal_watch_alert");
-    const spotlightStyle = { boxShadow: "0 0 0 6000px rgba(0,0,0,0.6)", position: "relative", zIndex: 20 };
     const [activeIdx,    setActiveIdx]   = useState(null);
     const [showSectionPicker, setShowSectionPicker] = useState(false);
     const [boardSections,     setBoardSections]     = useState([]);
@@ -418,7 +414,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                  style={{ scrollbarWidth: "none" }}>
                                 <button
                                     onClick={e => { e.stopPropagation(); openWatchSheet(); }}
-                                    style={coachActive ? spotlightStyle : undefined}
                                     className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
                                     (inAnyList ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
                                     {inAnyList ? "✓ Watch" : "👁 Watch"}
@@ -452,31 +447,11 @@ export default function StockDetailModal({ stock, onClose }) {
                                 </a>
                                 <button
                                     onClick={e => { e.stopPropagation(); setAlertModal(true); }}
-                                    style={coachActive ? spotlightStyle : undefined}
                                     className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
                                                bg-slate-700/80 text-amber-400">
                                     🔔 Alert
                                 </button>
                             </div>
-
-                            {/* First-time spotlight — stacked message, normal document flow
-                                (never position:absolute/fixed — avoids the exact kind of
-                                mispositioning bug already found and fixed elsewhere). */}
-                            {coachActive && (
-                                <div className="mt-2 bg-slate-800 border border-amber-500/40 rounded-xl px-3 py-2.5 relative z-20">
-                                    <p className="text-slate-200 text-xs leading-relaxed">
-                                        👁 Tap <span className="font-bold">Watch</span> to save this stock to a watchlist.
-                                    </p>
-                                    <p className="text-slate-200 text-xs leading-relaxed mt-1">
-                                        🔔 Tap <span className="font-bold">Alert</span> to get notified at your target price.
-                                    </p>
-                                    <button onClick={coachDismiss}
-                                            className="mt-2 w-full text-xs font-semibold py-1.5 rounded-lg
-                                                       bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                        Got it, thanks
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     ) : (
                         <div className="flex items-center justify-between
@@ -521,7 +496,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                 {/* Watchlist — opens the multi-select sheet */}
                                 <button
                                     onClick={openWatchSheet}
-                                    style={coachActive ? spotlightStyle : undefined}
                                     className={
                                         "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
                                         "rounded-xl transition-all whitespace-nowrap " +
@@ -620,7 +594,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                 <button
                                     onClick={e => { e.stopPropagation(); setAlertModal(true); }}
                                     title="Set price alert"
-                                    style={coachActive ? spotlightStyle : undefined}
                                     className="p-2.5 bg-slate-700/60 hover:bg-amber-500
                                            text-amber-400 hover:text-white rounded-xl transition-all
                                            hover:ring-2 hover:ring-amber-400/60
@@ -658,25 +631,6 @@ export default function StockDetailModal({ stock, onClose }) {
                                     </svg>
                                 </button>
                             </div>
-
-                            {/* First-time spotlight — stacked message, normal document flow. */}
-                            {coachActive && (
-                                <div className="px-4 sm:px-7 pb-3">
-                                    <div className="bg-slate-800 border border-amber-500/40 rounded-xl px-4 py-3 relative z-20 max-w-md">
-                                        <p className="text-slate-200 text-sm leading-relaxed">
-                                            👁 Tap <span className="font-bold">Watchlist</span> to save this stock to a watchlist.
-                                        </p>
-                                        <p className="text-slate-200 text-sm leading-relaxed mt-1">
-                                            🔔 Tap the <span className="font-bold">bell</span> to get notified at your target price.
-                                        </p>
-                                        <button onClick={coachDismiss}
-                                                className="mt-2 px-4 py-1.5 text-xs font-semibold rounded-lg
-                                                           bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                            Got it, thanks
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
                     {/* ── end TOP BAR ── */}
@@ -1118,14 +1072,15 @@ export default function StockDetailModal({ stock, onClose }) {
                 document.body
             )}
 
-            {/* Price alert modal — own portal so it renders above StockDetailModal (z-[300]) */}
-            {alertModal && createPortal(
-                <PriceAlertModal
+            {/* TradeSetupModal — shows Simple condition + Quick Trade (trade setup)
+                choice directly, since the stock is already known here (no search
+                step needed). It manages its own portal internally (z-[9650]),
+                so it is NOT wrapped in another createPortal here. */}
+            {alertModal && (
+                <TradeSetupModal
                     stock={stock}
-                    currentPrice={quote?.currentPrice}
                     onClose={() => setAlertModal(false)}
-                />,
-                document.body
+                />
             )}
         </>
         , document.body);

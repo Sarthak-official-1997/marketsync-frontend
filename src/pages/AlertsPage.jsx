@@ -25,6 +25,52 @@ const fmtPrice = (v) =>
     v != null ? `₹${parseFloat(v).toLocaleString("en-IN",{maximumFractionDigits:2})}` : "—";
 
 // -- Single alert card --------------------------------------------------------─
+// -- Groups multiple alerts on the same stock into one collapsible card,
+// matching the pattern already used for stocks with multiple transactions.
+// Trade-setup rows (3 per setup: ENTRY/TARGET/STOP_LOSS) count as one setup,
+// not three, in the breakdown line.
+function GroupedAlertCard({ symbol, alertsForSymbol, livePrices, onToggle, onDelete }) {
+    const [expanded, setExpanded] = useState(false);
+
+    const simpleAlerts = alertsForSymbol.filter(a => !a.tradeSetupId);
+    const setupIds = [...new Set(alertsForSymbol.filter(a => a.tradeSetupId).map(a => a.tradeSetupId))];
+    const total = alertsForSymbol.length;
+
+    const parts = [];
+    if (simpleAlerts.length > 0) parts.push(`${simpleAlerts.length} Simple`);
+    if (setupIds.length > 0) parts.push(`${setupIds.length} Quick Trade`);
+
+    if (total === 1) {
+        // Single alert on this stock — no point wrapping it in a group card.
+        const a = alertsForSymbol[0];
+        return <AlertCard alert={a} livePrice={livePrices[a.symbol]} onToggle={onToggle} onDelete={onDelete} />;
+    }
+
+    return (
+        <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
+            <button onClick={() => setExpanded(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-white font-bold text-sm">{symbol}</span>
+                    <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex-shrink-0">
+                        {total} alerts
+                    </span>
+                    <span className="text-[11px] text-slate-500 truncate">{parts.join(" · ")}</span>
+                </div>
+                <span className={"text-slate-500 text-xs transition-transform flex-shrink-0 " + (expanded ? "rotate-180" : "")}>▼</span>
+            </button>
+            {expanded && (
+                <div className="px-3 pb-3 space-y-2 border-t border-slate-700/40 pt-2">
+                    {alertsForSymbol.map(a => (
+                        <AlertCard key={a.id} alert={a} livePrice={livePrices[a.symbol]}
+                                   onToggle={onToggle} onDelete={onDelete} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function AlertCard({ alert, livePrice, onToggle, onDelete }) {
     const [deleting, setDeleting] = useState(false);
     const [toggling, setToggling] = useState(false);
@@ -438,23 +484,32 @@ export default function AlertsPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filtered.map(alert => {
-                        const isFocused = alert.id === focusId;
-                        return (
-                            <div key={alert.id}
-                                 ref={isFocused ? focusRef : null}
-                                 className={isFocused
-                                     ? "rounded-xl ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 transition-all"
-                                     : ""}>
-                                <AlertCard
-                                    alert={alert}
-                                    livePrice={livePrices[alert.symbol]}
-                                    onToggle={handleToggle}
-                                    onDelete={handleDelete}
-                                />
-                            </div>
-                        );
-                    })}
+                    {(() => {
+                        // Group by symbol, preserving first-seen order.
+                        const bySymbol = new Map();
+                        filtered.forEach(a => {
+                            if (!bySymbol.has(a.symbol)) bySymbol.set(a.symbol, []);
+                            bySymbol.get(a.symbol).push(a);
+                        });
+                        return [...bySymbol.entries()].map(([symbol, group]) => {
+                            const hasFocused = group.some(a => a.id === focusId);
+                            return (
+                                <div key={symbol}
+                                     ref={hasFocused ? focusRef : null}
+                                     className={hasFocused
+                                         ? "rounded-xl ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 transition-all"
+                                         : ""}>
+                                    <GroupedAlertCard
+                                        symbol={symbol}
+                                        alertsForSymbol={group}
+                                        livePrices={livePrices}
+                                        onToggle={handleToggle}
+                                        onDelete={handleDelete}
+                                    />
+                                </div>
+                            );
+                        });
+                    })()}
                 </div>
             )}
 

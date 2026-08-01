@@ -117,7 +117,7 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
                      overflowX: "hidden",
                  } : {
                      width: "calc(100vw - 32px)", maxWidth: "440px",
-                     maxHeight: "88vh",
+                     minHeight: "460px", maxHeight: "88vh",
                      borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
                      boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
                  }}

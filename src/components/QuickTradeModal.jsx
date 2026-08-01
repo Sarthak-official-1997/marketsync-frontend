@@ -1,122 +1,227 @@
-import { useState } from "react";
-import { createTransaction } from "../api/portfolio";
-import { useToast } from "../context/ToastContext";
+// src/components/QuickTradeModal.jsx
+// Standalone "Quick Trade" flow — search built in. Same trade-setup logic
+// as before (entry/target/stop-loss, AI upload or manual, category tag)
+// but opened directly from the bubble with its own search step, matching
+// SimpleAlertModal's structure. Mobile: full-screen. Desktop: centered
+// with a real minHeight so short content never collapses the card.
 
-export default function QuickTradeModal({ holding, defaultType = "BUY", onClose, onDone }) {
-    const [type, setType]       = useState(defaultType);
-    const [qty, setQty]         = useState("");
-    const [price, setPrice]     = useState(
-        holding?.currentPrice ? parseFloat(holding.currentPrice).toFixed(2) : ""
-    );
-    const [submitting, setSubmitting] = useState(false);
+import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useMobile } from "../hooks/useMobile";
+import { useToast } from "../context/ToastContext";
+import { searchStocks, createTradeSetupAlert, extractTradeSetup } from "../api/portfolio";
+
+export default function QuickTradeModal({ onClose }) {
+    const isMobile = useMobile();
     const toast = useToast();
 
-    if (!holding) return null;
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState([]);
+    const [searching, setSearching] = useState(false);
+    const [stock, setStock] = useState(null);
+    const debRef = useRef(null);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-        try {
-            await createTransaction({
-                stockId: holding.stock.id,
-                type,
-                quantity: parseFloat(qty),
-                pricePerShare: parseFloat(price),
-                transactionDate: new Date().toISOString().split("T")[0],
-                fees: 0,
-            });
-            toast.success(`${type} order recorded for ${holding.stock.symbol}`);
-            onDone();
-            onClose();
-        } catch (err) {
-            toast.error(err.response?.data?.message || "Transaction failed");
-        } finally {
-            setSubmitting(false);
-        }
+    const [entry, setEntry] = useState("");
+    const [target, setTarget] = useState("");
+    const [stopLoss, setStopLoss] = useState("");
+    const [category, setCategory] = useState("EXPRESS_TRADE"); // default on for Quick Trade
+    const [extracting, setExtracting] = useState(false);
+    const [aiNote, setAiNote] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const onQueryChange = (val) => {
+        setQuery(val);
+        clearTimeout(debRef.current);
+        if (val.trim().length < 2) { setResults([]); return; }
+        setSearching(true);
+        debRef.current = setTimeout(() => {
+            searchStocks(val).then(res => {
+                setResults((res.data?.content || res.data || []).slice(0, 8));
+            }).catch(() => setResults([])).finally(() => setSearching(false));
+        }, 300);
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-slate-800 rounded-2xl border border-slate-600
-                            shadow-2xl w-full max-w-sm p-6"
+    const onPickFile = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setExtracting(true);
+        setAiNote(null);
+        extractTradeSetup(file)
+            .then(res => {
+                const d = res.data || {};
+                if (d.entryPrice != null) setEntry(String(d.entryPrice));
+                if (d.targetPrice != null) setTarget(String(d.targetPrice));
+                if (d.stopLossPrice != null) setStopLoss(String(d.stopLossPrice));
+                setAiNote(d.message || d.extractionNote || null);
+                if (d.entryPrice == null && d.targetPrice == null && d.stopLossPrice == null) {
+                    toast.error("Couldn't read levels from this image — enter them manually");
+                } else {
+                    toast.success("Chart read — review the levels below");
+                }
+            })
+            .catch((err) => toast.error(err?.response?.data?.message || "Couldn't read the chart"))
+            .finally(() => {
+                setExtracting(false);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            });
+    };
+
+    const save = () => {
+        const e = parseFloat(entry), t = parseFloat(target), s = parseFloat(stopLoss);
+        if (!e || !t || !s) { toast.error("Fill in entry, target, and stop-loss"); return; }
+        setSaving(true);
+        createTradeSetupAlert({
+            symbol: stock.symbol, name: stock.name, exchange: stock.exchange || "NSE",
+            category,
+            entryPrice: e, targetPrice: t, stopLossPrice: s,
+        })
+            .then(() => { toast.success("Quick Trade alert created"); onClose(); })
+            .catch((err) => toast.error(err?.response?.data?.message || "Couldn't create trade setup"))
+            .finally(() => setSaving(false));
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 z-[9650] flex items-end sm:items-center justify-center"
+             onClick={onClose}>
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+            <div className="relative z-[9651] bg-slate-900 flex flex-col"
+                 style={isMobile ? {
+                     width: "100vw", height: "100dvh", maxWidth: "100vw", maxHeight: "100dvh",
+                     borderRadius: 0, border: "none",
+                     paddingTop: "env(safe-area-inset-top, 0px)",
+                     paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                     overflowX: "hidden",
+                 } : {
+                     width: "calc(100vw - 32px)", maxWidth: "440px",
+                     minHeight: "480px", maxHeight: "88vh",
+                     borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
+                     boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
+                 }}
                  onClick={e => e.stopPropagation()}>
-                <div className="flex items-start justify-between mb-5">
-                    <div>
-                        <h2 className="text-xl font-bold text-white">{holding.stock.symbol}</h2>
-                        <p className="text-slate-400 text-sm">{holding.stock.name}</p>
-                    </div>
+
+                <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
+                    <p className="text-white font-bold text-base">⚡ Quick Trade</p>
                     <button onClick={onClose}
-                            className="text-slate-400 hover:text-white text-xl">✕</button>
+                            className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
+                                       text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">✕</button>
                 </div>
 
-                {/* BUY/SELL toggle */}
-                <div className="flex rounded-lg overflow-hidden border border-slate-600 mb-5">
-                    {["BUY", "SELL"].map(t => (
-                        <button key={t} onClick={() => setType(t)}
-                                className={`flex-1 py-2 text-sm font-semibold transition-colors
-                                            ${type === t
-                                    ? t === "BUY"
-                                        ? "bg-green-600 text-white"
-                                        : "bg-red-600 text-white"
-                                    : "bg-slate-700 text-slate-400"}`}>
-                            {t}
-                        </button>
-                    ))}
-                </div>
+                <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
+                     className="px-4 py-4">
 
-                {/* Holding info */}
-                <div className="bg-slate-700/50 rounded-lg p-3 mb-5 text-sm space-y-1">
-                    <div className="flex justify-between text-slate-400">
-                        <span>Currently owned</span>
-                        <span className="text-white font-medium">
-                            {parseFloat(holding.quantity).toFixed(2)} shares
-                        </span>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                        <span>Avg buy price</span>
-                        <span className="text-white font-medium">
-                            ₹{parseFloat(holding.averageBuyPrice).toFixed(2)}
-                        </span>
-                    </div>
-                </div>
+                    {!stock ? (
+                        <div>
+                            <p className="text-xs text-slate-500 mb-2">Search a stock for this trade</p>
+                            <input
+                                autoFocus
+                                value={query}
+                                onChange={e => onQueryChange(e.target.value)}
+                                placeholder="e.g. TATASTEEL"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5
+                                           text-white text-sm placeholder-slate-500 focus:outline-none focus:border-red-500"
+                            />
+                            {searching && <p className="text-xs text-slate-500 mt-2">Searching…</p>}
+                            {results.length > 0 && (
+                                <div className="mt-2 rounded-xl border border-slate-700 overflow-hidden max-h-72 overflow-y-auto">
+                                    {results.map(s => (
+                                        <button key={s.id || s.symbol} onClick={() => setStock(s)}
+                                                className="w-full flex items-center justify-between px-3 py-2.5
+                                                           hover:bg-slate-700/60 transition-colors text-left
+                                                           border-b border-slate-700/40 last:border-0">
+                                            <div className="min-w-0">
+                                                <p className="text-white text-sm font-bold">{s.symbol}</p>
+                                                <p className="text-slate-500 text-xs truncate">{s.name}</p>
+                                            </div>
+                                            {s.exchange && (
+                                                <span className="text-[10px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">
+                                                    {s.exchange}
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <button onClick={() => { setStock(null); setResults([]); setQuery(""); }}
+                                    className="text-xs text-slate-400 hover:text-white">← Change stock</button>
+                            <p className="text-white font-semibold text-sm">{stock.symbol}</p>
+                            <p className="text-xs text-slate-500">
+                                Get notified when entry, target, or stop-loss is hit — each level pings separately.
+                            </p>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-xs text-slate-400 mb-1">Quantity</label>
-                        <input type="number" step="0.000001" min="0.000001"
-                               value={qty} onChange={e => setQty(e.target.value)}
-                               className="w-full bg-slate-700 border border-slate-600 rounded-lg
-                                          px-3 py-2 text-white text-sm focus:outline-none
-                                          focus:border-blue-500"
-                               placeholder="10" required />
-                    </div>
-                    <div>
-                        <label className="block text-xs text-slate-400 mb-1">Price per share</label>
-                        <input type="number" step="0.01" min="0.01"
-                               value={price} onChange={e => setPrice(e.target.value)}
-                               className="w-full bg-slate-700 border border-slate-600 rounded-lg
-                                          px-3 py-2 text-white text-sm focus:outline-none
-                                          focus:border-blue-500"
-                               required />
-                    </div>
-                    {qty && price && (
-                        <div className="text-xs text-slate-400 bg-slate-700/50 rounded-lg px-3 py-2">
-                            Total: <span className="text-white font-medium">
-                                ₹{(parseFloat(qty) * parseFloat(price)).toLocaleString("en-IN")}
-                            </span>
+                            <button onClick={() => setCategory(prev => prev === "EXPRESS_TRADE" ? null : "EXPRESS_TRADE")}
+                                    className={"w-full text-xs font-semibold py-2 rounded-lg border transition-colors " +
+                                    (category === "EXPRESS_TRADE"
+                                        ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
+                                        : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                ⚡ {category === "EXPRESS_TRADE" ? "Tagged: Express Trade ✓" : "Tag as Express Trade"}
+                            </button>
+
+                            <div className="border border-dashed border-slate-700 rounded-xl p-4 text-center">
+                                <p className="text-2xl mb-1">📷</p>
+                                <p className="text-xs text-slate-400 mb-2">
+                                    Upload a chart screenshot — AI reads entry, target, and stop-loss
+                                </p>
+                                <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickFile}
+                                       className="hidden" id="quick-trade-file" />
+                                <label htmlFor="quick-trade-file"
+                                       className="inline-block px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white
+                                                  text-xs font-semibold rounded-lg cursor-pointer transition-colors">
+                                    {extracting ? "Reading chart…" : "Upload chart image"}
+                                </label>
+                            </div>
+
+                            {aiNote && (
+                                <p className="text-[11px] text-amber-400/80 bg-amber-500/10 border border-amber-500/30
+                                              rounded-lg px-3 py-2">
+                                    {aiNote}
+                                </p>
+                            )}
+
+                            <p className="text-[11px] text-slate-600 text-center">or enter manually</p>
+
+                            <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                    <p className="text-[10px] text-slate-500 mb-1">Entry</p>
+                                    <input type="number" value={entry} onChange={e => setEntry(e.target.value)}
+                                           placeholder="0.00"
+                                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
+                                                      text-white text-xs focus:outline-none focus:border-blue-500" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-green-500 mb-1">Target</p>
+                                    <input type="number" value={target} onChange={e => setTarget(e.target.value)}
+                                           placeholder="0.00"
+                                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
+                                                      text-white text-xs focus:outline-none focus:border-green-500" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-red-500 mb-1">Stop-loss</p>
+                                    <input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
+                                           placeholder="0.00"
+                                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
+                                                      text-white text-xs focus:outline-none focus:border-red-500" />
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600">
+                                Entry & stop-loss ping twice (immediate + a follow-up if still active). Target pings once.
+                            </p>
+
+                            <button onClick={save} disabled={saving}
+                                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                                               text-white text-sm font-semibold rounded-xl transition-colors">
+                                {saving ? "Creating…" : "Confirm and create alert"}
+                            </button>
                         </div>
                     )}
-                    <button type="submit" disabled={submitting}
-                            className={`w-full text-white text-sm font-semibold py-2.5
-                                        rounded-lg transition-colors disabled:opacity-50
-                                        ${type === "BUY"
-                                ? "bg-green-600 hover:bg-green-700"
-                                : "bg-red-600 hover:bg-red-700"}`}>
-                        {submitting ? "Processing..." : `${type} ${holding.stock.symbol}`}
-                    </button>
-                </form>
+                </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
