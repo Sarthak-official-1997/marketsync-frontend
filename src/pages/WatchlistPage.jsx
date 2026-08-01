@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
+import SearchPickerModal from "../components/SearchPickerModal";
 import {
     removeFromWatchlist, searchStocks,
     getMfWatchlist, addToMfWatchlist, removeFromMfWatchlist, searchMfSchemes,
@@ -617,45 +618,28 @@ function StocksWatchlist({ toast, isMobile }) {
                 />
             )}
 
-            {/* ── MOBILE add-stock search overlay ── */}
+            {/* ── MOBILE add-stock search — now the reusable SearchPickerModal
+                (was a top-anchored overlay copied from the desktop layout;
+                this one sits low on screen with real keyboard-avoidance). ── */}
             {isMobile && searchOpen && (
-                <div className="fixed inset-0 z-[9000] bg-black/60 backdrop-blur-sm"
-                     onClick={() => setSearchOpen(false)}>
-                    <div className="bg-slate-900 border-b border-slate-700 p-3"
-                         onClick={e => e.stopPropagation()}
-                         style={{ paddingTop: "calc(12px + env(safe-area-inset-top, 0px))" }}>
-                        <div className="relative">
-                            <input ref={inputRef} type="text" value={query}
-                                   onChange={e => handleSearch(e.target.value)}
-                                   placeholder={selectedList ? `Add to "${selectedList.name}"…` : "Search symbol or company…"}
-                                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3
-                                              text-white text-sm focus:outline-none focus:border-purple-500 pr-10" />
-                            <button onClick={() => setSearchOpen(false)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-lg leading-none">
-                                ✕
-                            </button>
-                        </div>
-                        {results.length > 0 && (
-                            <div className="mt-2 max-h-[60vh] overflow-y-auto rounded-xl border border-slate-700 divide-y divide-slate-800">
-                                {results.map(s => (
-                                    <button key={s.id} type="button" onClick={() => handleAdd(s)}
-                                            className="w-full text-left px-4 py-3 active:bg-slate-800 flex items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <span className="font-semibold text-white text-sm">{s.symbol}</span>
-                                            <span className="text-slate-400 text-xs ml-2">{s.name}</span>
-                                        </div>
-                                        <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded flex-shrink-0">
-                                            {s.exchange}
-                                        </span>
-                                    </button>
-                                ))}
+                <SearchPickerModal
+                    title={selectedList ? `Add to "${selectedList.name}"` : "Add to Watchlist"}
+                    placeholder="Search symbol or company…"
+                    searchFn={(q) => searchStocks(q).then(res => res.data.content || [])}
+                    renderResult={(s) => (
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <span className="font-semibold text-white text-sm">{s.symbol}</span>
+                                <span className="text-slate-400 text-xs ml-2">{s.name}</span>
                             </div>
-                        )}
-                        {query.length >= 2 && results.length === 0 && (
-                            <p className="text-slate-400 text-sm text-center py-4">No results for "{query}"</p>
-                        )}
-                    </div>
-                </div>
+                            <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded flex-shrink-0">
+                                {s.exchange}
+                            </span>
+                        </div>
+                    )}
+                    onPick={handleAdd}
+                    onClose={() => setSearchOpen(false)}
+                />
             )}
 
             {/* ── DESKTOP ── */}

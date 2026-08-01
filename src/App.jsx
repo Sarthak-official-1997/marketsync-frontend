@@ -9,6 +9,7 @@ import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
 import NotificationModal   from "./components/NotificationModal";
+import LightNotificationToast from "./components/LightNotificationToast";
 import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
 import PasskeyBlocker      from "./components/PasskeyBlocker";
 import BuildBadge          from "./components/BuildBadge"; // DEV BUILD BADGE — remove before sharing
@@ -283,12 +284,24 @@ function AppShell() {
                 </Routes>
             </Layout>
 
-            {/* Notification modal — blocks UI until all messages acknowledged.
-                Sits outside Layout so it overlays everything including the blur. */}
-            {notifsChecked && pendingNotifs.length > 0 && (
+            {/* Split by requiresAck: genuine Creator broadcasts still block the app
+                (NotificationModal, unchanged). Personal reminders and price
+                alerts (requiresAck: false) get a small dismissible toast instead
+                — they were previously funneled through the SAME blocking modal,
+                which made "you set a reminder for yourself" read as if Sarthak
+                was broadcasting you a message you had to formally acknowledge. */}
+            {notifsChecked && pendingNotifs.filter(n => n.requiresAck).length > 0 && (
                 <NotificationModal
-                    notifications={pendingNotifs}
-                    onAllAcknowledged={() => setPendingNotifs([])}
+                    notifications={pendingNotifs.filter(n => n.requiresAck)}
+                    onAllAcknowledged={() =>
+                        setPendingNotifs(prev => prev.filter(n => !n.requiresAck))}
+                />
+            )}
+            {notifsChecked && (
+                <LightNotificationToast
+                    notifications={pendingNotifs.filter(n => !n.requiresAck)}
+                    onDismissed={(recipientId) =>
+                        setPendingNotifs(prev => prev.filter(n => n.recipientId !== recipientId))}
                 />
             )}
 
