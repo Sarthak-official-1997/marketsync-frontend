@@ -229,7 +229,8 @@ export default function TrackedClientDetailPage() {
     const [addMode, setAddMode] = useState(null); // "manual" | "excel" | "screenshot" | null
     const [showMapPicker, setShowMapPicker] = useState(false);
     const [excelRows, setExcelRows] = useState(null);
-    const [screenshotPreview, setScreenshotPreview] = useState(null);
+    const [screenshotTrades, setScreenshotTrades] = useState([]); // all trades from all uploaded screenshots
+    const [extracting, setExtracting] = useState(false);
     const fileRef = useRef(null);
 
     const load = () => {
@@ -279,18 +280,92 @@ export default function TrackedClientDetailPage() {
             .catch(() => toast.error("Import failed"));
     };
 
-    const onScreenshotFile = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const [dragActive, setDragActive] = useState(false);
+
+    // Extracts ONE screenshot and returns its trades (a screenshot of a whole
+    // portfolio table can contain several stocks — previously this only kept
+    // trades[0] and silently dropped the rest; now everything found is kept).
+    const extractOneScreenshot = (file) =>
         previewScreenshotHolding(id, file)
-            .then(res => setScreenshotPreview(res.data?.trades?.[0] || res.data))
-            .catch(() => toast.error("Couldn't read this image"))
-            .finally(() => { if (fileRef.current) fileRef.current.value = ""; });
+            .then(res => {
+                const data = res.data;
+                const trades = Array.isArray(data?.trades) ? data.trades
+                    : Array.isArray(data) ? data
+                        : data ? [data] : [];
+                return trades.map(t => ({ ...t, _sourceFile: file.name }));
+            })
+            .catch(() => {
+                toast.error(`Couldn't read ${file.name}`);
+                return [];
+            });
+
+    // Processes MULTIPLE screenshots at once — drop several, paste one at a
+    // time (clipboard only ever holds one image), or pick several via the
+    // file browser. Every trade from every file is appended to one combined
+    // review list before anything is saved.
+    const processScreenshotFiles = async (fileList) => {
+        const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith("image/"));
+        if (files.length === 0) {
+            toast.error("No images found — please drop, paste, or choose image files");
+            return;
+        }
+        setExtracting(true);
+        try {
+            const results = await Promise.all(files.map(extractOneScreenshot));
+            const newTrades = results.flat();
+            if (newTrades.length === 0) {
+                toast.error("Couldn't extract any holdings from those images");
+            } else {
+                setScreenshotTrades(prev => [...prev, ...newTrades]);
+                toast.success(`Read ${newTrades.length} holding${newTrades.length === 1 ? "" : "s"} from ${files.length} screenshot${files.length === 1 ? "" : "s"}`);
+            }
+        } finally {
+            setExtracting(false);
+            if (fileRef.current) fileRef.current.value = "";
+        }
     };
-    const confirmScreenshot = () => {
-        confirmScreenshotHolding(id, screenshotPreview)
-            .then(() => { toast.success("Holding imported"); setScreenshotPreview(null); setAddMode(null); load(); })
-            .catch(() => toast.error("Import failed"));
+
+    // File-picker (click to browse) — supports selecting several files at once
+    const onScreenshotFile = (e) => processScreenshotFiles(e.target.files);
+
+    // Drag-and-drop — supports dropping several files at once
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragActive(false);
+        processScreenshotFiles(e.dataTransfer.files);
+    };
+
+    // Paste (Ctrl+V / Cmd+V) — clipboard only ever holds one image per paste,
+    // but pasting again just appends to the growing review list, so several
+    // screenshots can still be added one paste at a time.
+    const onScreenshotPaste = (e) => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith("image/"));
+        if (item) processScreenshotFiles([item.getAsFile()]);
+    };
+    const [confirmingScreenshots, setConfirmingScreenshots] = useState(false);
+
+    const removeScreenshotTrade = (idx) => {
+        setScreenshotTrades(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const confirmScreenshot = async () => {
+        if (screenshotTrades.length === 0) return;
+        setConfirmingScreenshots(true);
+        let ok = 0, failed = 0;
+        for (const trade of screenshotTrades) {
+            try {
+                await confirmScreenshotHolding(id, trade);
+                ok++;
+            } catch {
+                failed++;
+            }
+        }
+        setConfirmingScreenshots(false);
+        setScreenshotTrades([]);
+        setAddMode(null);
+        load();
+        if (failed === 0) toast.success(`${ok} holding${ok === 1 ? "" : "s"} imported`);
+        else toast.error(`${ok} imported, ${failed} failed — check those symbols and add manually if needed`);
     };
 
     if (loading || !client) {
@@ -368,21 +443,65 @@ export default function TrackedClientDetailPage() {
 
                 {addMode === "screenshot" && (
                     <div className="space-y-2">
-                        {!screenshotPreview ? (
+                        <input ref={fileRef} type="file" accept="image/*" multiple onChange={onScreenshotFile} className="hidden" id="ct-shot" />
+
+                        {/* Drop zone stays available even after some screenshots are queued,
+                            so more can be added before confirming — e.g. one screenshot per
+                            broker, or a multi-page portfolio export. */}
+                        <div
+                            tabIndex={0}
+                            onPaste={onScreenshotPaste}
+                            onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+                            onDragLeave={() => setDragActive(false)}
+                            onDrop={onDrop}
+                            onClick={() => fileRef.current?.click()}
+                            className={"text-center py-5 px-3 border-2 border-dashed rounded-xl cursor-pointer " +
+                            "transition-colors focus:outline-none " +
+                            (dragActive
+                                ? "border-blue-500 bg-blue-500/10"
+                                : "border-slate-700 hover:border-slate-500")}>
+                            <p className="text-2xl mb-1">📷</p>
+                            <p className="text-xs text-slate-300 font-medium">
+                                {extracting
+                                    ? "Reading screenshots…"
+                                    : "Drop one or more screenshots, paste, or click to browse"}
+                            </p>
+                            <p className="text-[10px] text-slate-600 mt-1">
+                                Works from your phone or laptop — select several files at once, or add them one at a time
+                            </p>
+                        </div>
+
+                        {extracting && (
+                            <div className="flex justify-center py-2">
+                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        )}
+
+                        {screenshotTrades.length > 0 && (
                             <>
-                                <input ref={fileRef} type="file" accept="image/*" onChange={onScreenshotFile} className="hidden" id="ct-shot" />
-                                <label htmlFor="ct-shot" className="block text-center py-3 border border-dashed border-slate-700 rounded-xl
-                                                                    text-xs text-slate-400 cursor-pointer hover:border-slate-500">
-                                    📷 Upload a portfolio screenshot
-                                </label>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-xs text-white">
-                                    {screenshotPreview.stockSymbol} — {screenshotPreview.quantity} @ ₹{screenshotPreview.price}
+                                <p className="text-xs text-slate-400">
+                                    {screenshotTrades.length} holding{screenshotTrades.length === 1 ? "" : "s"} extracted — review below
                                 </p>
-                                <button onClick={confirmScreenshot} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg">
-                                    Confirm import
+                                {screenshotTrades.map((t, i) => (
+                                    <div key={i} className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-white font-semibold">
+                                                {t.stockSymbol} — {t.quantity} @ ₹{t.price}
+                                            </p>
+                                            <p className="text-[10px] text-slate-600 truncate">from {t._sourceFile}</p>
+                                        </div>
+                                        <button onClick={() => removeScreenshotTrade(i)}
+                                                className="text-slate-500 hover:text-red-400 text-xs flex-shrink-0 ml-2">
+                                            Remove
+                                        </button>
+                                    </div>
+                                ))}
+                                <button onClick={confirmScreenshot} disabled={confirmingScreenshots}
+                                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                                                   text-white text-xs font-semibold rounded-lg">
+                                    {confirmingScreenshots
+                                        ? "Importing…"
+                                        : `Confirm import (${screenshotTrades.length})`}
                                 </button>
                             </>
                         )}
