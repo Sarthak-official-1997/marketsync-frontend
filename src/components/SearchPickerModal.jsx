@@ -84,7 +84,14 @@ export default function SearchPickerModal({
                      marginLeft: isMobile ? "12px" : 0,
                      marginRight: isMobile ? "12px" : 0,
                      borderRadius: "20px",
-                     maxHeight: Math.max(260, viewportH - (isMobile ? 90 : 120)),
+                     // A real height, not just maxHeight — with only maxHeight, a
+                     // short result list (or none yet) shrinks the whole box to fit,
+                     // and since it's anchored near the bottom of the screen, most of
+                     // it can end up below the visible viewport with just a sliver
+                     // showing. A definite height gives the results area a real box
+                     // to scroll inside, guaranteeing it's always fully visible —
+                     // same proven pattern used by every other modal in this app.
+                     height: Math.max(320, viewportH - (isMobile ? 90 : 120)),
                      boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
                      overflow: "hidden",
                  }}
