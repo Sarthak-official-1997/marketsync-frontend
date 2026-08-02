@@ -9,12 +9,14 @@ import { useMobile } from "../hooks/useMobile";
 import { useToast } from "../context/ToastContext";
 import { searchStocks, createTradeSetupAlert, extractTradeSetup } from "../api/portfolio";
 import SearchPickerModal from "./SearchPickerModal";
+import StockConfirmPreview from "./StockConfirmPreview";
 
 export default function QuickTradeModal({ onClose }) {
     const isMobile = useMobile();
     const toast = useToast();
 
     const [stock, setStock] = useState(null);
+    const [candidate, setCandidate] = useState(null); // picked from search, awaiting confirm
 
     const [entry, setEntry] = useState("");
     const [target, setTarget] = useState("");
@@ -84,8 +86,20 @@ export default function QuickTradeModal({ onClose }) {
                         )}
                     </div>
                 )}
-                onPick={setStock}
+                onPick={setCandidate}
                 onClose={onClose}
+            />
+        );
+    }
+
+    // Step 1.5: confirm the picked stock before committing — same
+    // fat-finger-prevention step as Simple Alert.
+    if (candidate && !stock) {
+        return (
+            <StockConfirmPreview
+                stock={candidate}
+                onConfirm={() => setStock(candidate)}
+                onCancel={() => setCandidate(null)}
             />
         );
     }
@@ -123,7 +137,7 @@ export default function QuickTradeModal({ onClose }) {
 
                 <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
                      className="px-4 py-4 space-y-3">
-                    <button onClick={() => setStock(null)}
+                    <button onClick={() => { setStock(null); setCandidate(null); }}
                             className="text-xs text-slate-400 hover:text-white">← Change stock</button>
 
                     <p className="text-xs text-slate-500">

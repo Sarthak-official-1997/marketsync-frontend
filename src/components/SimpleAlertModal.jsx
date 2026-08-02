@@ -10,12 +10,14 @@ import { useMobile } from "../hooks/useMobile";
 import { useToast } from "../context/ToastContext";
 import { searchStocks, createAlert } from "../api/portfolio";
 import SearchPickerModal from "./SearchPickerModal";
+import StockConfirmPreview from "./StockConfirmPreview";
 
 export default function SimpleAlertModal({ onClose }) {
     const isMobile = useMobile();
     const toast = useToast();
 
     const [stock, setStock] = useState(null);   // null = still searching
+    const [candidate, setCandidate] = useState(null); // picked from search, awaiting confirm
     const [condition, setCondition] = useState("above");
     const [price, setPrice] = useState("");
     const [saving, setSaving] = useState(false);
@@ -57,8 +59,21 @@ export default function SimpleAlertModal({ onClose }) {
                         )}
                     </div>
                 )}
-                onPick={setStock}
+                onPick={setCandidate}
                 onClose={onClose}
+            />
+        );
+    }
+
+    // Step 1.5: confirm the picked stock is really the intended one — shows
+    // name, live price, and a small chart before committing (prevents
+    // fat-finger mismatches on similar-looking names).
+    if (candidate && !stock) {
+        return (
+            <StockConfirmPreview
+                stock={candidate}
+                onConfirm={() => setStock(candidate)}
+                onCancel={() => setCandidate(null)}
             />
         );
     }
@@ -96,7 +111,7 @@ export default function SimpleAlertModal({ onClose }) {
 
                 <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
                      className="px-4 py-4 space-y-3">
-                    <button onClick={() => setStock(null)}
+                    <button onClick={() => { setStock(null); setCandidate(null); }}
                             className="text-xs text-slate-400 hover:text-white">← Change stock</button>
 
                     <div>

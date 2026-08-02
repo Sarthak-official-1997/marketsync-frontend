@@ -20,6 +20,10 @@ export default function NotificationModal({ notifications, onAllAcknowledged }) 
         setBusy(current.recipientId);
         try {
             await acknowledgeNotification(current.recipientId);
+            // Same immediate bell-refresh signal as the lightweight toast —
+            // keeps the badge count in sync right away instead of waiting
+            // for Layout.jsx's own next 30s poll.
+            window.dispatchEvent(new Event("ms_notification_acknowledged"));
             const remaining = list.filter(n => n.recipientId !== current.recipientId);
             if (remaining.length === 0) {
                 onAllAcknowledged();

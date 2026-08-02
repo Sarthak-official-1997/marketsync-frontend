@@ -355,12 +355,12 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
         <>
             <div onClick={onClose}
                  style={{
-                     position: "fixed", inset: 0, zIndex: 9098,
+                     position: "fixed", inset: 0, zIndex: 8998,
                      backgroundColor: "rgba(0,0,0,0.6)",
                  }} />
             <div style={{
                 position: "fixed", bottom: 64, left: 0, right: 0,
-                zIndex: 9099,
+                zIndex: 8999,
                 backgroundColor: "#0f172a",
                 borderTop: "1px solid rgba(51,65,85,0.6)",
                 borderRadius: "16px 16px 0 0",
@@ -638,7 +638,16 @@ export default function Layout({ children, portfolioSummary }) {
         };
         poll();
         const t = setInterval(poll, 30_000);
-        return () => clearInterval(t);
+        // Re-poll IMMEDIATELY whenever a notification is acknowledged anywhere
+        // in the app (blocking modal or the lightweight reminder/alert toast) —
+        // without this, the bell badge only caught up on its own next 30s
+        // tick, so tapping "OK" on a reminder didn't visibly update the count
+        // for up to half a minute, looking like it was stuck/out of sync.
+        window.addEventListener("ms_notification_acknowledged", poll);
+        return () => {
+            clearInterval(t);
+            window.removeEventListener("ms_notification_acknowledged", poll);
+        };
     }, [isCreator]);
 
     return (
