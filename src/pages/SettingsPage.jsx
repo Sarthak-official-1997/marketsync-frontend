@@ -143,7 +143,7 @@ export default function SettingsPage() {
 
             {/* Creator menu — only for CREATOR role */}
             {isCreator && (
-                <Section icon="👑" title="Creator">
+                <Section icon="👑" title="Creator" defaultOpen>
                     {creatorLinks.map(l => (
                         <Row key={l.to} icon={l.icon} label={l.label}
                              onClick={() => navigate(l.to)}
