@@ -458,8 +458,9 @@ const MF_LINKS = [
 ];
 
 const CREATOR_LINKS = [
-    { to: "/admin/notifications", icon: "🔔", label: "Notifications" },
-    { to: "/admin/users",         icon: "👤", label: "Users"         },
+    { to: "/admin/notifications",         icon: "🔔", label: "Notifications"  },
+    { to: "/admin/users",                 icon: "👤", label: "Users"          },
+    { to: "/creator/client-tracker",      icon: "📋", label: "Client Tracker" },
 ];
 
 function NavLink({ to, icon, label, exact = false }) {

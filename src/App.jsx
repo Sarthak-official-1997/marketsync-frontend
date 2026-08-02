@@ -22,6 +22,8 @@ import AdminClientsPage        from "./pages/AdminClientsPage";
 import AdminClientDetailPage   from "./pages/AdminClientDetailPage";
 import AdminAnalyticsPage      from "./pages/AdminAnalyticsPage";
 import AdminUserManagementPage from "./pages/AdminUserManagementPage";
+import ClientTrackerPage       from "./pages/ClientTrackerPage";
+import TrackedClientDetailPage from "./pages/TrackedClientDetailPage";
 
 // Auth pages
 import LoginPage           from "./pages/LoginPage";
@@ -178,6 +180,20 @@ function AppShell() {
                         <CreatorRoute>
                             <ErrorBoundary locationKey={locationKey} fallbackTitle="User management failed to load">
                                 <AdminUserManagementPage />
+                            </ErrorBoundary>
+                        </CreatorRoute>
+                    } />
+                    <Route path="/creator/client-tracker" element={
+                        <CreatorRoute>
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Client tracker failed to load">
+                                <ClientTrackerPage />
+                            </ErrorBoundary>
+                        </CreatorRoute>
+                    } />
+                    <Route path="/creator/client-tracker/:id" element={
+                        <CreatorRoute>
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Client tracker failed to load">
+                                <TrackedClientDetailPage />
                             </ErrorBoundary>
                         </CreatorRoute>
                     } />

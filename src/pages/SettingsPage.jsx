@@ -61,6 +61,7 @@ export default function SettingsPage() {
         { to: "/admin/notifications", icon: "🔔", label: "Notifications" },
         { to: "/admin/users",         icon: "👤", label: "Users"         },
         { to: "/admin/ai-report",     icon: "🤖", label: "AI Report"     },
+        { to: "/creator/client-tracker", icon: "📋", label: "Client Tracker" },
     ];
 
     return (
