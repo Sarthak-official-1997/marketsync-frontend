@@ -25,16 +25,19 @@ export const previewExcelHoldings = (id, file) => {
 export const confirmExcelHoldings = (id, rows) =>
     api.post(`/client-tracker/${id}/holdings/import-excel/confirm`, rows);
 
-// AI screenshot import — preview then confirm
-export const previewScreenshotHolding = (id, file) => {
+// AI screenshot import — ALL screenshots in a batch go in ONE request, so
+// Gemini sees every image together and can recognize when several
+// screenshots are just the same portfolio table scrolled to show different
+// columns, instead of extracting each one blind and separately.
+export const previewScreenshotHoldings = (id, files) => {
     const form = new FormData();
-    form.append("file", file);
+    Array.from(files).forEach(f => form.append("files", f));
     return api.post(`/client-tracker/${id}/holdings/import-screenshot`, form, {
         headers: { "Content-Type": "multipart/form-data" },
     });
 };
-export const confirmScreenshotHolding = (id, trade) =>
-    api.post(`/client-tracker/${id}/holdings/import-screenshot/confirm`, trade);
+export const confirmScreenshotHoldings = (id, trades) =>
+    api.post(`/client-tracker/${id}/holdings/import-screenshot/confirm`, trades);
 
 // The explicit, confirmed sync action — confirmed must be true or the backend rejects it
 export const syncTrackedHolding = (id, stockId, confirmed) =>

@@ -19,7 +19,7 @@ export default function QuickTradeModal({ onClose }) {
     const [candidate, setCandidate] = useState(null); // picked from search, awaiting confirm
 
     const [entry, setEntry] = useState("");
-    const [target, setTarget] = useState("");
+    const [targets, setTargets] = useState([""]); // one or more target prices
     const [stopLoss, setStopLoss] = useState("");
     const [category, setCategory] = useState("EXPRESS_TRADE");
     const [extracting, setExtracting] = useState(false);
@@ -36,7 +36,7 @@ export default function QuickTradeModal({ onClose }) {
             .then(res => {
                 const d = res.data || {};
                 if (d.entryPrice != null) setEntry(String(d.entryPrice));
-                if (d.targetPrice != null) setTarget(String(d.targetPrice));
+                if (d.targetPrice != null) setTargets([String(d.targetPrice)]);
                 if (d.stopLossPrice != null) setStopLoss(String(d.stopLossPrice));
                 setAiNote(d.message || d.extractionNote || null);
                 if (d.entryPrice == null && d.targetPrice == null && d.stopLossPrice == null) {
@@ -52,14 +52,22 @@ export default function QuickTradeModal({ onClose }) {
             });
     };
 
+    const addTargetField    = () => setTargets(prev => [...prev, ""]);
+    const removeTargetField = (idx) => setTargets(prev => prev.filter((_, i) => i !== idx));
+    const updateTargetField = (idx, val) => setTargets(prev => prev.map((t, i) => i === idx ? val : t));
+
     const save = () => {
-        const e = parseFloat(entry), t = parseFloat(target), s = parseFloat(stopLoss);
-        if (!e || !t || !s) { toast.error("Fill in entry, target, and stop-loss"); return; }
+        const e = parseFloat(entry), s = parseFloat(stopLoss);
+        const parsedTargets = targets.map(t => parseFloat(t)).filter(t => !isNaN(t) && t > 0);
+        if (!e || parsedTargets.length === 0 || !s) {
+            toast.error("Fill in entry, at least one target, and stop-loss");
+            return;
+        }
         setSaving(true);
         createTradeSetupAlert({
             symbol: stock.symbol, name: stock.name, exchange: stock.exchange || "NSE",
             category,
-            entryPrice: e, targetPrice: t, stopLossPrice: s,
+            entryPrice: e, targetPrices: parsedTargets, stopLossPrice: s,
         })
             .then(() => { toast.success("Quick Trade alert created"); onClose(); })
             .catch((err) => toast.error(err?.response?.data?.message || "Couldn't create trade setup"))
@@ -175,20 +183,13 @@ export default function QuickTradeModal({ onClose }) {
 
                     <p className="text-[11px] text-slate-600 text-center">or enter manually</p>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         <div>
                             <p className="text-[10px] text-slate-500 mb-1">Entry</p>
                             <input type="number" value={entry} onChange={e => setEntry(e.target.value)}
                                    placeholder="0.00"
                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
                                               text-white text-xs focus:outline-none focus:border-blue-500" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-green-500 mb-1">Target</p>
-                            <input type="number" value={target} onChange={e => setTarget(e.target.value)}
-                                   placeholder="0.00"
-                                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
-                                              text-white text-xs focus:outline-none focus:border-green-500" />
                         </div>
                         <div>
                             <p className="text-[10px] text-red-500 mb-1">Stop-loss</p>
@@ -199,8 +200,35 @@ export default function QuickTradeModal({ onClose }) {
                         </div>
                     </div>
 
+                    {/* One or more targets — for swing trades with staged profit-booking
+                        (Target 1, Target 2, Target 3...). "Add another target" appends a
+                        new field; each fires its own separate notification when hit. */}
+                    <div className="space-y-1.5">
+                        {targets.map((t, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <p className="text-[10px] text-green-500 w-14 flex-shrink-0">
+                                    Target {targets.length > 1 ? i + 1 : ""}
+                                </p>
+                                <input type="number" value={t} onChange={e => updateTargetField(i, e.target.value)}
+                                       placeholder="0.00"
+                                       className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2
+                                                  text-white text-xs focus:outline-none focus:border-green-500" />
+                                {targets.length > 1 && (
+                                    <button onClick={() => removeTargetField(i)}
+                                            className="text-slate-500 hover:text-red-400 text-xs flex-shrink-0">
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        <button onClick={addTargetField}
+                                className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">
+                            + Add another target
+                        </button>
+                    </div>
+
                     <p className="text-[11px] text-slate-600">
-                        Entry & stop-loss ping twice (immediate + a follow-up if still active). Target pings once.
+                        Entry & stop-loss ping twice (immediate + a follow-up if still active). Each target pings once.
                     </p>
 
                     <button onClick={save} disabled={saving}

@@ -14,7 +14,7 @@ import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
     addTrackedHolding, deleteTrackedHolding,
     previewExcelHoldings, confirmExcelHoldings,
-    previewScreenshotHolding, confirmScreenshotHolding,
+    previewScreenshotHoldings, confirmScreenshotHoldings,
     syncTrackedHolding,
 } from "../api/clientTracker";
 
@@ -281,28 +281,16 @@ export default function TrackedClientDetailPage() {
     };
 
     const [dragActive, setDragActive] = useState(false);
+    const [extractionMessage, setExtractionMessage] = useState(null);
 
-    // Extracts ONE screenshot and returns its trades (a screenshot of a whole
-    // portfolio table can contain several stocks — previously this only kept
-    // trades[0] and silently dropped the rest; now everything found is kept).
-    const extractOneScreenshot = (file) =>
-        previewScreenshotHolding(id, file)
-            .then(res => {
-                const data = res.data;
-                const trades = Array.isArray(data?.trades) ? data.trades
-                    : Array.isArray(data) ? data
-                        : data ? [data] : [];
-                return trades.map(t => ({ ...t, _sourceFile: file.name }));
-            })
-            .catch(() => {
-                toast.error(`Couldn't read ${file.name}`);
-                return [];
-            });
-
-    // Processes MULTIPLE screenshots at once — drop several, paste one at a
-    // time (clipboard only ever holds one image), or pick several via the
-    // file browser. Every trade from every file is appended to one combined
-    // review list before anything is saved.
+    // Processes MULTIPLE screenshots at once — ALL of them go to the backend
+    // in ONE request, so Gemini sees every image together. This matters a
+    // lot: if someone scrolled a wide portfolio table and screenshotted it
+    // in 3 pieces (different columns each time), sending them together lets
+    // the model recognize "same stock, same table" and produce one clean
+    // holding per stock — sending them separately (the old approach) is
+    // exactly what caused a real 6-stock portfolio to come out as 10 wrong
+    // "holdings" with mismatched prices.
     const processScreenshotFiles = async (fileList) => {
         const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith("image/"));
         if (files.length === 0) {
@@ -310,17 +298,21 @@ export default function TrackedClientDetailPage() {
             return;
         }
         setExtracting(true);
+        setExtractionMessage(`Reading ${files.length} screenshot${files.length === 1 ? "" : "s"}…`);
         try {
-            const results = await Promise.all(files.map(extractOneScreenshot));
-            const newTrades = results.flat();
-            if (newTrades.length === 0) {
-                toast.error("Couldn't extract any holdings from those images");
+            const res = await previewScreenshotHoldings(id, files);
+            const trades = res.data?.trades || [];
+            if (trades.length === 0) {
+                toast.error("Couldn't extract any holdings from those screenshots");
             } else {
-                setScreenshotTrades(prev => [...prev, ...newTrades]);
-                toast.success(`Read ${newTrades.length} holding${newTrades.length === 1 ? "" : "s"} from ${files.length} screenshot${files.length === 1 ? "" : "s"}`);
+                setScreenshotTrades(prev => [...prev, ...trades]);
+                toast.success(res.data?.message || `Extracted ${trades.length} holding${trades.length === 1 ? "" : "s"}`);
             }
+        } catch {
+            toast.error("Couldn't read those screenshots — try again or add manually");
         } finally {
             setExtracting(false);
+            setExtractionMessage(null);
             if (fileRef.current) fileRef.current.value = "";
         }
     };
@@ -351,21 +343,17 @@ export default function TrackedClientDetailPage() {
     const confirmScreenshot = async () => {
         if (screenshotTrades.length === 0) return;
         setConfirmingScreenshots(true);
-        let ok = 0, failed = 0;
-        for (const trade of screenshotTrades) {
-            try {
-                await confirmScreenshotHolding(id, trade);
-                ok++;
-            } catch {
-                failed++;
-            }
+        try {
+            await confirmScreenshotHoldings(id, screenshotTrades);
+            toast.success(`${screenshotTrades.length} holding${screenshotTrades.length === 1 ? "" : "s"} imported`);
+            setScreenshotTrades([]);
+            setAddMode(null);
+            load();
+        } catch {
+            toast.error("Import failed — please try again");
+        } finally {
+            setConfirmingScreenshots(false);
         }
-        setConfirmingScreenshots(false);
-        setScreenshotTrades([]);
-        setAddMode(null);
-        load();
-        if (failed === 0) toast.success(`${ok} holding${ok === 1 ? "" : "s"} imported`);
-        else toast.error(`${ok} imported, ${failed} failed — check those symbols and add manually if needed`);
     };
 
     if (loading || !client) {
@@ -471,9 +459,18 @@ export default function TrackedClientDetailPage() {
                             </p>
                         </div>
 
+                        {/* A real, visible processing panel — not just a tiny spinner easy to
+                            miss and mistake for the app being frozen. Shown clearly while
+                            Gemini reads and reconciles the uploaded screenshots. */}
                         {extracting && (
-                            <div className="flex justify-center py-2">
-                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                                <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                                <div>
+                                    <p className="text-blue-300 text-sm font-semibold">{extractionMessage}</p>
+                                    <p className="text-blue-400/70 text-[11px] mt-0.5">
+                                        This can take a moment for several screenshots — stay on this screen.
+                                    </p>
+                                </div>
                             </div>
                         )}
 
@@ -483,17 +480,21 @@ export default function TrackedClientDetailPage() {
                                     {screenshotTrades.length} holding{screenshotTrades.length === 1 ? "" : "s"} extracted — review below
                                 </p>
                                 {screenshotTrades.map((t, i) => (
-                                    <div key={i} className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2">
-                                        <div className="min-w-0">
+                                    <div key={i} className="bg-slate-800 rounded-lg px-3 py-2">
+                                        <div className="flex items-center justify-between">
                                             <p className="text-xs text-white font-semibold">
-                                                {t.stockSymbol} — {t.quantity} @ ₹{t.price}
+                                                {t.stockSymbol} — {t.quantity ?? "?"} @ {t.price != null ? `₹${t.price}` : "price unclear"}
                                             </p>
-                                            <p className="text-[10px] text-slate-600 truncate">from {t._sourceFile}</p>
+                                            <button onClick={() => removeScreenshotTrade(i)}
+                                                    className="text-slate-500 hover:text-red-400 text-xs flex-shrink-0 ml-2">
+                                                Remove
+                                            </button>
                                         </div>
-                                        <button onClick={() => removeScreenshotTrade(i)}
-                                                className="text-slate-500 hover:text-red-400 text-xs flex-shrink-0 ml-2">
-                                            Remove
-                                        </button>
+                                        {t.confidence === "LOW" && (
+                                            <p className="text-[10px] text-amber-400 mt-1">
+                                                ⚠ Low confidence{t.extractionNote ? ` — ${t.extractionNote}` : " — double-check this before confirming"}
+                                            </p>
+                                        )}
                                     </div>
                                 ))}
                                 <button onClick={confirmScreenshot} disabled={confirmingScreenshots}

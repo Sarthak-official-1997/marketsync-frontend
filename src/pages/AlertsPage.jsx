@@ -12,6 +12,7 @@ import PushToggle from "../components/PushToggle";
 import { sendTestPush } from "../utils/push";
 import { useToast } from "../context/ToastContext";
 import { useInbox } from "../context/InboxContext";
+import TradeSetupRangeBar from "../components/TradeSetupRangeBar";
 
 const fmtDate = (d) => {
     if (!d) return "—";
@@ -49,6 +50,12 @@ function GroupedAlertCard({ symbol, alertsForSymbol, livePrices, onToggle, onDel
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-white font-bold text-sm">{symbol}</span>
+                    {setupIds.length > 0 && (
+                        <span title="Has Quick Trade alert(s)"
+                              className="text-xs flex-shrink-0" style={{ filter: "drop-shadow(0 0 3px rgba(251,191,36,0.6))" }}>
+                            ⚡
+                        </span>
+                    )}
                     <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex-shrink-0">
                         {total} {total === 1 ? "alert" : "alerts"}
                     </span>
@@ -58,6 +65,15 @@ function GroupedAlertCard({ symbol, alertsForSymbol, livePrices, onToggle, onDel
             </button>
             {expanded && (
                 <div className="px-3 pb-3 space-y-2 border-t border-slate-700/40 pt-2">
+                    {/* One visual range bar per Quick Trade setup in this group —
+                        shows the red (stop-loss→entry) and green (entry→targets)
+                        zones with the current price marked, matching a TradingView-
+                        style setup view. Falls back to nothing if data's incomplete. */}
+                    {setupIds.map(sid => (
+                        <TradeSetupRangeBar key={sid}
+                                            alertsForSetup={alertsForSymbol.filter(a => a.tradeSetupId === sid)}
+                                            currentPrice={livePrices[symbol]?.currentPrice} />
+                    ))}
                     {alertsForSymbol.map(a => (
                         <AlertCard key={a.id} alert={a} livePrice={livePrices[a.symbol]}
                                    onToggle={onToggle} onDelete={onDelete} />
@@ -73,8 +89,10 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
     const [toggling, setToggling] = useState(false);
     const toast = useToast();
 
-    const triggered = !!alert.triggeredAt;
-    const isOn      = alert.isEnabled && !triggered;
+    const fullyDone        = !alert.isEnabled;                              // no more fires expected, ever
+    const firedButWatching = !!alert.triggeredAt && alert.isEnabled;         // fired once, follow-up still pending — stays visible, just dimmed
+    const triggered         = fullyDone;                                    // "fully done" badge/dimming, NOT "fired at all"
+    const isOn      = alert.isEnabled && !alert.triggeredAt;                 // toggle only shown for never-yet-fired alerts
 
     const cp = parseFloat(livePrice?.currentPrice || 0);
     const tgt = parseFloat(alert.computedTarget || 0);
@@ -107,11 +125,13 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
     return (
         <div className={
             "bg-slate-800 border rounded-xl p-4 transition-all " +
-            (triggered
+            (fullyDone
                 ? "border-slate-700/40 opacity-60"
-                : isOn
-                    ? "border-slate-700/60 hover:border-slate-600"
-                    : "border-slate-700/40")
+                : firedButWatching
+                    ? "border-slate-700/50 opacity-80"   // dimmed but clearly still present, not gone
+                    : isOn
+                        ? "border-slate-700/60 hover:border-slate-600"
+                        : "border-slate-700/40")
         }>
             <div className="flex items-start gap-3">
                 {/* Logo */}
@@ -126,13 +146,19 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
                                 {alert.exchange}
                             </span>
                         )}
-                        {triggered && (
+                        {fullyDone && (
                             <span className="text-xs bg-green-900/40 text-green-400 border
                                              border-green-500/30 px-2 py-0.5 rounded-full font-bold">
                                 ✓ TRIGGERED
                             </span>
                         )}
-                        {!triggered && !isOn && (
+                        {firedButWatching && (
+                            <span className="text-xs bg-slate-700 text-slate-400 border
+                                             border-slate-600 px-2 py-0.5 rounded-full font-semibold">
+                                ✓ Fired — watching for follow-up
+                            </span>
+                        )}
+                        {!fullyDone && !firedButWatching && !isOn && (
                             <span className="text-xs bg-slate-700/60 text-slate-500 px-2 py-0.5 rounded-full">
                                 paused
                             </span>
@@ -146,7 +172,7 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
                     </p>
 
                     {/* Live distance info */}
-                    {!triggered && cp > 0 && distPct != null && (
+                    {!alert.triggeredAt && cp > 0 && distPct != null && (
                         <p className="text-xs text-slate-500 mt-1">
                             Now {fmtPrice(cp)} ·{" "}
                             <span className={Math.abs(distPct) < 2 ? "text-amber-400 font-semibold" : ""}>
@@ -154,9 +180,10 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
                             </span>
                         </p>
                     )}
-                    {triggered && (
+                    {!!alert.triggeredAt && (
                         <p className="text-xs text-slate-500 mt-1">
-                            Triggered {fmtDate(alert.triggeredAt)}
+                            {fullyDone ? "Triggered" : "First fired"} {fmtDate(alert.triggeredAt)}
+                            {firedButWatching && " — checking again shortly for a follow-up"}
                         </p>
                     )}
 
@@ -166,7 +193,7 @@ function AlertCard({ alert, livePrice, onToggle, onDelete }) {
                 {/* Controls */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Toggle */}
-                    {!triggered && (
+                    {!fullyDone && (
                         <button
                             onClick={handleToggle}
                             disabled={toggling}
@@ -371,7 +398,7 @@ export default function AlertsPage() {
 
     // Filter
     const filtered = alerts.filter(a => {
-        if (tab === "active")    return a.isEnabled && !a.triggeredAt;
+        if (tab === "active")    return a.isEnabled;
         if (tab === "triggered") return !!a.triggeredAt;
         return true;
     });
