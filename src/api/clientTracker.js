@@ -39,6 +39,20 @@ export const previewScreenshotHoldings = (id, files) => {
 export const confirmScreenshotHoldings = (id, trades) =>
     api.post(`/client-tracker/${id}/holdings/import-screenshot/confirm`, trades);
 
-// The explicit, confirmed sync action — confirmed must be true or the backend rejects it
+// The explicit, confirmed sync action ("Pull") — confirmed must be true or the backend rejects it
 export const syncTrackedHolding = (id, stockId, confirmed) =>
     api.post(`/client-tracker/${id}/holdings/${stockId}/sync`, { confirmed });
+
+// View the mapped client's REAL transactions for one stock
+export const getRealTransactions = (id, stockId) =>
+    api.get(`/client-tracker/${id}/holdings/${stockId}/transactions`);
+
+// Push staging area — nothing here touches the real account until Push commits it
+export const getStagedEdits   = (id)          => api.get(`/client-tracker/${id}/staged-edits`);
+export const stageEdit        = (id, payload) => api.post(`/client-tracker/${id}/staged-edits`, payload);
+export const removeStagedEdit = (id, stagedEditId) =>
+    api.delete(`/client-tracker/${id}/staged-edits/${stagedEditId}`);
+
+// Push — review, then commit
+export const getPushReview = (id) => api.get(`/client-tracker/${id}/push/review`);
+export const executePush   = (id) => api.post(`/client-tracker/${id}/push`);

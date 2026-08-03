@@ -12,12 +12,14 @@ import { searchStocks } from "../api/portfolio";
 import { getAllUsers } from "../api/admin";
 import SearchPickerModal from "../components/SearchPickerModal";
 import StockConfirmPreview from "../components/StockConfirmPreview";
+import TransactionsStagingModal from "../components/TransactionsStagingModal";
+import PushReviewModal from "../components/PushReviewModal";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
     addTrackedHolding, deleteTrackedHolding,
     previewExcelHoldings, confirmExcelHoldings,
     previewScreenshotHoldings, confirmScreenshotHoldings,
-    syncTrackedHolding,
+    syncTrackedHolding, getStagedEdits,
 } from "../api/clientTracker";
 
 // ── Map-to-user picker ────────────────────────────────────────────────────
@@ -100,7 +102,7 @@ function MapUserPicker({ onPick, onClose }) {
 }
 
 // ── One holding row, with live comparison + sync ─────────────────────────
-function HoldingRow({ holding, mapped, onDelete, onSync }) {
+function HoldingRow({ holding, mapped, onDelete, onSync, onViewTransactions }) {
     const [confirming, setConfirming] = useState(false);
     const [syncing, setSyncing] = useState(false);
 
@@ -113,9 +115,17 @@ function HoldingRow({ holding, mapped, onDelete, onSync }) {
                     <p className="text-white font-bold text-sm">{holding.symbol}</p>
                     <p className="text-slate-500 text-[11px] truncate max-w-[180px]">{holding.name}</p>
                 </div>
-                <button onClick={() => onDelete(holding)} className="text-slate-500 hover:text-red-400 text-xs">
-                    Remove
-                </button>
+                <div className="flex items-center gap-3">
+                    {mapped && (
+                        <button onClick={() => onViewTransactions(holding)}
+                                className="text-xs text-blue-400 hover:text-blue-300 font-semibold">
+                            View Transactions
+                        </button>
+                    )}
+                    <button onClick={() => onDelete(holding)} className="text-slate-500 hover:text-red-400 text-xs">
+                        Remove
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
@@ -149,7 +159,7 @@ function HoldingRow({ holding, mapped, onDelete, onSync }) {
                     {!holding.inSync && !confirming && (
                         <button onClick={() => setConfirming(true)}
                                 className="text-[11px] font-semibold text-blue-400 hover:text-blue-300">
-                            Sync to real →
+                            Pull from real →
                         </button>
                     )}
                 </div>
@@ -268,6 +278,10 @@ export default function TrackedClientDetailPage() {
     const [extracting, setExtracting] = useState(false);
     const fileRef = useRef(null);
 
+    const [viewingTransactionsFor, setViewingTransactionsFor] = useState(null); // holding, or null
+    const [showPushReview, setShowPushReview] = useState(false);
+    const [stagedCount, setStagedCount] = useState(0);
+
     const load = () => {
         setLoading(true);
         getTrackedClient(id)
@@ -275,7 +289,10 @@ export default function TrackedClientDetailPage() {
             .catch(() => toast.error("Couldn't load this client"))
             .finally(() => setLoading(false));
     };
-    useEffect(() => { load(); }, [id]);
+    const loadStagedCount = () => {
+        getStagedEdits(id).then(res => setStagedCount((res.data || []).length)).catch(() => {});
+    };
+    useEffect(() => { load(); loadStagedCount(); }, [id]);
 
     const onMap = (userId) => {
         mapTrackedClient(id, userId)
@@ -411,13 +428,25 @@ export default function TrackedClientDetailPage() {
                         {client.mappedUsername ? `Mapped to @${client.mappedUsername}` : "Not mapped to a real account"}
                     </p>
                 </div>
-                {!client.mappedUserId && (
-                    <button onClick={() => setShowMapPicker(true)}
-                            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs
-                                       font-semibold rounded-lg transition-colors flex-shrink-0">
-                        Map to user
-                    </button>
-                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {client.mappedUserId && stagedCount > 0 && (
+                        <button onClick={() => setShowPushReview(true)}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs
+                                           font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                            ⬆ Push
+                            <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                                {stagedCount}
+                            </span>
+                        </button>
+                    )}
+                    {!client.mappedUserId && (
+                        <button onClick={() => setShowMapPicker(true)}
+                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs
+                                           font-semibold rounded-lg transition-colors">
+                            Map to user
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="space-y-2">
@@ -425,7 +454,8 @@ export default function TrackedClientDetailPage() {
                     <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>
                 ) : client.holdings.map(h => (
                     <HoldingRow key={h.id} holding={h} mapped={!!client.mappedUserId}
-                                onDelete={onDeleteHolding} onSync={onSync} />
+                                onDelete={onDeleteHolding} onSync={onSync}
+                                onViewTransactions={setViewingTransactionsFor} />
                 ))}
             </div>
 
@@ -546,6 +576,23 @@ export default function TrackedClientDetailPage() {
             </div>
 
             {showMapPicker && <MapUserPicker onPick={onMap} onClose={() => setShowMapPicker(false)} />}
+
+            {viewingTransactionsFor && (
+                <TransactionsStagingModal
+                    trackedClientId={id}
+                    stock={viewingTransactionsFor}
+                    onClose={() => setViewingTransactionsFor(null)}
+                    onStagedChange={loadStagedCount}
+                />
+            )}
+
+            {showPushReview && (
+                <PushReviewModal
+                    trackedClientId={id}
+                    onClose={() => setShowPushReview(false)}
+                    onPushed={() => { loadStagedCount(); load(); }}
+                />
+            )}
         </div>
     );
 }
