@@ -21,10 +21,7 @@ export default function StockConfirmPreview({ stock, onConfirm, onCancel }) {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    console.log("[StockConfirmPreview] rendering for stock:", stock);
-
     useEffect(() => {
-        console.log("[StockConfirmPreview] useEffect firing, fetching price+chart for:", stock?.symbol);
         let cancelled = false;
         setLoading(true);
 

@@ -38,6 +38,22 @@ export default function SimpleAlertModal({ onClose }) {
             .finally(() => setSaving(false));
     };
 
+    // Step 1.5: a stock has been picked from search but not yet confirmed —
+    // THIS CHECK MUST COME BEFORE THE "!stock" SEARCH CHECK BELOW. Same
+    // ordering bug found and fixed in QuickTradeModal: with "!stock" checked
+    // first, it returned unconditionally and made this candidate check
+    // unreachable dead code — the search screen would show forever no
+    // matter what was clicked.
+    if (candidate && !stock) {
+        return (
+            <StockConfirmPreview
+                stock={candidate}
+                onConfirm={() => setStock(candidate)}
+                onCancel={() => setCandidate(null)}
+            />
+        );
+    }
+
     // Step 1: no stock chosen yet — the shared search popup handles this
     // entire step (search box, results, keyboard-avoidance, positioning).
     if (!stock) {
@@ -61,19 +77,6 @@ export default function SimpleAlertModal({ onClose }) {
                 )}
                 onPick={setCandidate}
                 onClose={onClose}
-            />
-        );
-    }
-
-    // Step 1.5: confirm the picked stock is really the intended one — shows
-    // name, live price, and a small chart before committing (prevents
-    // fat-finger mismatches on similar-looking names).
-    if (candidate && !stock) {
-        return (
-            <StockConfirmPreview
-                stock={candidate}
-                onConfirm={() => setStock(candidate)}
-                onCancel={() => setCandidate(null)}
             />
         );
     }

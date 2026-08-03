@@ -74,6 +74,24 @@ export default function QuickTradeModal({ onClose }) {
             .finally(() => setSaving(false));
     };
 
+    // Step 1.5: a stock has been picked from search but not yet confirmed —
+    // THIS CHECK MUST COME BEFORE THE "!stock" SEARCH CHECK BELOW. They were
+    // previously in the wrong order: "if (!stock) return <SearchPickerModal/>"
+    // ran first and returned unconditionally, which made this candidate
+    // check completely unreachable dead code — stock stays null until this
+    // very step confirms it, so the search screen would show forever no
+    // matter what was clicked. That was the actual bug behind "clicking a
+    // stock does nothing."
+    if (candidate && !stock) {
+        return (
+            <StockConfirmPreview
+                stock={candidate}
+                onConfirm={() => setStock(candidate)}
+                onCancel={() => setCandidate(null)}
+            />
+        );
+    }
+
     // Step 1: no stock chosen yet — shared search popup handles this step.
     if (!stock) {
         return (
@@ -94,26 +112,8 @@ export default function QuickTradeModal({ onClose }) {
                         )}
                     </div>
                 )}
-                onPick={(item) => {
-                    console.log("[QuickTradeModal] onPick received, setting candidate:", item);
-                    setCandidate(item);
-                }}
+                onPick={setCandidate}
                 onClose={onClose}
-            />
-        );
-    }
-
-    console.log("[QuickTradeModal] render — candidate:", candidate, "| stock:", stock);
-
-    // Step 1.5: confirm the picked stock before committing — same
-    // fat-finger-prevention step as Simple Alert.
-    if (candidate && !stock) {
-        console.log("[QuickTradeModal] rendering StockConfirmPreview for:", candidate);
-        return (
-            <StockConfirmPreview
-                stock={candidate}
-                onConfirm={() => setStock(candidate)}
-                onCancel={() => setCandidate(null)}
             />
         );
     }
