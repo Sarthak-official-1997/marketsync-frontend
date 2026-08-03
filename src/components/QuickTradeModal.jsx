@@ -94,15 +94,21 @@ export default function QuickTradeModal({ onClose }) {
                         )}
                     </div>
                 )}
-                onPick={setCandidate}
+                onPick={(item) => {
+                    console.log("[QuickTradeModal] onPick received, setting candidate:", item);
+                    setCandidate(item);
+                }}
                 onClose={onClose}
             />
         );
     }
 
+    console.log("[QuickTradeModal] render — candidate:", candidate, "| stock:", stock);
+
     // Step 1.5: confirm the picked stock before committing — same
     // fat-finger-prevention step as Simple Alert.
     if (candidate && !stock) {
+        console.log("[QuickTradeModal] rendering StockConfirmPreview for:", candidate);
         return (
             <StockConfirmPreview
                 stock={candidate}

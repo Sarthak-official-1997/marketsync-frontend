@@ -125,7 +125,14 @@ export default function SearchPickerModal({
                     )}
                     {results.map((item, i) => (
                         <button key={item.id ?? item.symbol ?? i}
-                                onClick={() => onPick(item)}
+                                onClick={() => {
+                                    // Temporary diagnostic — a real click that never
+                                    // produces a follow-up screen or network call is a
+                                    // strong sign onPick itself isn't firing. This log
+                                    // proves definitively whether it is or isn't.
+                                    console.log("[SearchPickerModal] result clicked:", item);
+                                    onPick(item);
+                                }}
                                 className="w-full text-left px-3 py-3 rounded-xl hover:bg-slate-800
                                            active:bg-slate-800 transition-colors border-b border-slate-800 last:border-0">
                             {renderResult ? renderResult(item) : JSON.stringify(item)}
