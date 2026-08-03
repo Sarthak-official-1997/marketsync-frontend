@@ -9,6 +9,7 @@ import {
 import {
     getWatchlists, addStockToLists, setItemColor,
     createWatchlist, updateWatchlist, deleteWatchlist,
+    searchByColor, getColorLabels, setColorLabel, deleteColorLabel,
 } from "../api/watchlists";
 import StockTransactionPanel from "../components/StockTransactionPanel";
 import StockQuickMenu   from "../components/StockQuickMenu";
@@ -34,11 +35,19 @@ const fmtDate = (d) => {
 
 // Preset colour grades (TradingView-style). Stored on each item as a hex string.
 const COLOURS = [
-    { key: "red",   hex: "#ef4444" },
-    { key: "amber", hex: "#f59e0b" },
-    { key: "green", hex: "#22c55e" },
-    { key: "blue",  hex: "#3b82f6" },
-    { key: "grey",  hex: "#64748b" },
+    { key: "red",     hex: "#ef4444" },
+    { key: "orange",  hex: "#f97316" },
+    { key: "amber",   hex: "#f59e0b" },
+    { key: "yellow",  hex: "#eab308" },
+    { key: "lime",    hex: "#84cc16" },
+    { key: "green",   hex: "#22c55e" },
+    { key: "teal",    hex: "#14b8a6" },
+    { key: "cyan",    hex: "#06b6d4" },
+    { key: "blue",    hex: "#3b82f6" },
+    { key: "indigo",  hex: "#6366f1" },
+    { key: "purple",  hex: "#a855f7" },
+    { key: "pink",    hex: "#ec4899" },
+    { key: "grey",    hex: "#64748b" },
 ];
 const colourRank = (c) => {
     if (!c) return 999;
@@ -473,8 +482,40 @@ function StocksWatchlist({ toast, isMobile }) {
     const [colourItem,   setColourItem]  = useState(null);   // item whose colour popover is open
     const [newListOpen,  setNewListOpen] = useState(false);
     const [renameList,   setRenameList]  = useState(null);   // list being renamed
+    const [colorLabels,  setColorLabels] = useState({});     // { "#f59e0b": "Breakout candidates" }
+    const [editingLabelFor, setEditingLabelFor] = useState(null); // colour hex whose name is being edited
+    const [labelDraft,   setLabelDraft]  = useState("");
+    const [colorSearchOpen, setColorSearchOpen] = useState(false); // "search this colour across all lists"
+    const [colorSearchResults, setColorSearchResults] = useState(null);
+    const [colorSearchHex, setColorSearchHex] = useState(null);
     const debounceRef = useRef(null);
     const inputRef    = useRef(null);
+
+    const loadColorLabels = () => {
+        getColorLabels()
+            .then(res => {
+                const map = {};
+                (res.data || []).forEach(l => { map[l.colorHex.toLowerCase()] = l.label; });
+                setColorLabels(map);
+            })
+            .catch(() => {});
+    };
+    useEffect(() => { loadColorLabels(); }, []);
+
+    const saveColorLabel = (hex) => {
+        if (!labelDraft.trim()) { setEditingLabelFor(null); return; }
+        setColorLabel(hex, labelDraft.trim())
+            .then(() => { loadColorLabels(); setEditingLabelFor(null); })
+            .catch(() => toast.error("Couldn't save label"));
+    };
+
+    const runColorSearch = (hex) => {
+        setColorSearchHex(hex);
+        setColorSearchResults(null);
+        searchByColor(hex)
+            .then(res => setColorSearchResults(res.data || []))
+            .catch(() => { toast.error("Search failed"); setColorSearchResults([]); });
+    };
 
     const load = () => {
         getWatchlists()
@@ -836,27 +877,116 @@ function StocksWatchlist({ toast, isMobile }) {
             {/* ── Colour picker overlay (shared) ── */}
             {colourItem && (
                 <div className="fixed inset-0 z-[9500] flex items-center justify-center p-4"
-                     onClick={() => setColourItem(null)}>
+                     onClick={() => { setColourItem(null); setEditingLabelFor(null); }}>
                     <div className="absolute inset-0 bg-black/60" />
-                    <div className="relative bg-slate-800 border border-slate-700 rounded-2xl p-4 w-full max-w-[240px]"
+                    <div className="relative bg-slate-800 border border-slate-700 rounded-2xl p-4 w-full max-w-[300px] flex flex-col"
+                         style={{ maxHeight: "80vh" }}
                          onClick={e => e.stopPropagation()}>
                         <p className="text-white text-sm font-semibold mb-3 text-center">
                             {colourItem.stock.symbol} · colour
                         </p>
-                        <div className="flex items-center justify-center gap-3 mb-3">
-                            {COLOURS.map(c => (
-                                <button key={c.key} onClick={() => handleSetColour(colourItem, c.hex)}
-                                        aria-label={c.key}
-                                        className={"w-8 h-8 rounded-full border-2 transition-transform active:scale-90 " +
-                                        (String(colourItem.color).toLowerCase() === c.hex.toLowerCase()
-                                            ? "border-white" : "border-white/10")}
-                                        style={{ background: c.hex }} />
-                            ))}
+
+                        <div style={{ overflowY: "auto" }} className="grid grid-cols-4 gap-3 mb-3 px-1">
+                            {COLOURS.map(c => {
+                                const active = String(colourItem.color).toLowerCase() === c.hex.toLowerCase();
+                                const label = colorLabels[c.hex.toLowerCase()];
+                                return (
+                                    <div key={c.key} className="flex flex-col items-center gap-1">
+                                        <button onClick={() => handleSetColour(colourItem, c.hex)}
+                                                aria-label={c.key}
+                                                className={"w-8 h-8 rounded-full border-2 transition-transform active:scale-90 " +
+                                                (active ? "border-white" : "border-white/10")}
+                                                style={{ background: c.hex }} />
+                                        {editingLabelFor === c.hex ? (
+                                            <input autoFocus value={labelDraft}
+                                                   onChange={e => setLabelDraft(e.target.value)}
+                                                   onKeyDown={e => e.key === "Enter" && saveColorLabel(c.hex)}
+                                                   onBlur={() => saveColorLabel(c.hex)}
+                                                   placeholder="name…"
+                                                   className="w-16 bg-slate-900 border border-slate-600 rounded px-1
+                                                              text-white text-[9px] text-center focus:outline-none" />
+                                        ) : (
+                                            <button onClick={() => { setEditingLabelFor(c.hex); setLabelDraft(label || ""); }}
+                                                    className="text-[9px] text-slate-500 hover:text-slate-300 max-w-[56px] truncate">
+                                                {label || "name…"}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
+
+                        {/* Fully custom colour — not limited to the presets above */}
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                            <input type="color"
+                                   value={colourItem.color || "#64748b"}
+                                   onChange={e => handleSetColour(colourItem, e.target.value)}
+                                   className="w-8 h-8 rounded-lg border border-slate-600 bg-transparent cursor-pointer" />
+                            <p className="text-slate-500 text-[11px]">Custom colour</p>
+                        </div>
+
                         <button onClick={() => handleSetColour(colourItem, null)}
-                                className="w-full text-xs text-slate-400 hover:text-white py-2 rounded-lg border border-slate-700">
+                                className="w-full text-xs text-slate-400 hover:text-white py-2 rounded-lg border border-slate-700 mb-2">
                             Clear colour
                         </button>
+
+                        {colourItem.color && (
+                            <button onClick={() => { runColorSearch(colourItem.color); setColorSearchOpen(true); setColourItem(null); }}
+                                    className="w-full text-xs text-blue-300 hover:text-blue-200 py-2 rounded-lg
+                                               border border-blue-500/40 bg-blue-500/10">
+                                🔍 Find this colour in all watchlists
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Cross-watchlist colour search results ── */}
+            {colorSearchOpen && (
+                <div className="fixed inset-0 z-[9550] flex items-end sm:items-center justify-center"
+                     onClick={() => setColorSearchOpen(false)}>
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+                    <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full sm:max-w-sm sm:mx-4 flex flex-col"
+                         style={{ height: "min(70vh, 480px)" }}
+                         onClick={e => e.stopPropagation()}>
+                        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-slate-700/60">
+                            {colorSearchHex && (
+                                <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: colorSearchHex }} />
+                            )}
+                            <p className="text-white font-semibold text-sm flex-1">
+                                {colorLabels[colorSearchHex?.toLowerCase()] || "Tagged stocks"} — across all watchlists
+                            </p>
+                            <button onClick={() => setColorSearchOpen(false)}
+                                    className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">✕</button>
+                        </div>
+                        <div style={{ flex: "1 1 0", overflowY: "auto" }} className="px-3 py-3 space-y-2">
+                            {colorSearchResults === null ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                </div>
+                            ) : colorSearchResults.length === 0 ? (
+                                <p className="text-slate-500 text-sm text-center py-8">No stocks tagged this colour yet.</p>
+                            ) : colorSearchResults.map(r => (
+                                <div key={r.stockId} className="bg-slate-800/60 rounded-xl px-3 py-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-white text-sm font-semibold">{r.symbol}</p>
+                                        {r.currentPrice != null && (
+                                            <p className="text-white text-sm">
+                                                ₹{parseFloat(r.currentPrice).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                                {r.changePercent != null && (
+                                                    <span className={r.changePercent >= 0 ? "text-green-400 text-xs ml-1.5" : "text-red-400 text-xs ml-1.5"}>
+                                                        {r.changePercent >= 0 ? "▲" : "▼"} {Math.abs(r.changePercent).toFixed(2)}%
+                                                    </span>
+                                                )}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <p className="text-slate-500 text-[11px] mt-0.5 truncate">
+                                        in {r.watchlistNames.join(", ")}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}

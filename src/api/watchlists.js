@@ -28,3 +28,11 @@ export const setItemColor       = (itemId, color)          => api.patch(`/watchl
 
 /** GET /api/watchlists/for-stock/{stockId} — array of list ids that currently contain this stock. */
 export const getListsForStock   = (stockId)                => api.get(`/watchlists/for-stock/${stockId}`);
+
+/** GET /api/watchlists/items/by-color/{hex} — every stock tagged this colour across ALL lists, deduplicated. */
+export const searchByColor      = (colorHex)                => api.get(`/watchlists/items/by-color/${encodeURIComponent(colorHex)}`);
+
+/** Naming colours — so "yellow" doesn't have to stay a mystery you have to remember. */
+export const getColorLabels     = ()                        => api.get("/watchlists/color-labels");
+export const setColorLabel      = (colorHex, label)          => api.put("/watchlists/color-labels", { colorHex, label });
+export const deleteColorLabel   = (colorHex)                 => api.delete(`/watchlists/color-labels/${encodeURIComponent(colorHex)}`);
