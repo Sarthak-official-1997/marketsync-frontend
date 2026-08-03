@@ -10,6 +10,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { searchStocks } from "../api/portfolio";
 import { getAllUsers } from "../api/admin";
+import SearchPickerModal from "../components/SearchPickerModal";
+import StockConfirmPreview from "../components/StockConfirmPreview";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
     addTrackedHolding, deleteTrackedHolding,
@@ -44,7 +46,16 @@ function MapUserPicker({ onPick, onClose }) {
         <div className="fixed inset-0 z-[9700] flex items-center justify-center" onClick={onClose}>
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <div className="relative z-[9701] bg-slate-900 border border-slate-700/60 rounded-2xl
-                            w-full max-w-sm mx-4 max-h-[70vh] flex flex-col"
+                            w-full max-w-sm mx-4 flex flex-col"
+                 style={{
+                     // A real height, not just maxHeight — with only maxHeight, this
+                     // card shrinks to fit its content and the results list gets
+                     // squeezed into almost no visible space. Same bug already found
+                     // and fixed in SearchPickerModal/TradeSetupModal/AiChatModal —
+                     // this is now a standing rule: every scrollable modal in this
+                     // app gets a real height (or minHeight), never maxHeight alone.
+                     height: "min(70vh, 480px)",
+                 }}
                  onClick={e => e.stopPropagation()}>
                 <div className="flex-shrink-0 px-4 py-3 border-b border-slate-700/60">
                     <p className="text-white font-bold text-sm mb-2">Map to a registered user</p>
@@ -171,53 +182,59 @@ function HoldingRow({ holding, mapped, onDelete, onSync }) {
 
 // ── Manual add form ───────────────────────────────────────────────────────
 function ManualAddForm({ onAdd }) {
-    const [query, setQuery] = useState("");
-    const [results, setResults] = useState([]);
     const [stock, setStock] = useState(null);
+    const [candidate, setCandidate] = useState(null); // picked from search, awaiting confirm
+    const [showSearch, setShowSearch] = useState(true);
     const [qty, setQty] = useState("");
     const [price, setPrice] = useState("");
     const [date, setDate] = useState("");
-    const debRef = useRef(null);
-
-    const onQueryChange = (val) => {
-        setQuery(val);
-        clearTimeout(debRef.current);
-        if (val.trim().length < 2) { setResults([]); return; }
-        debRef.current = setTimeout(() => {
-            searchStocks(val).then(res => setResults((res.data?.content || []).slice(0, 6))).catch(() => setResults([]));
-        }, 300);
-    };
 
     const submit = () => {
         if (!stock || !qty || !price) return;
         onAdd({ stockId: stock.id, quantity: parseFloat(qty), avgBuyPrice: parseFloat(price), estimatedBuyDate: date || null });
-        setStock(null); setQty(""); setPrice(""); setDate(""); setQuery(""); setResults([]);
+        setStock(null); setCandidate(null); setQty(""); setPrice(""); setDate(""); setShowSearch(true);
     };
 
     return (
         <div className="space-y-2">
             {!stock ? (
-                <div>
-                    <input value={query} onChange={e => onQueryChange(e.target.value)}
-                           placeholder="Search stock…"
-                           className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
-                                      text-white text-sm focus:outline-none focus:border-blue-500" />
-                    {results.length > 0 && (
-                        <div className="mt-1 rounded-xl border border-slate-700 overflow-hidden">
-                            {results.map(s => (
-                                <button key={s.id} onClick={() => { setStock(s); setResults([]); }}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-700/60 text-sm text-white">
-                                    {s.symbol} <span className="text-slate-500 text-xs">{s.name}</span>
-                                </button>
-                            ))}
-                        </div>
+                <>
+                    {showSearch && (
+                        <SearchPickerModal
+                            title="Add holding"
+                            placeholder="Search stock…"
+                            searchFn={(q) => searchStocks(q).then(res => res.data?.content || res.data || [])}
+                            renderResult={(s) => (
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <span className="font-semibold text-white text-sm">{s.symbol}</span>
+                                        <span className="text-slate-400 text-xs ml-2 truncate">{s.name}</span>
+                                    </div>
+                                    {s.exchange && (
+                                        <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded flex-shrink-0">
+                                            {s.exchange}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            onPick={setCandidate}
+                            onClose={() => setShowSearch(false)}
+                        />
                     )}
-                </div>
+                    {candidate && (
+                        <StockConfirmPreview
+                            stock={candidate}
+                            onConfirm={() => { setStock(candidate); setCandidate(null); }}
+                            onCancel={() => { setCandidate(null); setShowSearch(true); }}
+                        />
+                    )}
+                </>
             ) : (
                 <>
                     <div className="flex items-center justify-between">
                         <p className="text-white text-sm font-semibold">{stock.symbol}</p>
-                        <button onClick={() => setStock(null)} className="text-xs text-slate-400 hover:text-white">Change</button>
+                        <button onClick={() => { setStock(null); setShowSearch(true); }}
+                                className="text-xs text-slate-400 hover:text-white">Change</button>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                         <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="Qty"
