@@ -23,10 +23,18 @@ function MapUserPicker({ onPick, onClose }) {
     const [users, setUsers] = useState([]);
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
 
-    useEffect(() => {
-        getAllUsers().then(setUsers).catch(() => {}).finally(() => setLoading(false));
-    }, []);
+    const loadUsers = () => {
+        setLoading(true);
+        setLoadError(false);
+        getAllUsers()
+            .then(setUsers)
+            .catch(() => setLoadError(true))   // was silently swallowed before —
+            .finally(() => setLoading(false)); // a failed fetch looked identical
+    };                                          // to "no matching users"
+
+    useEffect(() => { loadUsers(); }, []);
 
     const filtered = users.filter(u =>
         (u.username || "").toLowerCase().includes(query.toLowerCase()) ||
@@ -48,8 +56,18 @@ function MapUserPicker({ onPick, onClose }) {
                 <div style={{ flex: "1 1 0", overflowY: "auto" }} className="px-2 py-2">
                     {loading ? (
                         <p className="text-slate-500 text-xs text-center py-6">Loading users…</p>
+                    ) : loadError ? (
+                        <div className="text-center py-6">
+                            <p className="text-red-400 text-xs mb-2">Couldn't load the user list</p>
+                            <button onClick={loadUsers}
+                                    className="text-blue-400 hover:text-blue-300 text-xs font-semibold">
+                                Try again
+                            </button>
+                        </div>
+                    ) : users.length === 0 ? (
+                        <p className="text-slate-500 text-xs text-center py-6">No registered users yet</p>
                     ) : filtered.length === 0 ? (
-                        <p className="text-slate-500 text-xs text-center py-6">No matches</p>
+                        <p className="text-slate-500 text-xs text-center py-6">No matches for "{query}"</p>
                     ) : filtered.map(u => (
                         <button key={u.id} onClick={() => onPick(u.id)}
                                 className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800 transition-colors">
