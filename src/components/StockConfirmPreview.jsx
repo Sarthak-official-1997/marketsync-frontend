@@ -1,24 +1,25 @@
 // src/components/StockConfirmPreview.jsx
-// A lightweight "is this the right stock?" checkpoint — shown after picking a
-// result from SearchPickerModal, before committing to an alert/trade-setup
+// A lightweight "is this the right stock?" checkpoint — shown after picking
+// a result from SearchPickerModal, before committing to an alert/trade-setup
 // flow. Prevents fat-finger mismatches (similar-looking names, wrong
-// exchange, etc.) by showing name + live price + a small chart, with
-// nothing else — no board/watchlist/TradingView/alert buttons, since none
-// of those apply when you've arrived here by directly searching for a
-// stock to act on. Cancel returns to search; Confirm proceeds.
+// exchange, etc.) by showing name, live price, a real stats row (prev
+// close / day high / day low / volume), and a chart with actual axis
+// context — not just a decorative squiggle. Cancel returns to search;
+// Confirm proceeds.
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 import { getStockPrice, getStockChart } from "../api/portfolio";
 import {
-    AreaChart, Area, XAxis, ResponsiveContainer,
+    AreaChart, Area, ResponsiveContainer,
 } from "recharts";
 
 export default function StockConfirmPreview({ stock, onConfirm, onCancel }) {
     const isMobile = useMobile();
     const [quote, setQuote] = useState(null);
     const [chartData, setChartData] = useState([]);
+    const [chartRange, setChartRange] = useState("Today");
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -38,19 +39,45 @@ export default function StockConfirmPreview({ stock, onConfirm, onCancel }) {
         getStockChart(stock.symbol, stock.exchange || "NSE", "5m", "1d")
             .then(r => {
                 const pts = parse(r);
-                if (pts.length > 3) { if (!cancelled) setChartData(pts); return; }
+                if (pts.length > 3) {
+                    if (!cancelled) { setChartData(pts); setChartRange("Today"); }
+                    return;
+                }
                 return getStockChart(stock.symbol, stock.exchange || "NSE", "1d", "5d")
-                    .then(r2 => { if (!cancelled) setChartData(parse(r2)); });
+                    .then(r2 => {
+                        if (!cancelled) { setChartData(parse(r2)); setChartRange("Last 5 days"); }
+                    });
             })
             .catch(() => {});
 
         return () => { cancelled = true; };
     }, [stock.symbol, stock.exchange]);
 
-    const price = parseFloat(quote?.currentPrice || quote?.regularMarketPrice || 0);
-    const chg   = parseFloat(quote?.changePercent || quote?.regularMarketChangePercent || 0);
+    const price = quote?.currentPrice != null ? parseFloat(quote.currentPrice) : 0;
+    const chg   = quote?.changePercent != null ? parseFloat(quote.changePercent) : 0;
     const up    = chg >= 0;
     const color = up ? "#22c55e" : "#ef4444";
+
+    const fmt = (v) => v == null ? null : parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    const fmtVol = (v) => {
+        if (v == null) return null;
+        const n = Number(v);
+        if (n >= 1e7) return (n / 1e7).toFixed(2) + " Cr";
+        if (n >= 1e5) return (n / 1e5).toFixed(2) + " L";
+        return n.toLocaleString("en-IN");
+    };
+
+    // Chart's own visible range — real numbers on the chart, not just a squiggle.
+    const chartValues = chartData.map(p => p.v);
+    const chartHigh = chartValues.length ? Math.max(...chartValues) : null;
+    const chartLow  = chartValues.length ? Math.min(...chartValues) : null;
+
+    const stats = [
+        { label: "Prev close", value: fmt(quote?.previousClose) },
+        { label: "Day high",   value: fmt(quote?.dayHigh) },
+        { label: "Day low",    value: fmt(quote?.dayLow) },
+        { label: "Volume",     value: fmtVol(quote?.volume), noRupee: true },
+    ].filter(s => s.value != null);
 
     return createPortal(
         <div className="fixed inset-0 z-[9660] flex items-end sm:items-center justify-center"
@@ -66,7 +93,7 @@ export default function StockConfirmPreview({ stock, onConfirm, onCancel }) {
                      overflowX: "hidden",
                  } : {
                      width: "calc(100vw - 32px)", maxWidth: "420px",
-                     height: "480px",
+                     height: "560px",
                      borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
                      boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
                  }}
@@ -107,21 +134,50 @@ export default function StockConfirmPreview({ stock, onConfirm, onCancel }) {
                         <p className="text-slate-500 text-sm mt-2">Price unavailable right now</p>
                     )}
 
-                    <div className="mt-4 bg-slate-800/40 rounded-2xl border border-slate-700/40 overflow-hidden"
+                    {/* Real stat numbers — prev close / day high / day low / volume,
+                        whichever the data source actually provides. */}
+                    {!loading && stats.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2 mt-3">
+                            {stats.map(s => (
+                                <div key={s.label} className="bg-slate-800/60 rounded-lg px-1.5 py-2 text-center">
+                                    <p className="text-slate-500 text-[9px] mb-0.5">{s.label}</p>
+                                    <p className="text-white text-[11px] font-semibold">
+                                        {s.noRupee ? s.value : `₹${s.value}`}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="mt-4 relative bg-slate-800/40 rounded-2xl border border-slate-700/40 overflow-hidden"
                          style={{ height: "180px" }}>
                         {chartData.length > 1 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 12, right: 8, bottom: 4, left: 8 }}>
-                                    <defs>
-                                        <linearGradient id="confirmChartGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-                                            <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-                                        </linearGradient>
-                                    </defs>
-                                    <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2}
-                                          fill="url(#confirmChartGrad)" dot={false} />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                            <>
+                                {/* Time-range + high/low labels — real numbers on the chart
+                                    itself, not just an unlabeled line. */}
+                                <div className="absolute top-2 left-3 z-10 text-[10px] text-slate-500 font-medium">
+                                    {chartRange}
+                                </div>
+                                <div className="absolute top-2 right-3 z-10 text-[10px] text-slate-400">
+                                    High ₹{fmt(chartHigh)}
+                                </div>
+                                <div className="absolute bottom-2 right-3 z-10 text-[10px] text-slate-400">
+                                    Low ₹{fmt(chartLow)}
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData} margin={{ top: 24, right: 8, bottom: 4, left: 8 }}>
+                                        <defs>
+                                            <linearGradient id="confirmChartGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                                                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+                                            </linearGradient>
+                                        </defs>
+                                        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2}
+                                              fill="url(#confirmChartGrad)" dot={false}
+                                              isAnimationActive={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </>
                         ) : (
                             <div className="h-full flex items-center justify-center">
                                 {loading ? (
