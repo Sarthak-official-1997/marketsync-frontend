@@ -122,26 +122,31 @@ function HoldingRow({ holding, mapped, onDelete, onSync, onOpenPush, onEdit, onV
 
     return (
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-white font-bold text-sm">{holding.symbol}</p>
-                    <p className="text-slate-500 text-[11px] truncate max-w-[180px]">{holding.name}</p>
-                </div>
-                <div className="flex items-center gap-2.5 flex-wrap justify-end">
-                    {mapped && (
-                        <button onClick={() => onViewTransactions(holding)}
-                                className="text-xs text-blue-400 hover:text-blue-300 font-semibold">
-                            View Transactions
-                        </button>
-                    )}
-                    <button onClick={() => { setEditing(v => !v); setConfirming(null); }}
-                            className="text-xs text-slate-400 hover:text-white font-semibold">
-                        Edit
+            {/* Name and action buttons are on SEPARATE rows, always — the
+                previous single-row "flex justify-between" packed the stock
+                name and three action links (View Transactions / Edit /
+                Remove) side by side, and in a narrower grid card the button
+                row wrapped to two lines and visually collided with the name/
+                description underneath it. Stacking removes the competition
+                for horizontal space entirely, at any card width. */}
+            <div className="mb-1.5">
+                <p className="text-white font-bold text-sm">{holding.symbol}</p>
+                <p className="text-slate-500 text-[11px] truncate">{holding.name}</p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap mb-1">
+                {mapped && (
+                    <button onClick={() => onViewTransactions(holding)}
+                            className="text-xs text-blue-400 hover:text-blue-300 font-semibold">
+                        View Transactions
                     </button>
-                    <button onClick={() => onDelete(holding)} className="text-slate-500 hover:text-red-400 text-xs">
-                        Remove
-                    </button>
-                </div>
+                )}
+                <button onClick={() => { setEditing(v => !v); setConfirming(null); }}
+                        className="text-xs text-slate-400 hover:text-white font-semibold">
+                    Edit
+                </button>
+                <button onClick={() => onDelete(holding)} className="text-xs text-slate-500 hover:text-red-400">
+                    Remove
+                </button>
             </div>
 
             {editing ? (
@@ -192,7 +197,7 @@ function HoldingRow({ holding, mapped, onDelete, onSync, onOpenPush, onEdit, onV
             {mapped && !editing && (
                 <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
                     <span className={"text-[11px] font-semibold " +
-                    (holding.inSync ? "text-green-400" : "text-amber-400")}>
+                        (holding.inSync ? "text-green-400" : "text-amber-400")}>
                         {holding.inSync ? "✓ In sync" : "⚠ Out of sync"}
                     </span>
                     <div className="flex items-center gap-3">
@@ -523,7 +528,7 @@ export default function TrackedClientDetailPage() {
                     {[["manual", "Manual"], ["excel", "Import Excel"], ["screenshot", "Screenshot"]].map(([id2, label]) => (
                         <button key={id2} onClick={() => setAddMode(addMode === id2 ? null : id2)}
                                 className={"flex-1 text-xs font-semibold py-2 rounded-lg border transition-colors " +
-                                (addMode === id2 ? "bg-blue-600/20 border-blue-500 text-blue-300" : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                    (addMode === id2 ? "bg-blue-600/20 border-blue-500 text-blue-300" : "bg-slate-800 border-slate-700 text-slate-400")}>
                             {label}
                         </button>
                     ))}
@@ -568,10 +573,10 @@ export default function TrackedClientDetailPage() {
                             onDrop={onDrop}
                             onClick={() => fileRef.current?.click()}
                             className={"text-center py-5 px-3 border-2 border-dashed rounded-xl cursor-pointer " +
-                            "transition-colors focus:outline-none " +
-                            (dragActive
-                                ? "border-blue-500 bg-blue-500/10"
-                                : "border-slate-700 hover:border-slate-500")}>
+                                "transition-colors focus:outline-none " +
+                                (dragActive
+                                    ? "border-blue-500 bg-blue-500/10"
+                                    : "border-slate-700 hover:border-slate-500")}>
                             <p className="text-2xl mb-1">📷</p>
                             <p className="text-xs text-slate-300 font-medium">
                                 {extracting
