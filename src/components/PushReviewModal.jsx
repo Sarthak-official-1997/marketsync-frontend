@@ -19,7 +19,7 @@ const EDIT_TYPE_COLOR = {
     DELETE: "text-red-300 bg-red-500/20",
 };
 
-export default function PushReviewModal({ trackedClientId, onClose, onPushed }) {
+export default function PushReviewModal({ trackedClientId, stockId, clientName, onClose, onPushed }) {
     const isMobile = useMobile();
     const toast = useToast();
 
@@ -29,7 +29,7 @@ export default function PushReviewModal({ trackedClientId, onClose, onPushed }) 
     const [result, setResult] = useState(null);
 
     useEffect(() => {
-        getPushReview(trackedClientId)
+        getPushReview(trackedClientId, stockId)
             .then(res => setReview(res.data))
             .catch(() => toast.error("Couldn't load staged changes"))
             .finally(() => setLoading(false));
@@ -37,7 +37,7 @@ export default function PushReviewModal({ trackedClientId, onClose, onPushed }) 
 
     const post = () => {
         setPushing(true);
-        executePush(trackedClientId)
+        executePush(trackedClientId, stockId)
             .then(res => {
                 setResult(res.data);
                 if (res.data.failed === 0) onPushed?.();
@@ -69,7 +69,9 @@ export default function PushReviewModal({ trackedClientId, onClose, onPushed }) 
 
                 <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
                     <div>
-                        <p className="text-white font-bold text-sm">Push — review changes</p>
+                        <p className="text-white font-bold text-sm">
+                            {stockId ? "Push this stock" : "Push All"}{clientName ? ` — ${clientName}` : ""}
+                        </p>
                         <p className="text-slate-500 text-xs">Nothing is real yet. Review before posting.</p>
                     </div>
                     <button onClick={onClose}
@@ -129,7 +131,7 @@ export default function PushReviewModal({ trackedClientId, onClose, onPushed }) 
                     )}
                 </div>
 
-                <div className="flex-shrink-0 px-4 py-3 border-t border-slate-700/60 flex gap-2">
+                <div className="flex-shrink-0 px-4 py-3 border-t border-slate-700/60">
                     {result ? (
                         <button onClick={onClose}
                                 className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-white
@@ -138,16 +140,24 @@ export default function PushReviewModal({ trackedClientId, onClose, onPushed }) 
                         </button>
                     ) : (
                         <>
-                            <button onClick={onClose}
-                                    className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white
-                                               text-sm font-semibold rounded-xl transition-colors">
-                                Cancel
-                            </button>
-                            <button onClick={post} disabled={pushing || !review || review.changedStocks.length === 0}
-                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
-                                               text-white text-sm font-semibold rounded-xl transition-colors">
-                                {pushing ? "Posting…" : "Post"}
-                            </button>
+                            {review && review.changedStocks.length > 0 && (
+                                <p className="text-amber-400/90 text-[11px] text-center mb-2">
+                                    ⚠️ This creates real transactions in the account for {clientName || "this client"}.
+                                    This cannot be reversed.
+                                </p>
+                            )}
+                            <div className="flex gap-2">
+                                <button onClick={onClose}
+                                        className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white
+                                                   text-sm font-semibold rounded-xl transition-colors">
+                                    Cancel
+                                </button>
+                                <button onClick={post} disabled={pushing || !review || review.changedStocks.length === 0}
+                                        className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                                                   text-white text-sm font-semibold rounded-xl transition-colors">
+                                    {pushing ? "Posting…" : "Post"}
+                                </button>
+                            </div>
                         </>
                     )}
                 </div>

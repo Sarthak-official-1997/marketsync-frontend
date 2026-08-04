@@ -101,12 +101,24 @@ function MapUserPicker({ onPick, onClose }) {
     );
 }
 
-// ── One holding row, with live comparison + sync ─────────────────────────
-function HoldingRow({ holding, mapped, onDelete, onSync, onViewTransactions }) {
-    const [confirming, setConfirming] = useState(false);
-    const [syncing, setSyncing] = useState(false);
+// ── One holding row, with live comparison + sync + direct push + edit ────
+function HoldingRow({ holding, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions }) {
+    const [confirming, setConfirming] = useState(null); // "sync" | null
+    const [busy, setBusy] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [editQty, setEditQty] = useState(holding.quantity ?? "");
+    const [editPrice, setEditPrice] = useState(holding.avgBuyPrice ?? "");
+    const [editDate, setEditDate] = useState(holding.estimatedBuyDate ?? "");
 
     const fmt = (n) => n == null ? "—" : parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+    const saveEdit = async () => {
+        if (!editQty || !editPrice) return;
+        setBusy(true);
+        await onEdit(holding, { quantity: parseFloat(editQty), avgBuyPrice: parseFloat(editPrice), estimatedBuyDate: editDate || null });
+        setBusy(false);
+        setEditing(false);
+    };
 
     return (
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3">
@@ -115,77 +127,111 @@ function HoldingRow({ holding, mapped, onDelete, onSync, onViewTransactions }) {
                     <p className="text-white font-bold text-sm">{holding.symbol}</p>
                     <p className="text-slate-500 text-[11px] truncate max-w-[180px]">{holding.name}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap justify-end">
                     {mapped && (
                         <button onClick={() => onViewTransactions(holding)}
                                 className="text-xs text-blue-400 hover:text-blue-300 font-semibold">
                             View Transactions
                         </button>
                     )}
+                    <button onClick={() => { setEditing(v => !v); setConfirming(null); }}
+                            className="text-xs text-slate-400 hover:text-white font-semibold">
+                        Edit
+                    </button>
                     <button onClick={() => onDelete(holding)} className="text-slate-500 hover:text-red-400 text-xs">
                         Remove
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
-                <div>
-                    <p className="text-slate-500 mb-0.5">Your reference</p>
-                    <p className="text-white font-semibold">{fmt(holding.quantity)} sh @ ₹{fmt(holding.avgBuyPrice)}</p>
-                    {holding.estimatedBuyDate && (
-                        <p className="text-slate-600 text-[10px]">~{holding.estimatedBuyDate}</p>
-                    )}
+            {editing ? (
+                <div className="mt-2 bg-slate-900 rounded-xl p-2.5 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                        <input type="number" value={editQty} onChange={e => setEditQty(e.target.value)} placeholder="Qty"
+                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                        <input type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)} placeholder="Avg price"
+                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setEditing(false)}
+                                className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg">
+                            Cancel
+                        </button>
+                        <button onClick={saveEdit} disabled={busy}
+                                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg">
+                            {busy ? "Saving…" : "Set"}
+                        </button>
+                    </div>
                 </div>
-                {mapped && (
+            ) : (
+                <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
                     <div>
-                        <p className="text-slate-500 mb-0.5">Their real holding</p>
-                        {holding.realQuantity != null ? (
-                            <p className="text-white font-semibold">
-                                {fmt(holding.realQuantity)} sh @ ₹{fmt(holding.realAvgBuyPrice)}
-                            </p>
-                        ) : (
-                            <p className="text-slate-600">Not held</p>
+                        <p className="text-slate-500 mb-0.5">Your reference</p>
+                        <p className="text-white font-semibold">{fmt(holding.quantity)} sh @ ₹{fmt(holding.avgBuyPrice)}</p>
+                        {holding.estimatedBuyDate && (
+                            <p className="text-slate-600 text-[10px]">~{holding.estimatedBuyDate}</p>
                         )}
                     </div>
-                )}
-            </div>
-
-            {mapped && (
-                <div className="mt-2 flex items-center justify-between">
-                    <span className={"text-[11px] font-semibold " +
-                    (holding.inSync ? "text-green-400" : "text-amber-400")}>
-                        {holding.inSync ? "✓ In sync" : "⚠ Out of sync"}
-                    </span>
-                    {!holding.inSync && !confirming && (
-                        <button onClick={() => setConfirming(true)}
-                                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300">
-                            Pull from real →
-                        </button>
+                    {mapped && (
+                        <div>
+                            <p className="text-slate-500 mb-0.5">Their real holding</p>
+                            {holding.realQuantity != null ? (
+                                <p className="text-white font-semibold">
+                                    {fmt(holding.realQuantity)} sh @ ₹{fmt(holding.realAvgBuyPrice)}
+                                </p>
+                            ) : (
+                                <p className="text-slate-600">Not held</p>
+                            )}
+                        </div>
                     )}
                 </div>
             )}
 
-            {confirming && (
+            {mapped && !editing && (
+                <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
+                    <span className={"text-[11px] font-semibold " +
+                    (holding.inSync ? "text-green-400" : "text-amber-400")}>
+                        {holding.inSync ? "✓ In sync" : "⚠ Out of sync"}
+                    </span>
+                    <div className="flex items-center gap-3">
+                        {!holding.inSync && confirming !== "sync" && (
+                            <button onClick={() => setConfirming("sync")}
+                                    className="text-[11px] font-semibold text-blue-400 hover:text-blue-300">
+                                Pull from real →
+                            </button>
+                        )}
+                        <button onClick={() => onOpenPush(holding)}
+                                className="text-[11px] font-semibold text-green-400 hover:text-green-300">
+                            ⬆ Push →
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {confirming === "sync" && (
                 <div className="mt-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5">
                     <p className="text-amber-300 text-[11px] mb-2">
                         Have you acknowledged the changes? This will overwrite your reference
                         copy to match their real holding — cannot be undone.
                     </p>
                     <div className="flex gap-2">
-                        <button onClick={() => setConfirming(false)}
+                        <button onClick={() => setConfirming(null)}
                                 className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white
                                            text-xs font-semibold rounded-lg transition-colors">
                             Cancel
                         </button>
-                        <button onClick={async () => { setSyncing(true); await onSync(holding); setSyncing(false); setConfirming(false); }}
-                                disabled={syncing}
+                        <button onClick={async () => { setBusy(true); await onSync(holding); setBusy(false); setConfirming(null); }}
+                                disabled={busy}
                                 className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40
                                            text-white text-xs font-semibold rounded-lg transition-colors">
-                            {syncing ? "Syncing…" : "Confirm sync"}
+                            {busy ? "Syncing…" : "Confirm sync"}
                         </button>
                     </div>
                 </div>
             )}
+
         </div>
     );
 }
@@ -227,7 +273,7 @@ function ManualAddForm({ onAdd }) {
                                     )}
                                 </div>
                             )}
-                            onPick={setCandidate}
+                            onPick={(item) => { setCandidate(item); setShowSearch(false); }}
                             onClose={() => setShowSearch(false)}
                         />
                     )}
@@ -280,6 +326,7 @@ export default function TrackedClientDetailPage() {
 
     const [viewingTransactionsFor, setViewingTransactionsFor] = useState(null); // holding, or null
     const [showPushReview, setShowPushReview] = useState(false);
+    const [pushStockId, setPushStockId] = useState(null); // null = Push All, set = one stock
     const [stagedCount, setStagedCount] = useState(0);
 
     const load = () => {
@@ -317,6 +364,17 @@ export default function TrackedClientDetailPage() {
             .then(() => { toast.success("Synced"); load(); })
             .catch(() => toast.error("Sync failed"));
     };
+
+    const onEditHolding = (holding, values) => {
+        return addTrackedHolding(id, { stockId: holding.stockId || holding.id, ...values })
+            .then(() => { toast.success("Updated"); loadStagedCount(); load(); })
+            .catch(() => toast.error("Couldn't save changes"));
+    };
+
+    // Opens the real, review-then-confirm Push flow — stockId null means
+    // "Push All" (everything staged for this client); a specific stockId
+    // scopes it to just that one stock's staged changes.
+    const openPush = (stockId) => { setPushStockId(stockId); setShowPushReview(true); };
 
     const onExcelFile = (e) => {
         const file = e.target.files?.[0];
@@ -428,12 +486,12 @@ export default function TrackedClientDetailPage() {
                         {client.mappedUsername ? `Mapped to @${client.mappedUsername}` : "Not mapped to a real account"}
                     </p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                     {client.mappedUserId && stagedCount > 0 && (
-                        <button onClick={() => setShowPushReview(true)}
-                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs
+                        <button onClick={() => openPush(null)}
+                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs
                                            font-semibold rounded-lg transition-colors flex items-center gap-1.5">
-                            ⬆ Push
+                            ⬆ Push All
                             <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                                 {stagedCount}
                             </span>
@@ -449,12 +507,13 @@ export default function TrackedClientDetailPage() {
                 </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                 {(client.holdings || []).length === 0 ? (
-                    <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>
+                    <p className="text-slate-500 text-sm text-center py-6 col-span-full">No holdings yet — add one below.</p>
                 ) : client.holdings.map(h => (
                     <HoldingRow key={h.id} holding={h} mapped={!!client.mappedUserId}
                                 onDelete={onDeleteHolding} onSync={onSync}
+                                onOpenPush={(h) => openPush(h.stockId || h.id)} onEdit={onEditHolding}
                                 onViewTransactions={setViewingTransactionsFor} />
                 ))}
             </div>
@@ -589,8 +648,10 @@ export default function TrackedClientDetailPage() {
             {showPushReview && (
                 <PushReviewModal
                     trackedClientId={id}
-                    onClose={() => setShowPushReview(false)}
-                    onPushed={() => { loadStagedCount(); load(); }}
+                    stockId={pushStockId}
+                    clientName={client.displayName}
+                    onClose={() => { setShowPushReview(false); setPushStockId(null); }}
+                    onPushed={() => { loadStagedCount(); load(); setPushStockId(null); }}
                 />
             )}
         </div>

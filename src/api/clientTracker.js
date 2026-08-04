@@ -47,12 +47,20 @@ export const syncTrackedHolding = (id, stockId, confirmed) =>
 export const getRealTransactions = (id, stockId) =>
     api.get(`/client-tracker/${id}/holdings/${stockId}/transactions`);
 
-// Push staging area — nothing here touches the real account until Push commits it
+// Push staging area — nothing here touches the real account until Push commits it.
+// Every holding automatically gets an initial staged entry the moment it's
+// added AND the client is mapped (or retroactively, the moment mapping
+// happens) — so there's always something real to review and push, without
+// re-entering the same quantity/price a second time.
 export const getStagedEdits   = (id)          => api.get(`/client-tracker/${id}/staged-edits`);
 export const stageEdit        = (id, payload) => api.post(`/client-tracker/${id}/staged-edits`, payload);
 export const removeStagedEdit = (id, stagedEditId) =>
     api.delete(`/client-tracker/${id}/staged-edits/${stagedEditId}`);
 
-// Push — review, then commit
-export const getPushReview = (id) => api.get(`/client-tracker/${id}/push/review`);
-export const executePush   = (id) => api.post(`/client-tracker/${id}/push`);
+// Push — review, then commit. stockId omitted = "Push All"; provided = just that one stock.
+// This is the ONLY real push mechanism — always goes through PushReviewModal
+// first (getPushReview), never a blind direct commit.
+export const getPushReview = (id, stockId) =>
+    api.get(`/client-tracker/${id}/push/review`, { params: stockId ? { stockId } : {} });
+export const executePush   = (id, stockId) =>
+    api.post(`/client-tracker/${id}/push`, null, { params: stockId ? { stockId } : {} });
