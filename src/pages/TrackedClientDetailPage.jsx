@@ -354,7 +354,7 @@ export default function TrackedClientDetailPage() {
 
     const onAddManual = (req) => {
         addTrackedHolding(id, req)
-            .then(() => { toast.success("Holding added"); setAddMode(null); load(); })
+            .then(() => { toast.success("Holding added"); setAddMode(null); load(); loadStagedCount(); })
             .catch(() => toast.error("Couldn't add holding"));
     };
 
@@ -391,7 +391,7 @@ export default function TrackedClientDetailPage() {
     };
     const confirmExcel = () => {
         confirmExcelHoldings(id, excelRows)
-            .then(() => { toast.success("Holdings imported"); setExcelRows(null); setAddMode(null); load(); })
+            .then(() => { toast.success("Holdings imported"); setExcelRows(null); setAddMode(null); load(); loadStagedCount(); })
             .catch(() => toast.error("Import failed"));
     };
 
@@ -464,6 +464,7 @@ export default function TrackedClientDetailPage() {
             setScreenshotTrades([]);
             setAddMode(null);
             load();
+            loadStagedCount();
         } catch {
             toast.error("Import failed — please try again");
         } finally {
@@ -489,6 +490,10 @@ export default function TrackedClientDetailPage() {
                     <h1 className="text-xl font-bold text-white">{client.displayName}</h1>
                     <p className="text-slate-500 text-xs mt-0.5">
                         {client.mappedUsername ? `Mapped to @${client.mappedUsername}` : "Not mapped to a real account"}
+                        {" · "}{(client.holdings || []).length} stock{(client.holdings || []).length === 1 ? "" : "s"} tracked
+                        {client.mappedUserId && stagedCount > 0 && (
+                            <span className="text-green-400"> · {stagedCount} ready to push</span>
+                        )}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">

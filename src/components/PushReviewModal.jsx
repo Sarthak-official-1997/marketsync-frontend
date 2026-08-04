@@ -72,7 +72,15 @@ export default function PushReviewModal({ trackedClientId, stockId, clientName, 
                         <p className="text-white font-bold text-sm">
                             {stockId ? "Push this stock" : "Push All"}{clientName ? ` — ${clientName}` : ""}
                         </p>
-                        <p className="text-slate-500 text-xs">Nothing is real yet. Review before posting.</p>
+                        <p className="text-slate-500 text-xs">
+                            Nothing is real yet. Review before posting.
+                            {review && (
+                                <span className="text-white font-semibold">
+                                    {" · "}{review.changedStocks.length} stock{review.changedStocks.length === 1 ? "" : "s"}
+                                    {" · "}{review.totalChanges} change{review.totalChanges === 1 ? "" : "s"}
+                                </span>
+                            )}
+                        </p>
                     </div>
                     <button onClick={onClose}
                             className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
