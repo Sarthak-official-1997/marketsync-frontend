@@ -80,186 +80,191 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
     };
 
     return (
-        <header style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 12px",
-            background: "#0f172a",
-            borderBottom: "1px solid rgba(51,65,85,0.6)",
-            position: "sticky", top: 0, zIndex: 50,
-            height: 56, flexShrink: 0,
-        }}>
-            {/* Logo + portfolio value */}
-            <Link to="/stocks" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
-                <span style={{ color: "white", fontWeight: 900, fontSize: 18,
-                    letterSpacing: "-0.5px" }}>FOLYO</span>
-            </Link>
-
-            {/* Portfolio value strip — shown only when data is loaded */}
-            {totalValue > 0 && (
-                <div style={{
-                    marginLeft: 4, paddingLeft: 8,
-                    borderLeft: "1px solid rgba(51,65,85,0.6)",
-                    flexShrink: 0,
-                }}>
-                    <div style={{ color: "white", fontSize: 11, fontWeight: 700,
-                        fontVariantNumeric: "tabular-nums", lineHeight: 1.2,
-                        whiteSpace: "nowrap" }}>
-                        {fmtShort(totalValue)}
-                    </div>
-                    <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.2,
-                        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
-                        color: plPos ? "#10b981" : "#ef4444" }}>
-                        {plPos ? "+" : ""}{fmtShort(Math.abs(totalPL))}
-                    </div>
-                </div>
-            )}
-
-            {/* Search — takes all available space */}
-            <button onClick={onSearchOpen} style={{
-                flex: 1, display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 12px", background: "#1e293b",
-                border: "1px solid rgba(51,65,85,0.6)",
-                borderRadius: 12, textAlign: "left", minWidth: 0,
+        {/* bg-slate-900 + border-slate-700/60 — Tailwind classes, not inline
+            styles, so the theme CSS overrides (styles/themes.css) can
+            actually reach them. This was hardcoded to #0f172a via inline
+            style before, which no theme (light or dark) could ever change —
+            that's what made light themes look broken at the top of the app. */}
+    <header className="bg-slate-900 border-b border-slate-700/60"
+            style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 12px",
+                position: "sticky", top: 0, zIndex: 50,
+                height: 56, flexShrink: 0,
             }}>
-                <svg style={{ width: 16, height: 16, color: "#64748b", flexShrink: 0 }}
-                     fill="none" stroke="#64748b" strokeWidth="2" viewBox="0 0 24 24">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
-                </svg>
-                <span style={{ color: "#64748b", fontSize: 14, overflow: "hidden",
-                    textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {/* Logo + portfolio value */}
+        <Link to="/stocks" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
+                <span className="text-white" style={{ fontWeight: 900, fontSize: 18,
+                    letterSpacing: "-0.5px" }}>FOLYO</span>
+        </Link>
+
+        {/* Portfolio value strip — shown only when data is loaded */}
+        {totalValue > 0 && (
+            <div style={{
+                marginLeft: 4, paddingLeft: 8,
+                borderLeft: "1px solid rgba(51,65,85,0.6)",
+                flexShrink: 0,
+            }}>
+                <div className="text-white" style={{ fontSize: 11, fontWeight: 700,
+                    fontVariantNumeric: "tabular-nums", lineHeight: 1.2,
+                    whiteSpace: "nowrap" }}>
+                    {fmtShort(totalValue)}
+                </div>
+                <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.2,
+                    fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
+                    color: plPos ? "#10b981" : "#ef4444" }}>
+                    {plPos ? "+" : ""}{fmtShort(Math.abs(totalPL))}
+                </div>
+            </div>
+        )}
+
+        {/* Search — takes all available space */}
+        <button onClick={onSearchOpen} className="bg-slate-800"
+                style={{
+                    flex: 1, display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 12px",
+                    border: "1px solid rgba(51,65,85,0.6)",
+                    borderRadius: 12, textAlign: "left", minWidth: 0,
+                }}>
+            <svg className="text-slate-500" style={{ width: 16, height: 16, flexShrink: 0 }}
+                 fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/>
+                <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
+            </svg>
+            <span className="text-slate-500" style={{ fontSize: 14, overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     Search stocks...
                 </span>
-            </button>
+        </button>
 
-            {/* AI */}
-            <button onClick={onAiOpen} style={{
-                width: 36, height: 36, flexShrink: 0,
-                background: "rgba(147,51,234,0.2)",
-                border: "1px solid rgba(147,51,234,0.4)",
-                borderRadius: 10, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                fontSize: 18, cursor: "pointer",
-            }}>✨</button>
+        {/* AI */}
+        <button onClick={onAiOpen} style={{
+            width: 36, height: 36, flexShrink: 0,
+            background: "rgba(147,51,234,0.2)",
+            border: "1px solid rgba(147,51,234,0.4)",
+            borderRadius: 10, display: "flex",
+            alignItems: "center", justifyContent: "center",
+            fontSize: 18, cursor: "pointer",
+        }}>✨</button>
 
-            {/* Inbox bell with badge */}
-            <button onClick={onInboxOpen} style={{
-                width: 36, height: 36, flexShrink: 0,
-                background: "transparent", border: "none",
-                borderRadius: 10, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                cursor: "pointer", position: "relative",
-            }}>
-                <svg style={{ width: 20, height: 20 }} fill="none"
-                     stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                </svg>
-                {pendingNotifs > 0 && (
-                    <span style={{
-                        position: "absolute", top: 2, right: 2,
-                        minWidth: 16, height: 16, background: "#ef4444",
-                        borderRadius: 8, fontSize: 9, fontWeight: 700,
-                        color: "white", display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                        padding: "0 3px",
-                    }}>
+        {/* Inbox bell with badge */}
+        <button onClick={onInboxOpen} style={{
+            width: 36, height: 36, flexShrink: 0,
+            background: "transparent", border: "none",
+            borderRadius: 10, display: "flex",
+            alignItems: "center", justifyContent: "center",
+            cursor: "pointer", position: "relative",
+        }}>
+            <svg style={{ width: 20, height: 20 }} fill="none"
+                 stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            {pendingNotifs > 0 && (
+                <span style={{
+                    position: "absolute", top: 2, right: 2,
+                    minWidth: 16, height: 16, background: "#ef4444",
+                    borderRadius: 8, fontSize: 9, fontWeight: 700,
+                    color: "white", display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    padding: "0 3px",
+                }}>
                         {pendingNotifs > 9 ? "9+" : pendingNotifs}
                     </span>
-                )}
+            )}
+        </button>
+
+        {/* Profile avatar — opens the account dropdown (Settings, password,
+                theme, logout). Phone-app style; does NOT open the More drawer. */}
+        <div ref={acctRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button
+                onClick={() => setAcctOpen(v => !v)}
+                style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: "#7c3aed", display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    color: "white", fontWeight: 700, fontSize: 14,
+                    border: "none", cursor: "pointer",
+                }}>
+                {initial}
             </button>
 
-            {/* Profile avatar — opens the account dropdown (Settings, password,
-                theme, logout). Phone-app style; does NOT open the More drawer. */}
-            <div ref={acctRef} style={{ position: "relative", flexShrink: 0 }}>
-                <button
-                    onClick={() => setAcctOpen(v => !v)}
-                    style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        background: "#7c3aed", display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                        color: "white", fontWeight: 700, fontSize: 14,
-                        border: "none", cursor: "pointer",
-                    }}>
-                    {initial}
-                </button>
-
-                {acctOpen && (
-                    <div style={{
-                        position: "absolute", top: 42, right: 0, width: 236,
-                        background: "#0f172a", border: "1px solid rgba(51,65,85,0.6)",
-                        borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
-                        zIndex: 60, overflow: "hidden",
-                    }}>
-                        {/* User header */}
-                        <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
-                            <div style={{ color: "white", fontWeight: 700, fontSize: 13 }}>
-                                {user?.fullName || user?.username}
-                            </div>
-                            <div style={{ color: "#64748b", fontSize: 11, marginTop: 2, overflow: "hidden",
-                                textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {user?.email || user?.username}
-                            </div>
+            {acctOpen && (
+                <div className="bg-slate-900 border border-slate-700/60"
+                     style={{
+                         position: "absolute", top: 42, right: 0, width: 236,
+                         borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
+                         zIndex: 60, overflow: "hidden",
+                     }}>
+                    {/* User header */}
+                    <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
+                        <div className="text-white" style={{ fontWeight: 700, fontSize: 13 }}>
+                            {user?.fullName || user?.username}
                         </div>
-
-                        {/* Settings */}
-                        <button style={menuRow}
-                                onClick={() => { setAcctOpen(false); navigate("/settings"); }}>
-                            <span>⚙️</span> Settings
-                        </button>
-
-                        {/* Change password */}
-                        <button style={menuRow}
-                                onClick={() => { setAcctOpen(false); onChangePw && onChangePw(); }}>
-                            <span>🔒</span> Change password
-                        </button>
-
-                        {/* View / recover password */}
-                        <button style={menuRow}
-                                onClick={() => { setAcctOpen(false); onRevealPw && onRevealPw(); }}>
-                            <span>🔓</span> View / recover password
-                        </button>
-
-                        {/* Theme — expands inline */}
-                        <button style={{ ...menuRow, borderTop: "1px solid rgba(51,65,85,0.4)" }}
-                                onClick={() => setThemeExpanded(v => !v)}>
-                            <span>🎨</span>
-                            <span style={{ flex: 1 }}>Theme</span>
-                            <span style={{ fontSize: 12 }}>{theme?.emoji}</span>
-                            <span style={{ fontSize: 10, color: "#64748b",
-                                transform: themeExpanded ? "rotate(180deg)" : "none",
-                                transition: "transform .15s" }}>▼</span>
-                        </button>
-                        {themeExpanded && (
-                            <div style={{ maxHeight: 220, overflowY: "auto", background: "#0b1220" }}>
-                                {THEMES.map(t => (
-                                    <button key={t.id}
-                                            onClick={() => setThemeId(t.id)}
-                                            style={{
-                                                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                                                padding: "9px 14px 9px 30px", background: "transparent",
-                                                border: "none", cursor: "pointer", textAlign: "left",
-                                                color: themeId === t.id ? "#a78bfa" : "#cbd5e1", fontSize: 12.5,
-                                            }}>
-                                        <span>{t.emoji}</span>
-                                        <span style={{ flex: 1 }}>{t.name}</span>
-                                        {themeId === t.id && <span style={{ color: "#a78bfa" }}>✓</span>}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Logout */}
-                        <button style={{ ...menuRow, color: "#f87171",
-                            borderTop: "1px solid rgba(51,65,85,0.4)" }}
-                                onClick={() => { setAcctOpen(false); onLogout && onLogout(); }}>
-                            <span>🚪</span> Logout
-                        </button>
+                        <div className="text-slate-500" style={{ fontSize: 11, marginTop: 2, overflow: "hidden",
+                            textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {user?.email || user?.username}
+                        </div>
                     </div>
-                )}
-            </div>
-        </header>
-    );
+
+                    {/* Settings */}
+                    <button style={menuRow}
+                            onClick={() => { setAcctOpen(false); navigate("/settings"); }}>
+                        <span>⚙️</span> Settings
+                    </button>
+
+                    {/* Change password */}
+                    <button style={menuRow}
+                            onClick={() => { setAcctOpen(false); onChangePw && onChangePw(); }}>
+                        <span>🔒</span> Change password
+                    </button>
+
+                    {/* View / recover password */}
+                    <button style={menuRow}
+                            onClick={() => { setAcctOpen(false); onRevealPw && onRevealPw(); }}>
+                        <span>🔓</span> View / recover password
+                    </button>
+
+                    {/* Theme — expands inline */}
+                    <button style={{ ...menuRow, borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                            onClick={() => setThemeExpanded(v => !v)}>
+                        <span>🎨</span>
+                        <span style={{ flex: 1 }}>Theme</span>
+                        <span style={{ fontSize: 12 }}>{theme?.emoji}</span>
+                        <span className="text-slate-500" style={{ fontSize: 10,
+                            transform: themeExpanded ? "rotate(180deg)" : "none",
+                            transition: "transform .15s" }}>▼</span>
+                    </button>
+                    {themeExpanded && (
+                        <div style={{ maxHeight: 220, overflowY: "auto", background: "#0b1220" }}>
+                            {THEMES.map(t => (
+                                <button key={t.id}
+                                        onClick={() => setThemeId(t.id)}
+                                        style={{
+                                            width: "100%", display: "flex", alignItems: "center", gap: 10,
+                                            padding: "9px 14px 9px 30px", background: "transparent",
+                                            border: "none", cursor: "pointer", textAlign: "left",
+                                            color: themeId === t.id ? "#a78bfa" : "#cbd5e1", fontSize: 12.5,
+                                        }}>
+                                    <span>{t.emoji}</span>
+                                    <span style={{ flex: 1 }}>{t.name}</span>
+                                    {themeId === t.id && <span style={{ color: "#a78bfa" }}>✓</span>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Logout */}
+                    <button style={{ ...menuRow, color: "#f87171",
+                        borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                            onClick={() => { setAcctOpen(false); onLogout && onLogout(); }}>
+                        <span>🚪</span> Logout
+                    </button>
+                </div>
+            )}
+        </div>
+    </header>
+);
 }
 
 // ── Inline MobileBottomNav ────────────────────────────────────────────────────
@@ -298,14 +303,13 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, defaul
         return currentPath.startsWith(tab.to);
     };
     return (
-        <nav style={{
-            position: "fixed", bottom: 0, left: 0, right: 0,
-            zIndex: 9000,
-            display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
-            backgroundColor: "#0f172a",
-            borderTop: "1px solid rgba(51,65,85,0.6)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        }}>
+        <nav className="bg-slate-900 border-t border-slate-700/60"
+             style={{
+                 position: "fixed", bottom: 0, left: 0, right: 0,
+                 zIndex: 9000,
+                 display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+                 paddingBottom: "env(safe-area-inset-bottom, 0px)",
+             }}>
             {tabs.map(tab => {
                 const active = isActive(tab);
                 return (
@@ -367,15 +371,19 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
         { label: "Settings",           to: "/settings",      icon: "⚙️" },
     ];
 
+    // Colours moved into a companion className (bg-slate-800/border-slate-700/
+    // text-slate-300 are all theme-overridden in styles/themes.css) — tileStyle
+    // itself keeps only layout properties now, since inline "background"/"color"
+    // here was the same unreachable-by-theming problem as everywhere else in
+    // this file.
     const tileStyle = {
         display: "flex", flexDirection: "column",
         alignItems: "center", gap: 6,
         padding: "12px 8px",
-        background: "#1e293b",
         border: "1px solid rgba(51,65,85,0.6)",
         borderRadius: 12, cursor: "pointer",
-        color: "#cbd5e1",
     };
+    const tileClassName = "bg-slate-800 text-slate-300";
     const labelStyle = { fontSize: 11, fontWeight: 500, textAlign: "center", lineHeight: 1.3 };
 
     return (
@@ -385,28 +393,28 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                      position: "fixed", inset: 0, zIndex: 8998,
                      backgroundColor: "rgba(0,0,0,0.6)",
                  }} />
-            <div style={{
-                position: "fixed", bottom: 64, left: 0, right: 0,
-                zIndex: 8999,
-                backgroundColor: "#0f172a",
-                borderTop: "1px solid rgba(51,65,85,0.6)",
-                borderRadius: "16px 16px 0 0",
-                padding: "16px",
-                maxHeight: "70vh", overflowY: "auto",
-            }}>
-                <div style={{ width: 40, height: 4, background: "#334155",
+            <div className="bg-slate-900 border-t border-slate-700/60"
+                 style={{
+                     position: "fixed", bottom: 64, left: 0, right: 0,
+                     zIndex: 8999,
+                     borderRadius: "16px 16px 0 0",
+                     padding: "16px",
+                     maxHeight: "70vh", overflowY: "auto",
+                 }}>
+                <div className="bg-slate-700" style={{ width: 40, height: 4,
                     borderRadius: 2, margin: "0 auto 16px" }} />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                     {/* The demoted fund type — expandable */}
                     <button onClick={() => setSecondaryExpanded(v => !v)}
+                            className={tileClassName}
                             style={{ ...tileStyle,
                                 borderColor: secondaryExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
                         <span style={{ fontSize: 22 }}>{secondaryEmoji}</span>
                         <span style={labelStyle}>{secondaryLabel} {secondaryExpanded ? "▲" : "▼"}</span>
                     </button>
                     {mainTiles.map(item => (
-                        <button key={item.to} onClick={() => go(item.to)} style={tileStyle}>
+                        <button key={item.to} onClick={() => go(item.to)} className={tileClassName} style={tileStyle}>
                             <span style={{ fontSize: 22 }}>{item.icon}</span>
                             <span style={labelStyle}>{item.label}</span>
                         </button>
@@ -420,7 +428,8 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                         display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
                         {secondaryLinks.map(item => (
                             <button key={item.to} onClick={() => go(item.to)}
-                                    style={{ ...tileStyle, padding: "10px 8px", background: "#0f172a" }}>
+                                    className="bg-slate-900 text-slate-300"
+                                    style={{ ...tileStyle, padding: "10px 8px" }}>
                                 <span style={{ fontSize: 18 }}>{item.icon}</span>
                                 <span style={{ ...labelStyle, fontSize: 10.5 }}>{item.label}</span>
                             </button>
