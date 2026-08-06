@@ -8,6 +8,7 @@ import { useTheme, THEMES } from "../context/ThemeContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth } from "../context/AuthContext";
 import { getBubblePrefs, setBubblePrefs } from "../utils/bubblePrefs";
+import { getDefaultView, setDefaultView, DEFAULT_VIEW } from "../utils/homePreference";
 
 // Collapsible section. Header is a toggle; body only renders when open.
 function Section({ icon, title, children, defaultOpen = false }) {
@@ -51,6 +52,8 @@ export default function SettingsPage() {
 
     const [bubble, setBubble] = useState(getBubblePrefs());
     const updateBubble = (patch) => setBubble(setBubblePrefs(patch));
+    const [defaultView, setDefaultViewState] = useState(getDefaultView());
+    const chooseDefaultView = (view) => setDefaultViewState(setDefaultView(view));
 
     const transparencyPct = Math.round((bubble.transparency / 0.8) * 100);
 
@@ -83,9 +86,9 @@ export default function SettingsPage() {
                         {THEMES.map(t => (
                             <button key={t.id} onClick={() => setThemeId(t.id)} type="button"
                                     className={"flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-left " +
-                                    (themeId === t.id
-                                        ? "border-purple-500 bg-purple-500/10"
-                                        : "border-slate-700 hover:bg-slate-700/40")}>
+                                        (themeId === t.id
+                                            ? "border-purple-500 bg-purple-500/10"
+                                            : "border-slate-700 hover:bg-slate-700/40")}>
                                 <span className="text-base">{t.emoji}</span>
                                 <span className="text-sm text-white flex-1 truncate">{t.name}</span>
                                 {themeId === t.id && <span className="text-purple-400 text-xs">✓</span>}
@@ -101,12 +104,45 @@ export default function SettingsPage() {
                     onClick={togglePrivacy}
                     right={
                         <span className={"w-10 h-6 rounded-full flex items-center transition-colors flex-shrink-0 " +
-                        (valuesHidden ? "bg-amber-500" : "bg-slate-600")}>
+                            (valuesHidden ? "bg-amber-500" : "bg-slate-600")}>
                             <span className={"w-5 h-5 bg-white rounded-full mx-0.5 transition-transform " +
-                            (valuesHidden ? "translate-x-4" : "translate-x-0")} />
+                                (valuesHidden ? "translate-x-4" : "translate-x-0")} />
                         </span>
                     }
                 />
+            </Section>
+
+            {/* Home screen — which fund type leads the app */}
+            <Section icon="🏠" title="Home screen">
+                <div className="px-3 py-2">
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">
+                        Default primary view
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { id: DEFAULT_VIEW.STOCKS, label: "Stocks", sub: "Current default", emoji: "📈" },
+                            { id: DEFAULT_VIEW.MUTUAL_FUNDS, label: "Mutual Funds", sub: "MF holdings first", emoji: "📊" },
+                        ].map(opt => (
+                            <button key={opt.id} onClick={() => chooseDefaultView(opt.id)} type="button"
+                                    className={"flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-left " +
+                                        (defaultView === opt.id
+                                            ? "border-purple-500 bg-purple-500/10"
+                                            : "border-slate-700 hover:bg-slate-700/40")}>
+                                <span className="text-base">{opt.emoji}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-white truncate">{opt.label}</p>
+                                    <p className="text-[10px] text-slate-500 truncate">{opt.sub}</p>
+                                </div>
+                                {defaultView === opt.id && <span className="text-purple-400 text-xs flex-shrink-0">✓</span>}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-2">
+                        Choosing Mutual Funds moves it to the front of your bottom navigation and
+                        opens straight to your MF holdings — not the fund marketplace. Takes effect
+                        immediately, no restart needed. Saved on this device only.
+                    </p>
+                </div>
             </Section>
 
             {/* Floating bubble */}
@@ -118,9 +154,9 @@ export default function SettingsPage() {
                     onClick={() => updateBubble({ show: !bubble.show })}
                     right={
                         <span className={"w-10 h-6 rounded-full flex items-center transition-colors flex-shrink-0 " +
-                        (bubble.show ? "bg-purple-600" : "bg-slate-600")}>
+                            (bubble.show ? "bg-purple-600" : "bg-slate-600")}>
                             <span className={"w-5 h-5 bg-white rounded-full mx-0.5 transition-transform " +
-                            (bubble.show ? "translate-x-4" : "translate-x-0")} />
+                                (bubble.show ? "translate-x-4" : "translate-x-0")} />
                         </span>
                     }
                 />

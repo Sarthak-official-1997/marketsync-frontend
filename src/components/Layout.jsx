@@ -26,6 +26,7 @@ import InstallAppButton from "./InstallAppButton";
 import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 import FloatingBubble from "./FloatingBubble";
+import { getDefaultView, DEFAULT_VIEW, DEFAULT_VIEW_EVENT } from "../utils/homePreference";
 
 // ── Inline mobile hook — no external file dependency ──────────────────────────
 function useMobile() {
@@ -262,19 +263,34 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
 }
 
 // ── Inline MobileBottomNav ────────────────────────────────────────────────────
-function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore }) {
+function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, defaultView }) {
     const navigate = useNavigate();
+
+    const marketIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    const holdingsIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4" strokeLinecap="round"/></svg>;
+    const tradesIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    const watchlistIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M12 4.318C9.403.5 3 1.545 3 8c0 4.5 9 12 9 12s9-7.5 9-12c0-6.455-6.403-7.5-9-3.682z" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    const moreIcon = <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>;
+
+    const stocksTabs = [
+        { id: "market",       label: "Market",    to: "/stocks",              exact: true, icon: marketIcon },
+        { id: "holdings",     label: "Holdings",  to: "/stocks/holdings",     icon: holdingsIcon },
+        { id: "transactions", label: "Trades",    to: "/stocks/transactions", icon: tradesIcon },
+        { id: "watchlist",    label: "Watchlist", to: "/stocks/watchlist",    icon: watchlistIcon },
+    ];
+    // Holdings leads for MF — "Holdings-Centric Dashboard" was the explicit
+    // requirement, not the fund marketplace, so the tab order differs from
+    // stocks' Market-first arrangement, not just a relabeled copy of it.
+    const mfTabs = [
+        { id: "mf-holdings",     label: "Holdings",  to: "/mf/holdings",     exact: true, icon: holdingsIcon },
+        { id: "mf-market",       label: "Market",    to: "/mf",              icon: marketIcon },
+        { id: "mf-transactions", label: "Trades",    to: "/mf/transactions", icon: tradesIcon },
+        { id: "mf-watchlist",    label: "Watchlist", to: "/mf/watchlist",    icon: watchlistIcon },
+    ];
+
     const tabs = [
-        { id: "market",       label: "Market",    to: "/stocks",              exact: true,
-            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-        { id: "holdings",     label: "Holdings",  to: "/stocks/holdings",
-            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4" strokeLinecap="round"/></svg> },
-        { id: "transactions", label: "Trades",    to: "/stocks/transactions",
-            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-        { id: "watchlist",    label: "Watchlist", to: "/stocks/watchlist",
-            icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M12 4.318C9.403.5 3 1.545 3 8c0 4.5 9 12 9 12s9-7.5 9-12c0-6.455-6.403-7.5-9-3.682z" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-        { id: "more",         label: "More",      to: null,
-            icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg> },
+        ...(defaultView === DEFAULT_VIEW.MUTUAL_FUNDS ? mfTabs : stocksTabs),
+        { id: "more", label: "More", to: null, icon: moreIcon },
     ];
     const isActive = (tab) => {
         if (tab.id === "more") return showMore;
@@ -320,19 +336,30 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore }) {
 }
 
 // ── Inline More Drawer ────────────────────────────────────────────────────────
-function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
+function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
     const navigate = useNavigate();
     const go = (to) => { onClose(); navigate(to); };
-    const [mfExpanded, setMfExpanded] = useState(false);
+    const [secondaryExpanded, setSecondaryExpanded] = useState(false);
+    const isMfPrimary = defaultView === DEFAULT_VIEW.MUTUAL_FUNDS;
 
-    // MF links live behind a single expandable tile so the stock-first app
-    // isn't dominated by mutual-fund entries in the drawer.
+    // Whichever fund type ISN'T leading the bottom nav lives behind a single
+    // expandable tile here instead — mirrors whatever's currently primary,
+    // so the drawer always demotes the other one, not just MF by default.
     const mfLinks = [
         { label: "MF Market",       to: "/mf",              icon: "📊" },
         { label: "MF Holdings",     to: "/mf/holdings",     icon: "💼" },
         { label: "MF Transactions", to: "/mf/transactions", icon: "🔄" },
         { label: "MF Watchlist",    to: "/mf/watchlist",    icon: "👁" },
     ];
+    const stockLinks = [
+        { label: "Stock Market",       to: "/stocks",              icon: "📈" },
+        { label: "Stock Holdings",     to: "/stocks/holdings",     icon: "💼" },
+        { label: "Stock Transactions", to: "/stocks/transactions", icon: "🔄" },
+        { label: "Stock Watchlist",    to: "/stocks/watchlist",    icon: "👁" },
+    ];
+    const secondaryLinks = isMfPrimary ? stockLinks : mfLinks;
+    const secondaryLabel = isMfPrimary ? "Stocks" : "Mutual Funds";
+    const secondaryEmoji = isMfPrimary ? "📈" : "📊";
     // Creator / Admin links intentionally NOT here — they live in Settings now.
     const mainTiles = [
         { label: "Alerts",             to: "/stocks/alerts", icon: "🔔" },
@@ -371,12 +398,12 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
                     borderRadius: 2, margin: "0 auto 16px" }} />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    {/* Mutual Funds — expandable */}
-                    <button onClick={() => setMfExpanded(v => !v)}
+                    {/* The demoted fund type — expandable */}
+                    <button onClick={() => setSecondaryExpanded(v => !v)}
                             style={{ ...tileStyle,
-                                borderColor: mfExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
-                        <span style={{ fontSize: 22 }}>📊</span>
-                        <span style={labelStyle}>Mutual Funds {mfExpanded ? "▲" : "▼"}</span>
+                                borderColor: secondaryExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
+                        <span style={{ fontSize: 22 }}>{secondaryEmoji}</span>
+                        <span style={labelStyle}>{secondaryLabel} {secondaryExpanded ? "▲" : "▼"}</span>
                     </button>
                     {mainTiles.map(item => (
                         <button key={item.to} onClick={() => go(item.to)} style={tileStyle}>
@@ -386,12 +413,12 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
                     ))}
                 </div>
 
-                {/* MF sub-tiles — revealed when the Mutual Funds tile is tapped */}
-                {mfExpanded && (
+                {/* Sub-tiles — revealed when the demoted fund type's tile is tapped */}
+                {secondaryExpanded && (
                     <div style={{ marginTop: 8, padding: 8,
                         background: "rgba(30,41,59,0.45)", borderRadius: 12,
                         display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                        {mfLinks.map(item => (
+                        {secondaryLinks.map(item => (
                             <button key={item.to} onClick={() => go(item.to)}
                                     style={{ ...tileStyle, padding: "10px 8px", background: "#0f172a" }}>
                                 <span style={{ fontSize: 18 }}>{item.icon}</span>
@@ -501,7 +528,7 @@ function SectionHeader({ icon, label, expanded, onToggle }) {
                            hover:text-slate-400 transition-colors">
             <span className="flex items-center gap-2"><span>{icon}</span>{label}</span>
             <span className={"text-slate-600 transition-transform text-xs " +
-            (expanded ? "rotate-180" : "")}>▼</span>
+                (expanded ? "rotate-180" : "")}>▼</span>
         </button>
     );
 }
@@ -576,6 +603,15 @@ export default function Layout({ children, portfolioSummary }) {
     const [showInbox,   setShowInbox]   = useState(false);
     const [inboxUnread, setInboxUnread] = useState(0);
     const [showMore,    setShowMore]    = useState(false);
+    // Which fund type leads the bottom nav — live-reactive to the Settings
+    // toggle via a custom event, so switching it applies immediately with
+    // no reload (same pattern as bubble prefs).
+    const [defaultView, setDefaultViewState] = useState(getDefaultView());
+    useEffect(() => {
+        const onChange = (e) => setDefaultViewState(e.detail);
+        window.addEventListener(DEFAULT_VIEW_EVENT, onChange);
+        return () => window.removeEventListener(DEFAULT_VIEW_EVENT, onChange);
+    }, []);
 
     const handleLogout = () => {
         localStorage.removeItem("ms_board_stocks");
@@ -749,7 +785,7 @@ export default function Layout({ children, portfolioSummary }) {
                                 </div>
                                 {totalPL && (
                                     <span className={"text-xs font-semibold " +
-                                    (isPLPos ? "text-green-400" : "text-red-400")}>
+                                        (isPLPos ? "text-green-400" : "text-red-400")}>
                                         {valuesHidden ? "••••" : `P&L ${isPLPos ? "+" : ""}${fmtCrore(totalPL)}`}
                                     </span>
                                 )}
@@ -761,10 +797,10 @@ export default function Layout({ children, portfolioSummary }) {
                             onClick={togglePrivacy}
                             title={valuesHidden ? "Show financial values" : "Hide financial values"}
                             className={"relative flex items-center justify-center w-9 h-9 rounded-xl " +
-                            "border transition-colors flex-shrink-0 " +
-                            (valuesHidden
-                                ? "bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
-                                : "bg-slate-800 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700")}>
+                                "border transition-colors flex-shrink-0 " +
+                                (valuesHidden
+                                    ? "bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
+                                    : "bg-slate-800 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700")}>
                             {valuesHidden ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round"
@@ -844,8 +880,8 @@ export default function Layout({ children, portfolioSummary }) {
                                         <button key={t.id}
                                                 onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
                                                 className={"w-full flex items-center gap-3 px-4 py-2.5 " +
-                                                "hover:bg-slate-700/60 transition-colors text-left " +
-                                                (themeId === t.id ? "bg-slate-700/80" : "")}>
+                                                    "hover:bg-slate-700/60 transition-colors text-left " +
+                                                    (themeId === t.id ? "bg-slate-700/80" : "")}>
                                             <span className="text-base">{t.emoji}</span>
                                             <span className="text-sm text-white flex-1">{t.name}</span>
                                             <div className="flex gap-0.5">
@@ -867,8 +903,8 @@ export default function Layout({ children, portfolioSummary }) {
                                         <button key={t.id}
                                                 onClick={() => { setThemeId(t.id); setThemeOpen(false); }}
                                                 className={"w-full flex items-center gap-3 px-4 py-2.5 " +
-                                                "hover:bg-slate-700/60 transition-colors text-left " +
-                                                (themeId === t.id ? "bg-slate-700/80" : "")}>
+                                                    "hover:bg-slate-700/60 transition-colors text-left " +
+                                                    (themeId === t.id ? "bg-slate-700/80" : "")}>
                                             <span className="text-base">{t.emoji}</span>
                                             <span className="text-sm text-white flex-1">{t.name}</span>
                                             <div className="flex gap-0.5">
@@ -1120,6 +1156,7 @@ export default function Layout({ children, portfolioSummary }) {
                             onClose={() => setShowMore(false)}
                             isAdmin={isAdmin}
                             isCreator={isCreator}
+                            defaultView={defaultView}
                         />
                     )}
                     <MobileBottomNav
@@ -1127,6 +1164,7 @@ export default function Layout({ children, portfolioSummary }) {
                         showMore={showMore}
                         onShowMore={() => setShowMore(true)}
                         onHideMore={() => setShowMore(false)}
+                        defaultView={defaultView}
                     />
                 </>
             )}

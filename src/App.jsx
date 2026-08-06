@@ -8,6 +8,7 @@ import ProtectedRoute      from "./components/ProtectedRoute";
 import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
+import { getDefaultView, DEFAULT_VIEW } from "./utils/homePreference";
 import NotificationModal   from "./components/NotificationModal";
 import LightNotificationToast from "./components/LightNotificationToast";
 import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
@@ -145,7 +146,12 @@ function AppShell() {
         <PasskeyBlocker>
             <Layout portfolioSummary={portfolioSummary}>
                 <Routes>
-                    <Route path="/" element={<Navigate to="/stocks" replace />} />
+                    {/* Reads the preference fresh on every visit to "/" — Mutual Funds-first
+                        goes straight to MF holdings (not the fund marketplace), matching the
+                        "personal tracking, not browsing" requirement. */}
+                    <Route path="/" element={
+                        <Navigate to={getDefaultView() === DEFAULT_VIEW.MUTUAL_FUNDS ? "/mf/holdings" : "/stocks"} replace />
+                    } />
 
                     {/* -- ADMIN -- */}
                     <Route path="/admin" element={
