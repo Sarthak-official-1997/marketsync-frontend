@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-    getMfTransactions, addMfTransaction, deleteMfTransaction,
+    getMfTransactions, addMfTransaction, updateMfTransaction, deleteMfTransaction,
 } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 
@@ -49,6 +49,8 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
     };
     const [form, setForm]   = useState(emptyForm);
     const [saving, setSaving] = useState(false);
+    const [editingId, setEditingId] = useState(null); // transaction id being edited, or null
+    const [editForm, setEditForm]   = useState(emptyForm);
 
     const load = async () => {
         if (!scheme) return;
@@ -126,6 +128,40 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
             load();
             if (onChanged) onChanged();
         } catch { toast.error("Failed to delete"); }
+    };
+
+    const startEdit = (tx) => {
+        setEditingId(tx.id);
+        setEditForm({
+            type:  tx.transactionType || tx.type,
+            units: String(tx.units ?? ""),
+            nav:   String(tx.navAtTransaction ?? ""),
+            date:  (tx.transactionDate || "").toString().split("T")[0] || today(),
+            notes: tx.notes || "",
+        });
+    };
+
+    const handleUpdate = async (id) => {
+        if (!editForm.units || !editForm.nav) {
+            toast.error("Please enter units and NAV"); return;
+        }
+        setSaving(true);
+        try {
+            await updateMfTransaction(id, {
+                schemeCode:       scheme.schemeCode,
+                transactionType:  editForm.type,
+                units:            parseFloat(editForm.units),
+                navAtTransaction: parseFloat(editForm.nav),
+                transactionDate:  editForm.date,
+                notes:            editForm.notes || null,
+            });
+            toast.success("Transaction updated");
+            setEditingId(null);
+            load();
+            if (onChanged) onChanged();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to save changes");
+        } finally { setSaving(false); }
     };
 
     return (
@@ -368,6 +404,51 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
                                 const amt   = parseFloat(tx.amount || (units * nav) || 0);
                                 const isBuy = isBuyType(type);
 
+                                if (editingId === tx.id) {
+                                    return (
+                                        <div key={tx.id} className="px-6 py-4 border-b border-slate-700/30 bg-slate-800/40 space-y-2">
+                                            <div className="flex gap-2 flex-wrap">
+                                                {TX_TYPES.map(t => (
+                                                    <button key={t.value} onClick={() => setEditForm(f => ({ ...f, type: t.value }))}
+                                                            className={"text-xs font-semibold px-2.5 py-1 rounded-lg border " +
+                                                                (editForm.type === t.value
+                                                                    ? "bg-blue-600/20 border-blue-500 text-blue-300"
+                                                                    : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                                        {t.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="number" value={editForm.units}
+                                                       onChange={e => setEditForm(f => ({ ...f, units: e.target.value }))}
+                                                       placeholder="Units"
+                                                       className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm" />
+                                                <input type="number" value={editForm.nav}
+                                                       onChange={e => setEditForm(f => ({ ...f, nav: e.target.value }))}
+                                                       placeholder="NAV"
+                                                       className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm" />
+                                                <input type="date" value={editForm.date}
+                                                       onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                                                       className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm" />
+                                                <input value={editForm.notes}
+                                                       onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                                                       placeholder="Notes (optional)"
+                                                       className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm" />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setEditingId(null)}
+                                                        className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg">
+                                                    Cancel
+                                                </button>
+                                                <button onClick={() => handleUpdate(tx.id)} disabled={saving}
+                                                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg">
+                                                    {saving ? "Saving…" : "Save"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
                                 return (
                                     <div
                                         key={tx.id}
@@ -415,6 +496,14 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
                                             }>
                                                 {fmt(amt)}
                                             </p>
+                                            <button
+                                                onClick={() => startEdit(tx)}
+                                                className="opacity-100 md:opacity-0 md:group-hover:opacity-100
+                                                           text-slate-500 hover:text-blue-400 active:text-blue-400
+                                                           transition-all text-xs hover:underline"
+                                            >
+                                                Edit
+                                            </button>
                                             <button
                                                 onClick={() => handleDelete(tx.id)}
                                                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100

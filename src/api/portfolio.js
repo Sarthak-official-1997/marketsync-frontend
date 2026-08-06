@@ -127,6 +127,7 @@ export const getMfNavHistory                        = (code, range = "1Y")      
 export const getMfNavOnDate                         = (code, date)                                  => api.get(`/mf/schemes/${code}/nav-on-date?date=${date}`);
 export const getMfTransactions                      = (page = 0, size = 50)         => api.get(`/mf/transactions?page=${page}&size=${size}`);
 export const addMfTransaction                       = (data)                                        => api.post("/mf/transactions", data);
+export const updateMfTransaction                    = (id, data)                                    => api.put(`/mf/transactions/${id}`, data);
 export const deleteMfTransaction                    = (id)                                          => api.delete(`/mf/transactions/${id}`);
 
 

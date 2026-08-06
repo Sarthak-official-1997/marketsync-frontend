@@ -183,8 +183,12 @@ function MfSummaryBar() {
     const isPos = pl >= 0;
     const color = isPos ? "text-green-400" : "text-red-400";
 
+    const dayChange    = summary.dayChangeAmount != null ? parseFloat(summary.dayChangeAmount) : null;
+    const dayChangePct = summary.dayChangePercent != null ? parseFloat(summary.dayChangePercent) : null;
+    const dayColor = dayChange >= 0 ? "text-green-400" : "text-red-400";
+
     return (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
                 ["Schemes Held",   summary.schemeCount,       "text-white", false],
                 ["Invested",       fmt(summary.totalInvested), "text-white", false],
@@ -202,6 +206,19 @@ function MfSummaryBar() {
                     )}
                 </div>
             ))}
+            {/* 1D returns — matches the Groww reference's prominent "today" figure,
+                shown separately from total P&L since they answer different questions. */}
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <p className="text-xs text-slate-500">1D Returns</p>
+                {dayChange == null ? (
+                    <p className="text-lg font-bold mt-1 text-slate-500">—</p>
+                ) : (
+                    <>
+                        <p className={"text-lg font-bold mt-1 " + dayColor}>{fmt(dayChange)}</p>
+                        <p className={"text-xs font-medium mt-0.5 " + dayColor}>{fmtPct(dayChangePct)}</p>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
@@ -247,10 +264,11 @@ function MfHoldingsTab({ toast }) {
                     <th className="text-right px-4 py-3">Units</th>
                     <th className="text-right px-4 py-3">Avg NAV</th>
                     <th className="text-right px-4 py-3">Current NAV</th>
+                    <th className="text-right px-4 py-3">Day Change</th>
                     <th className="text-right px-4 py-3">Invested</th>
                     <th className="text-right px-4 py-3">Value</th>
                     <th className="text-right px-4 py-3">P&amp;L</th>
-                    <th className="text-right px-4 py-3">P&amp;L %</th>
+                    <th className="text-right px-4 py-3">XIRR</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -262,9 +280,16 @@ function MfHoldingsTab({ toast }) {
                         <tr key={h.id}
                             className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                             <td className="px-4 py-3 max-w-xs">
-                                <p className="font-semibold text-white truncate" title={h.schemeName}>
-                                    {h.schemeName}
-                                </p>
+                                <div className="flex items-center gap-1.5">
+                                    <p className="font-semibold text-white truncate" title={h.schemeName}>
+                                        {h.schemeName}
+                                    </p>
+                                    {h.planType && (
+                                        <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0">
+                                            {h.planType}
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-slate-400 truncate">
                                     {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
                                 </p>
@@ -275,10 +300,25 @@ function MfHoldingsTab({ toast }) {
                             <td className="text-right px-4 py-3 text-white">{fmtUnits(h.units)}</td>
                             <td className="text-right px-4 py-3 text-slate-300">{fmt(h.avgCostNav)}</td>
                             <td className="text-right px-4 py-3 text-slate-300">{fmt(h.currentNav)}</td>
+                            <td className="text-right px-4 py-3">
+                                {h.dayChangeAmount == null ? (
+                                    <span className="text-slate-600">—</span>
+                                ) : (
+                                    <span className={parseFloat(h.dayChangeAmount) >= 0 ? "text-green-400" : "text-red-400"}>
+                                        {fmt(h.dayChangeAmount)}
+                                        <span className="block text-[11px]">{fmtPct(parseFloat(h.dayChangePercent))}</span>
+                                    </span>
+                                )}
+                            </td>
                             <td className="text-right px-4 py-3 text-slate-300">{fmt(h.totalInvested)}</td>
                             <td className="text-right px-4 py-3 text-white font-medium">{fmt(h.currentValue)}</td>
-                            <td className={"text-right px-4 py-3 font-medium " + color}>{fmt(h.unrealizedPnl)}</td>
-                            <td className={"text-right px-4 py-3 font-medium " + color}>{fmtPct(plPct)}</td>
+                            <td className={"text-right px-4 py-3 font-medium " + color}>
+                                {fmt(h.unrealizedPnl)}
+                                <span className="block text-[11px]">{fmtPct(plPct)}</span>
+                            </td>
+                            <td className="text-right px-4 py-3 text-slate-300">
+                                {h.xirr != null ? fmtPct(parseFloat(h.xirr)) : <span className="text-slate-600">—</span>}
+                            </td>
                         </tr>
                     );
                 })}
