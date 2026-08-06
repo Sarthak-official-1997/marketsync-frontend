@@ -105,7 +105,13 @@ export default defineConfig({
         name: "FOLYO — Portfolio Tracker",
         short_name: "FOLYO",
         description: "Track your stocks and mutual funds with live prices, AI insights, and FIFO P&L",
-        start_url: "/stocks",
+        // Was hardcoded to "/stocks" — a cold-launched installed PWA reads
+        // start_url directly from the manifest, before any React code (or
+        // the default-view preference it depends on) ever runs. Pointing
+        // this at "/" instead means the app's own dynamic redirect (App.jsx,
+        // reads utils/homePreference.js) decides where to land — Stocks or
+        // Mutual Funds — on every cold launch, not just in-app navigation.
+        start_url: "/",
         display: "standalone",
         orientation: "portrait-primary",
         background_color: "#0a0f1e",

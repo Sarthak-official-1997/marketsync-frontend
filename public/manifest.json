@@ -2,7 +2,7 @@
   "name": "FOLYO — Portfolio Tracker",
   "short_name": "FOLYO",
   "description": "Track your stocks and mutual funds with live prices, AI insights, and FIFO P&L",
-  "start_url": "/stocks",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0a0f1e",
