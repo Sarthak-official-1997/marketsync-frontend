@@ -8,6 +8,7 @@ import ErrorMessage from "../components/ErrorMessage";
 import EmptyState from "../components/EmptyState";
 import StockTransactionPanel from "../components/StockTransactionPanel";
 import MfTransactionPanel from "../components/MfTransactionPanel";
+import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import StockQuickMenu from "../components/StockQuickMenu";
 import StockDetailModal from "../components/StockDetailModal";
 import {useToast} from "../context/ToastContext";
@@ -277,7 +278,7 @@ function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, today
                                     Invested {fmtCrore(totalInvested)}
                                 </span>
                                 <span className={"text-sm font-bold " +
-                                (isUp ? "text-green-300" : "text-red-300")}>
+                                    (isUp ? "text-green-300" : "text-red-300")}>
                                     {isUp ? "+" : ""}{livePLPct.toFixed(2)}%
                                 </span>
                             </div>
@@ -457,7 +458,7 @@ function StockAllocationMap({holdings, onStockClick}) {
                             <span className="text-white text-xs font-bold">{r.name}</span>
                             <span className="text-slate-500 text-xs">{wt.toFixed(1)}%</span>
                             <span className={"text-xs font-medium " +
-                            (up ? "text-green-400" : "text-red-400")}>
+                                (up ? "text-green-400" : "text-red-400")}>
                                 {up ? "+" : ""}{r.plPct.toFixed(1)}%
                             </span>
                         </button>
@@ -586,43 +587,73 @@ function MobileMfHoldingRow({ h, onTap }) {
     const pl    = parseFloat(h.unrealizedPnl || 0);
     const plPct = parseFloat(h.unrealizedPnlPercent || 0);
     const pos   = plPct >= 0;
+    const dayPct = h.dayChangePercent != null ? parseFloat(h.dayChangePercent) : null;
+    const dayPos = dayPct >= 0;
+
+    // MF NAVs publish once a day, sometimes with a lag — a blank "—" here
+    // used to look broken. Showing the date the current NAV is actually
+    // from makes the delay visible and expected instead of confusing.
+    const navDateShort = (() => {
+        if (!h.navDate) return null;
+        try {
+            const [, m, d] = h.navDate.split("-");
+            return `${d}/${m}`;
+        } catch { return null; }
+    })();
 
     return (
         <div
             onClick={() => onTap({ schemeCode: h.schemeCode, schemeName: h.schemeName, fundHouse: h.fundHouse, nav: h.currentNav })}
-            className="grid items-center gap-2 px-3 py-[6px] border-b border-slate-800/60 active:bg-slate-800/40"
-            style={{ gridTemplateColumns: "14px 1fr 50px 50px" }}
+            className="grid items-center gap-2.5 px-3 py-2 border-b border-slate-800/60 active:bg-slate-800/40"
+            style={{ gridTemplateColumns: "20px 1fr 58px 58px" }}
         >
             {/* Coloured letter box in place of stock logo for MF */}
-            <div className="w-[14px] h-[14px] rounded-[3px] flex-shrink-0 flex items-center justify-center
-                            text-[6px] font-black text-white"
+            <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center
+                            text-[9px] font-black text-white"
                  style={{ background: "#7c3aed" }}>
                 {(h.fundHouse || "M").slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
-                <div className="text-[11px] font-bold text-white truncate leading-tight">
-                    {h.schemeName?.length > 22 ? h.schemeName.slice(0, 21) + "…" : h.schemeName}
+                <div className="text-[13px] font-bold text-white truncate leading-tight">
+                    {h.schemeName?.length > 26 ? h.schemeName.slice(0, 25) + "…" : h.schemeName}
                 </div>
-                <div className="text-[8px] text-slate-500 truncate leading-tight mt-px">
+                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">
                     {h.fundHouse} · {parseFloat(h.units || 0).toFixed(2)} units
                 </div>
             </div>
             <div className="text-right">
-                <div className={"text-[10.5px] font-bold tabular-nums " + (pos ? "text-green-400" : "text-red-400")}>
+                <div className={"text-[12.5px] font-bold tabular-nums " + (pos ? "text-green-400" : "text-red-400")}>
                     {(pos ? "+" : "") + plPct.toFixed(1) + "%"}
                 </div>
-                <div className="text-[7.5px] text-slate-500 tabular-nums mt-px">overall</div>
+                <div className="text-[9px] text-slate-500 tabular-nums mt-0.5">overall</div>
             </div>
             <div className="text-right">
-                <div className="text-[10px] text-slate-600">—</div>
+                {dayPct != null ? (
+                    <>
+                        <div className={"text-[12.5px] font-bold tabular-nums " + (dayPos ? "text-green-400" : "text-red-400")}>
+                            {(dayPos ? "+" : "") + dayPct.toFixed(2) + "%"}
+                        </div>
+                        <div className="text-[9px] text-slate-500 tabular-nums mt-0.5">today</div>
+                    </>
+                ) : (
+                    <>
+                        <div className="text-[12px] text-slate-600">—</div>
+                        <div className="text-[9px] text-slate-600 tabular-nums mt-0.5">
+                            {navDateShort ? `as of ${navDateShort}` : "no NAV yet"}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
 }
 
 function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
-                                onStockTap, onMfTap, valuesHidden }) {
-    const [seg, setSeg] = useState("stocks"); // stocks | mf
+                                onStockTap, onMfTap, valuesHidden, defaultView }) {
+    // Was hardcoded to "stocks" regardless of the app-level preference —
+    // this inner toggle is separate from the desktop pill switcher above it
+    // and needs its own default wired to the same preference.
+    const [seg, setSeg] = useState(defaultView === "mf" ? "mf" : "stocks"); // stocks | mf
 
     // Build byStock for HoldingsBreakdownBar from whichever segment is active
     const byStock = useMemo(() => {
@@ -660,7 +691,7 @@ function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
                 {[{ k: "stocks", l: "Stocks" }, { k: "mf", l: "Mutual Funds" }].map(({ k, l }) => (
                     <button key={k} onClick={() => setSeg(k)}
                             className={"flex-1 text-center text-[9.5px] font-bold py-[5px] rounded-[5px] transition-colors " +
-                            (seg === k ? "text-white" : "text-slate-500")}
+                                (seg === k ? "text-white" : "text-slate-500")}
                             style={seg === k ? { background: "#7c3aed" } : {}}>
                         {l}
                     </button>
@@ -751,6 +782,7 @@ export default function HoldingsPage(props) {
     const [stockView,      setStockView]      = useState("list");
     const [activeStock,    setActiveStock]    = useState(null);
     const [activeMf,       setActiveMf]       = useState(null);
+    const [mfDetailScheme, setMfDetailScheme] = useState(null); // tap a fund -> detail view first, matching stocks
     const [quickMenuStock, setQuickMenuStock] = useState(null);
     const [chartStock,     setChartStock]     = useState(null);
     const isMobile = useMobile();
@@ -803,8 +835,9 @@ export default function HoldingsPage(props) {
                     refreshing={refreshing}
                     onRefresh={() => loadHoldings(true)}
                     onStockTap={setQuickMenuStock}
-                    onMfTap={setActiveMf}
+                    onMfTap={setMfDetailScheme}
                     valuesHidden={valuesHidden}
+                    defaultView={props.defaultView}
                 />
             )}
 
@@ -874,7 +907,7 @@ export default function HoldingsPage(props) {
                     )}
 
                     {view === "mf" && (
-                        <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setActiveMf}/>
+                        <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setMfDetailScheme}/>
                     )}
 
                     {view === "combined" && (
@@ -882,7 +915,7 @@ export default function HoldingsPage(props) {
                             holdings={holdings}
                             mfHoldings={mfHoldings}
                             onStockClick={setQuickMenuStock}
-                            onOpenMfPanel={setActiveMf}
+                            onOpenMfPanel={setMfDetailScheme}
                         />
                     )}
                 </>
@@ -905,6 +938,13 @@ export default function HoldingsPage(props) {
                     stock={activeStock}
                     onClose={() => setActiveStock(null)}
                     onChanged={() => loadHoldings(true)}
+                />
+            )}
+            {mfDetailScheme && (
+                <MfSchemeDetailModal
+                    scheme={mfDetailScheme}
+                    onClose={() => setMfDetailScheme(null)}
+                    onTransact={(scheme) => { setActiveMf(scheme); setMfDetailScheme(null); }}
                 />
             )}
             {activeMf && (
@@ -1080,8 +1120,8 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                                     {hasPrice && h.dayChangePercent != null ? (
                                         <div>
                                             <span className={"text-xs font-semibold " +
-                                            (parseFloat(h.dayChangePercent) >= 0
-                                                ? "text-green-400" : "text-red-400")}>
+                                                (parseFloat(h.dayChangePercent) >= 0
+                                                    ? "text-green-400" : "text-red-400")}>
                                                 {parseFloat(h.dayChangePercent) >= 0 ? "▲ +" : "▼ "}
                                                 {Math.abs(parseFloat(h.dayChangePercent)).toFixed(2)}%
                                             </span>
@@ -1106,10 +1146,10 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                                         {["BUY", "SELL"].map(t => (
                                             <button key={t} onClick={() => onTransact(h.stock)}
                                                     className={"text-xs px-2.5 py-1 rounded-lg " +
-                                                    "transition-colors font-medium " +
-                                                    (t === "BUY"
-                                                        ? "bg-green-800/50 text-green-400 hover:bg-green-700/50"
-                                                        : "bg-red-800/50 text-red-400 hover:bg-red-700/50")}>
+                                                        "transition-colors font-medium " +
+                                                        (t === "BUY"
+                                                            ? "bg-green-800/50 text-green-400 hover:bg-green-700/50"
+                                                            : "bg-red-800/50 text-red-400 hover:bg-red-700/50")}>
                                                 {t}
                                             </button>
                                         ))}
@@ -1276,9 +1316,9 @@ function CombinedHoldingsTable({holdings, mfHoldings, onStockClick, onOpenMfPane
                                            hover:bg-slate-700/30 transition-colors">
                                 <td className="px-4 py-3.5">
                                     <span className={"text-xs px-2 py-1 rounded-lg font-medium " +
-                                    (row.type === "STOCK"
-                                        ? "bg-blue-900/30 text-blue-400"
-                                        : "bg-purple-900/30 text-purple-400")}>
+                                        (row.type === "STOCK"
+                                            ? "bg-blue-900/30 text-blue-400"
+                                            : "bg-purple-900/30 text-purple-400")}>
                                         {row.type === "STOCK" ? "📈 Stock" : "📊 MF"}
                                     </span>
                                 </td>
