@@ -79,18 +79,22 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
         return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
     };
 
+    // bg-slate-900 + border-slate-700/60 — Tailwind classes, not inline
+    // styles, so the theme CSS overrides (styles/themes.css) can actually
+    // reach them. This was hardcoded to #0f172a via inline style before,
+    // which no theme (light or dark) could ever change — that's what made
+    // light themes look broken at the top of the app.
     return (
-        <header style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 12px",
-            background: "#0f172a",
-            borderBottom: "1px solid rgba(51,65,85,0.6)",
-            position: "sticky", top: 0, zIndex: 50,
-            height: 56, flexShrink: 0,
-        }}>
+        <header className="bg-slate-900 border-b border-slate-700/60"
+                style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 12px",
+                    position: "sticky", top: 0, zIndex: 50,
+                    height: 56, flexShrink: 0,
+                }}>
             {/* Logo + portfolio value */}
             <Link to="/stocks" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
-                <span style={{ color: "white", fontWeight: 900, fontSize: 18,
+                <span className="text-white" style={{ fontWeight: 900, fontSize: 18,
                     letterSpacing: "-0.5px" }}>FOLYO</span>
             </Link>
 
@@ -101,7 +105,7 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                     borderLeft: "1px solid rgba(51,65,85,0.6)",
                     flexShrink: 0,
                 }}>
-                    <div style={{ color: "white", fontSize: 11, fontWeight: 700,
+                    <div className="text-white" style={{ fontSize: 11, fontWeight: 700,
                         fontVariantNumeric: "tabular-nums", lineHeight: 1.2,
                         whiteSpace: "nowrap" }}>
                         {fmtShort(totalValue)}
@@ -115,18 +119,19 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
             )}
 
             {/* Search — takes all available space */}
-            <button onClick={onSearchOpen} style={{
-                flex: 1, display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 12px", background: "#1e293b",
-                border: "1px solid rgba(51,65,85,0.6)",
-                borderRadius: 12, textAlign: "left", minWidth: 0,
-            }}>
-                <svg style={{ width: 16, height: 16, color: "#64748b", flexShrink: 0 }}
-                     fill="none" stroke="#64748b" strokeWidth="2" viewBox="0 0 24 24">
+            <button onClick={onSearchOpen} className="bg-slate-800"
+                    style={{
+                        flex: 1, display: "flex", alignItems: "center", gap: 8,
+                        padding: "8px 12px",
+                        border: "1px solid rgba(51,65,85,0.6)",
+                        borderRadius: 12, textAlign: "left", minWidth: 0,
+                    }}>
+                <svg className="text-slate-500" style={{ width: 16, height: 16, flexShrink: 0 }}
+                     fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <circle cx="11" cy="11" r="8"/>
                     <path strokeLinecap="round" d="M21 21l-4.35-4.35"/>
                 </svg>
-                <span style={{ color: "#64748b", fontSize: 14, overflow: "hidden",
+                <span className="text-slate-500" style={{ fontSize: 14, overflow: "hidden",
                     textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     Search stocks...
                 </span>
@@ -185,18 +190,18 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                 </button>
 
                 {acctOpen && (
-                    <div style={{
-                        position: "absolute", top: 42, right: 0, width: 236,
-                        background: "#0f172a", border: "1px solid rgba(51,65,85,0.6)",
-                        borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
-                        zIndex: 60, overflow: "hidden",
-                    }}>
+                    <div className="bg-slate-900 border border-slate-700/60"
+                         style={{
+                             position: "absolute", top: 42, right: 0, width: 236,
+                             borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
+                             zIndex: 60, overflow: "hidden",
+                         }}>
                         {/* User header */}
                         <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
-                            <div style={{ color: "white", fontWeight: 700, fontSize: 13 }}>
+                            <div className="text-white" style={{ fontWeight: 700, fontSize: 13 }}>
                                 {user?.fullName || user?.username}
                             </div>
-                            <div style={{ color: "#64748b", fontSize: 11, marginTop: 2, overflow: "hidden",
+                            <div className="text-slate-500" style={{ fontSize: 11, marginTop: 2, overflow: "hidden",
                                 textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {user?.email || user?.username}
                             </div>
@@ -226,7 +231,7 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                             <span>🎨</span>
                             <span style={{ flex: 1 }}>Theme</span>
                             <span style={{ fontSize: 12 }}>{theme?.emoji}</span>
-                            <span style={{ fontSize: 10, color: "#64748b",
+                            <span className="text-slate-500" style={{ fontSize: 10,
                                 transform: themeExpanded ? "rotate(180deg)" : "none",
                                 transition: "transform .15s" }}>▼</span>
                         </button>
@@ -298,14 +303,13 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, defaul
         return currentPath.startsWith(tab.to);
     };
     return (
-        <nav style={{
-            position: "fixed", bottom: 0, left: 0, right: 0,
-            zIndex: 9000,
-            display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
-            backgroundColor: "#0f172a",
-            borderTop: "1px solid rgba(51,65,85,0.6)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        }}>
+        <nav className="bg-slate-900 border-t border-slate-700/60"
+             style={{
+                 position: "fixed", bottom: 0, left: 0, right: 0,
+                 zIndex: 9000,
+                 display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+                 paddingBottom: "env(safe-area-inset-bottom, 0px)",
+             }}>
             {tabs.map(tab => {
                 const active = isActive(tab);
                 return (
@@ -367,15 +371,19 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
         { label: "Settings",           to: "/settings",      icon: "⚙️" },
     ];
 
+    // Colours moved into a companion className (bg-slate-800/border-slate-700/
+    // text-slate-300 are all theme-overridden in styles/themes.css) — tileStyle
+    // itself keeps only layout properties now, since inline "background"/"color"
+    // here was the same unreachable-by-theming problem as everywhere else in
+    // this file.
     const tileStyle = {
         display: "flex", flexDirection: "column",
         alignItems: "center", gap: 6,
         padding: "12px 8px",
-        background: "#1e293b",
         border: "1px solid rgba(51,65,85,0.6)",
         borderRadius: 12, cursor: "pointer",
-        color: "#cbd5e1",
     };
+    const tileClassName = "bg-slate-800 text-slate-300";
     const labelStyle = { fontSize: 11, fontWeight: 500, textAlign: "center", lineHeight: 1.3 };
 
     return (
@@ -385,28 +393,28 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                      position: "fixed", inset: 0, zIndex: 8998,
                      backgroundColor: "rgba(0,0,0,0.6)",
                  }} />
-            <div style={{
-                position: "fixed", bottom: 64, left: 0, right: 0,
-                zIndex: 8999,
-                backgroundColor: "#0f172a",
-                borderTop: "1px solid rgba(51,65,85,0.6)",
-                borderRadius: "16px 16px 0 0",
-                padding: "16px",
-                maxHeight: "70vh", overflowY: "auto",
-            }}>
-                <div style={{ width: 40, height: 4, background: "#334155",
+            <div className="bg-slate-900 border-t border-slate-700/60"
+                 style={{
+                     position: "fixed", bottom: 64, left: 0, right: 0,
+                     zIndex: 8999,
+                     borderRadius: "16px 16px 0 0",
+                     padding: "16px",
+                     maxHeight: "70vh", overflowY: "auto",
+                 }}>
+                <div className="bg-slate-700" style={{ width: 40, height: 4,
                     borderRadius: 2, margin: "0 auto 16px" }} />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                     {/* The demoted fund type — expandable */}
                     <button onClick={() => setSecondaryExpanded(v => !v)}
+                            className={tileClassName}
                             style={{ ...tileStyle,
                                 borderColor: secondaryExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
                         <span style={{ fontSize: 22 }}>{secondaryEmoji}</span>
                         <span style={labelStyle}>{secondaryLabel} {secondaryExpanded ? "▲" : "▼"}</span>
                     </button>
                     {mainTiles.map(item => (
-                        <button key={item.to} onClick={() => go(item.to)} style={tileStyle}>
+                        <button key={item.to} onClick={() => go(item.to)} className={tileClassName} style={tileStyle}>
                             <span style={{ fontSize: 22 }}>{item.icon}</span>
                             <span style={labelStyle}>{item.label}</span>
                         </button>
@@ -420,7 +428,8 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                         display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
                         {secondaryLinks.map(item => (
                             <button key={item.to} onClick={() => go(item.to)}
-                                    style={{ ...tileStyle, padding: "10px 8px", background: "#0f172a" }}>
+                                    className="bg-slate-900 text-slate-300"
+                                    style={{ ...tileStyle, padding: "10px 8px" }}>
                                 <span style={{ fontSize: 18 }}>{item.icon}</span>
                                 <span style={{ ...labelStyle, fontSize: 10.5 }}>{item.label}</span>
                             </button>

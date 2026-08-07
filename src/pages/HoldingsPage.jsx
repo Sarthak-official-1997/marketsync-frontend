@@ -583,16 +583,21 @@ function MobileStockHoldingRow({ h, onTap, valuesHidden }) {
     );
 }
 
+// Completely redesigned as a real card, not a compressed row — matching
+// the spacious, information-rich feel of the transaction cards (generous
+// padding, bold rounded badges, clear number hierarchy) instead of
+// squeezing everything into one thin line. Shows meaningfully more at a
+// glance: category, plan type, both NAVs, day change, overall P&L in
+// rupees AND percent, and XIRR — everything the compact row had to hide.
 function MobileMfHoldingRow({ h, onTap }) {
     const pl    = parseFloat(h.unrealizedPnl || 0);
     const plPct = parseFloat(h.unrealizedPnlPercent || 0);
     const pos   = plPct >= 0;
     const dayPct = h.dayChangePercent != null ? parseFloat(h.dayChangePercent) : null;
+    const dayAmt = h.dayChangeAmount != null ? parseFloat(h.dayChangeAmount) : null;
     const dayPos = dayPct >= 0;
+    const xirr = h.xirr != null ? parseFloat(h.xirr) : null;
 
-    // MF NAVs publish once a day, sometimes with a lag — a blank "—" here
-    // used to look broken. Showing the date the current NAV is actually
-    // from makes the delay visible and expected instead of confusing.
     const navDateShort = (() => {
         if (!h.navDate) return null;
         try {
@@ -601,47 +606,82 @@ function MobileMfHoldingRow({ h, onTap }) {
         } catch { return null; }
     })();
 
+    const fmtRupee = (v) => "₹" + Math.abs(v).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
     return (
         <div
             onClick={() => onTap({ schemeCode: h.schemeCode, schemeName: h.schemeName, fundHouse: h.fundHouse, nav: h.currentNav })}
-            className="grid items-center gap-2.5 px-3 py-2 border-b border-slate-800/60 active:bg-slate-800/40"
-            style={{ gridTemplateColumns: "20px 1fr 58px 58px" }}
+            className={"mx-3 my-2 rounded-2xl border overflow-hidden active:opacity-80 transition-opacity " +
+                (pos ? "bg-green-950/20 border-green-900/40" : "bg-red-950/20 border-red-900/40")}
         >
-            {/* Coloured letter box in place of stock logo for MF */}
-            <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center
-                            text-[9px] font-black text-white"
-                 style={{ background: "#7c3aed" }}>
-                {(h.fundHouse || "M").slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-                <div className="text-[13px] font-bold text-white truncate leading-tight">
-                    {h.schemeName?.length > 26 ? h.schemeName.slice(0, 25) + "…" : h.schemeName}
+            {/* Header — fund identity */}
+            <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+                <div className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center
+                                text-base font-black text-white"
+                     style={{ background: "#7c3aed" }}>
+                    {(h.fundHouse || "M").slice(0, 1).toUpperCase()}
                 </div>
-                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">
-                    {h.fundHouse} · {parseFloat(h.units || 0).toFixed(2)} units
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[15px] font-bold text-white leading-snug">
+                            {h.schemeName}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {h.planType && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                                {h.planType}
+                            </span>
+                        )}
+                        <span className="text-[11px] text-slate-500 truncate">
+                            {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
+                        </span>
+                    </div>
                 </div>
             </div>
-            <div className="text-right">
-                <div className={"text-[12.5px] font-bold tabular-nums " + (pos ? "text-green-400" : "text-red-400")}>
-                    {(pos ? "+" : "") + plPct.toFixed(1) + "%"}
+
+            {/* Value + overall P&L — the headline numbers, large */}
+            <div className="flex items-end justify-between px-4 pb-3">
+                <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Current value</p>
+                    <p className="text-xl font-bold text-white mt-0.5">{fmtRupee(h.currentValue)}</p>
                 </div>
-                <div className="text-[9px] text-slate-500 tabular-nums mt-0.5">overall</div>
+                <div className="text-right">
+                    <p className={"text-base font-bold " + (pos ? "text-green-400" : "text-red-400")}>
+                        {pos ? "+" : "-"}{fmtRupee(pl)}
+                    </p>
+                    <p className={"text-[13px] font-semibold " + (pos ? "text-green-400" : "text-red-400")}>
+                        {(pos ? "+" : "") + plPct.toFixed(2)}%
+                    </p>
+                </div>
             </div>
-            <div className="text-right">
+
+            {/* Stat grid — everything the compact row had to hide */}
+            <div className="grid grid-cols-4 gap-px bg-slate-800/60 border-t border-slate-800/60">
+                {[
+                    ["Units", parseFloat(h.units || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })],
+                    ["Avg NAV", "₹" + parseFloat(h.avgCostNav || 0).toFixed(2)],
+                    ["Current NAV", "₹" + parseFloat(h.currentNav || 0).toFixed(2)],
+                    ["XIRR", xirr != null ? xirr.toFixed(1) + "%" : "—"],
+                ].map(([label, value]) => (
+                    <div key={label} className="bg-slate-900/60 px-2 py-2 text-center">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-wide">{label}</p>
+                        <p className="text-[12px] font-semibold text-white mt-0.5 truncate">{value}</p>
+                    </div>
+                ))}
+            </div>
+
+            {/* Today's change — its own row, with the as-of-date fallback when NAV hasn't updated yet */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900/40 border-t border-slate-800/60">
+                <span className="text-[11px] text-slate-500">Today's change</span>
                 {dayPct != null ? (
-                    <>
-                        <div className={"text-[12.5px] font-bold tabular-nums " + (dayPos ? "text-green-400" : "text-red-400")}>
-                            {(dayPos ? "+" : "") + dayPct.toFixed(2) + "%"}
-                        </div>
-                        <div className="text-[9px] text-slate-500 tabular-nums mt-0.5">today</div>
-                    </>
+                    <span className={"text-[13px] font-bold " + (dayPos ? "text-green-400" : "text-red-400")}>
+                        {dayPos ? "+" : "-"}{fmtRupee(dayAmt)} ({(dayPos ? "+" : "") + dayPct.toFixed(2)}%)
+                    </span>
                 ) : (
-                    <>
-                        <div className="text-[12px] text-slate-600">—</div>
-                        <div className="text-[9px] text-slate-600 tabular-nums mt-0.5">
-                            {navDateShort ? `as of ${navDateShort}` : "no NAV yet"}
-                        </div>
-                    </>
+                    <span className="text-[11px] text-slate-500">
+                        {navDateShort ? `NAV as of ${navDateShort}` : "NAV not yet available"}
+                    </span>
                 )}
             </div>
         </div>
@@ -713,16 +753,20 @@ function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
                 </div>
             )}
 
-            {/* Column headers */}
-            <div className="grid gap-2 px-3 py-[5px] border-b border-slate-700"
-                 style={{ gridTemplateColumns: "14px 1fr 50px 50px", background: "#0d1117" }}>
-                <div />
-                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">
-                    {seg === "stocks" ? "Stock · avg · qty" : "Scheme · fund"}
+            {/* Column headers — only meaningful for the compact stock table.
+                The MF view is now full cards with their own labels built in,
+                so this thin header would just sit above them mismatched. */}
+            {seg === "stocks" && (
+                <div className="grid gap-2 px-3 py-[5px] border-b border-slate-700"
+                     style={{ gridTemplateColumns: "14px 1fr 50px 50px", background: "#0d1117" }}>
+                    <div />
+                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide">
+                        Stock · avg · qty
+                    </div>
+                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Overall%</div>
+                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Today%</div>
                 </div>
-                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Overall%</div>
-                <div className="text-[8px] text-slate-500 font-bold uppercase tracking-wide text-right">Today%</div>
-            </div>
+            )}
 
             {/* Rows */}
             {seg === "stocks" && (
