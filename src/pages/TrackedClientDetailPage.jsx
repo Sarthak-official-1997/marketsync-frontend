@@ -201,7 +201,15 @@ function HoldingRow({ holding, mapped, onDelete, onSync, onOpenPush, onEdit, onV
                         {holding.inSync ? "✓ In sync" : "⚠ Out of sync"}
                     </span>
                     <div className="flex items-center gap-3">
-                        {!holding.inSync && confirming !== "sync" && (
+                        {/* Pull is a "check for fresh changes" action, not just
+                            a fix for an already-detected mismatch — it was
+                            previously hidden the moment inSync became true
+                            (e.g. right after a successful Push), which meant
+                            there was no way to re-check later if the real
+                            account changed again afterward. Always available
+                            now, same as Push, regardless of last-known sync
+                            state. */}
+                        {confirming !== "sync" && (
                             <button onClick={() => setConfirming("sync")}
                                     className="text-[11px] font-semibold text-blue-400 hover:text-blue-300">
                                 Pull from real →
