@@ -9,6 +9,7 @@ import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth } from "../context/AuthContext";
 import { getBubblePrefs, setBubblePrefs } from "../utils/bubblePrefs";
 import { getDefaultView, setDefaultView, DEFAULT_VIEW } from "../utils/homePreference";
+import { getShowBuildBadge, setShowBuildBadge } from "../utils/buildBadgePrefs";
 
 // Collapsible section. Header is a toggle; body only renders when open.
 function Section({ icon, title, children, defaultOpen = false }) {
@@ -54,6 +55,8 @@ export default function SettingsPage() {
     const updateBubble = (patch) => setBubble(setBubblePrefs(patch));
     const [defaultView, setDefaultViewState] = useState(getDefaultView());
     const chooseDefaultView = (view) => setDefaultViewState(setDefaultView(view));
+    const [showBuildBadge, setShowBuildBadgeState] = useState(getShowBuildBadge());
+    const toggleBuildBadge = () => setShowBuildBadgeState(setShowBuildBadge(!showBuildBadge));
 
     const transparencyPct = Math.round((bubble.transparency / 0.8) * 100);
 
@@ -190,6 +193,15 @@ export default function SettingsPage() {
                              onClick={() => navigate(l.to)}
                              right={<span className="text-slate-600 text-sm">→</span>} />
                     ))}
+                    <Row icon="🟢" label="Show build info dot"
+                         sub="The small green dev-build indicator, creator-only"
+                         onClick={toggleBuildBadge}
+                         right={
+                             <div className={"w-10 h-6 rounded-full flex items-center px-0.5 transition-colors " +
+                                 (showBuildBadge ? "bg-green-600 justify-end" : "bg-slate-700 justify-start")}>
+                                 <div className="w-5 h-5 rounded-full bg-white" />
+                             </div>
+                         } />
                 </Section>
             )}
 

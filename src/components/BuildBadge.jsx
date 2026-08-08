@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { getShowBuildBadge, BUILD_BADGE_EVENT } from "../utils/buildBadgePrefs";
 
 // Guarded reads so this never throws if the define block is missing (tests, etc).
 const BUILD_ID   = typeof __BUILD_ID__   !== "undefined" ? __BUILD_ID__   : "dev";
@@ -27,12 +28,23 @@ function relTime(iso) {
 }
 
 export default function BuildBadge() {
-    // Creator-only — this is a dev tool for checking which build is live;
-    // regular users (including a brand-new signup) should never see it.
+    // Self-contained gating — this was previously rendered unconditionally
+    // at the top of App.jsx with no isCreator check reachable at that scope
+    // at all, despite being meant as a creator-only dev aid. Checking auth
+    // and the show/hide preference here, inside the component itself,
+    // means the gate travels with the component no matter where it's
+    // rendered from, rather than depending on the call site remembering to
+    // wrap it correctly.
     const { isCreator } = useAuth();
-
+    const [showPref, setShowPref] = useState(getShowBuildBadge());
     const [open, setOpen] = useState(true);
     const [, tick] = useState(0);
+
+    useEffect(() => {
+        const onChange = (e) => setShowPref(e.detail);
+        window.addEventListener(BUILD_BADGE_EVENT, onChange);
+        return () => window.removeEventListener(BUILD_BADGE_EVENT, onChange);
+    }, []);
 
     // Re-render every 15s so the "built Xm ago" label stays live.
     useEffect(() => {
@@ -40,7 +52,7 @@ export default function BuildBadge() {
         return () => clearInterval(t);
     }, []);
 
-    if (!isCreator) return null;
+    if (!isCreator || !showPref) return null;
 
     // Collapsed: a tiny tappable dot in the corner so it never blocks the UI.
     if (!open) {
