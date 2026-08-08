@@ -43,12 +43,14 @@ function useMobile() {
 
 
 // ── Inline MobileHeader ───────────────────────────────────────────────────────
-function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary, onChangePw, onRevealPw, onLogout }) {
+function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInboxOpen, portfolioSummary, onChangePw, onRevealPw, onLogout, isCreator }) {
     const navigate = useNavigate();
     const { theme, themeId, setThemeId } = useTheme();
     const [acctOpen,      setAcctOpen]      = useState(false);
     const [themeExpanded, setThemeExpanded] = useState(false);
+    const [creatorOpen,   setCreatorOpen]   = useState(false);
     const acctRef = useRef(null);
+    const creatorRef = useRef(null);
 
     useEffect(() => {
         if (!acctOpen) return;
@@ -60,6 +62,28 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
     }, [acctOpen]);
+
+    // Same outside-click-close pattern as the account dropdown, kept as its
+    // own separate effect/ref rather than merged in — these are two
+    // independent dropdowns that can each open without affecting the other.
+    useEffect(() => {
+        if (!creatorOpen) return;
+        const h = (e) => {
+            if (creatorRef.current && !creatorRef.current.contains(e.target)) setCreatorOpen(false);
+        };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [creatorOpen]);
+
+    const creatorLinks = [
+        { to: "/admin",                      icon: "🏠", label: "Dashboard"      },
+        { to: "/admin/clients",              icon: "👥", label: "Clients"        },
+        { to: "/admin/analytics",            icon: "📊", label: "Analytics"      },
+        { to: "/admin/notifications",        icon: "🔔", label: "Notifications"  },
+        { to: "/admin/users",                icon: "👤", label: "Users"          },
+        { to: "/admin/ai-report",            icon: "🤖", label: "AI Report"      },
+        { to: "/creator/client-tracker",     icon: "📋", label: "Client Tracker" },
+    ];
 
     const menuRow = {
         width: "100%", display: "flex", alignItems: "center", gap: 10,
@@ -146,6 +170,45 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                 alignItems: "center", justifyContent: "center",
                 fontSize: 18, cursor: "pointer",
             }}>✨</button>
+
+            {/* Creator quick-access — same dropdown pattern as the account
+                menu, its own independent open/close state and outside-click
+                ref. Only rendered at all for creators, so this whole block
+                simply doesn't exist in the DOM for regular users. */}
+            {isCreator && (
+                <div ref={creatorRef} style={{ position: "relative", flexShrink: 0 }}>
+                    <button onClick={() => setCreatorOpen(v => !v)} title="Creator"
+                            style={{
+                                width: 36, height: 36, flexShrink: 0,
+                                background: "rgba(245,158,11,0.15)",
+                                border: "1px solid rgba(245,158,11,0.4)",
+                                borderRadius: 10, display: "flex",
+                                alignItems: "center", justifyContent: "center",
+                                fontSize: 16, cursor: "pointer",
+                            }}>👑</button>
+
+                    {creatorOpen && (
+                        <div className="bg-slate-900 border border-slate-700/60"
+                             style={{
+                                 position: "absolute", top: 42, right: 0, width: 200,
+                                 borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
+                                 zIndex: 60, overflow: "hidden",
+                             }}>
+                            <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
+                                <p className="text-amber-400" style={{ fontWeight: 700, fontSize: 12 }}>
+                                    👑 Creator
+                                </p>
+                            </div>
+                            {creatorLinks.map(l => (
+                                <button key={l.to} style={menuRow}
+                                        onClick={() => { setCreatorOpen(false); navigate(l.to); }}>
+                                    <span>{l.icon}</span> {l.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Inbox bell with badge */}
             <button onClick={onInboxOpen} style={{
@@ -714,6 +777,7 @@ export default function Layout({ children, portfolioSummary }) {
                     onChangePw={() => setShowChangePw(true)}
                     onRevealPw={() => setShowRevealPw(true)}
                     onLogout={handleLogout}
+                    isCreator={isCreator}
                 />
             )}
 

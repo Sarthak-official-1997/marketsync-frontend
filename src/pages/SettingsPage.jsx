@@ -118,10 +118,14 @@ export default function SettingsPage() {
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">
                         Default primary view
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={isCreator ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
                         {[
                             { id: DEFAULT_VIEW.STOCKS, label: "Stocks", sub: "Current default", emoji: "📈" },
                             { id: DEFAULT_VIEW.MUTUAL_FUNDS, label: "Mutual Funds", sub: "MF holdings first", emoji: "📊" },
+                            // Creator-only — a client with no clients to track has nothing
+                            // useful to land on here, so this option simply doesn't exist
+                            // for them rather than existing-but-blocked.
+                            ...(isCreator ? [{ id: DEFAULT_VIEW.CLIENT_TRACKER, label: "Client Tracker", sub: "Your clients first", emoji: "📋" }] : []),
                         ].map(opt => (
                             <button key={opt.id} onClick={() => chooseDefaultView(opt.id)} type="button"
                                     className={"flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-left " +
@@ -138,9 +142,10 @@ export default function SettingsPage() {
                         ))}
                     </div>
                     <p className="text-[11px] text-slate-600 mt-2">
-                        Choosing Mutual Funds moves it to the front of your bottom navigation and
-                        opens straight to your MF holdings — not the fund marketplace. Takes effect
-                        immediately, no restart needed. Saved on this device only.
+                        Mutual Funds moves it to the front of your bottom navigation and opens
+                        straight to your MF holdings — not the fund marketplace.
+                        {isCreator && " Client Tracker skips your own portfolio entirely and opens straight to your tracked clients."}
+                        {" "}Takes effect immediately, no restart needed. Saved on this device only.
                     </p>
                 </div>
             </Section>

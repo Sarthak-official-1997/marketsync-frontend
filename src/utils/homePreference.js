@@ -14,15 +14,23 @@ const KEY = "folyo_default_view";
 export const DEFAULT_VIEW = {
     STOCKS: "stocks",
     MUTUAL_FUNDS: "mutual_funds",
+    // Creator-only — the Settings UI only ever offers this option to
+    // creators, but this util has no access to auth context (utils
+    // shouldn't depend on it), so it can't enforce that on its own. The
+    // actual gate lives where the preference gets CONSUMED (App.jsx's home
+    // route), which does have isCreator — this constant just needs to exist
+    // so storage/events have a valid third value to carry.
+    CLIENT_TRACKER: "client_tracker",
 };
 
 const DEFAULTS = DEFAULT_VIEW.STOCKS;
+const VALID_VIEWS = Object.values(DEFAULT_VIEW);
 
 /** Read the current default-view preference, falling back to Stocks for anything missing/corrupt. */
 export function getDefaultView() {
     try {
         const raw = localStorage.getItem(KEY);
-        return raw === DEFAULT_VIEW.MUTUAL_FUNDS ? DEFAULT_VIEW.MUTUAL_FUNDS : DEFAULTS;
+        return VALID_VIEWS.includes(raw) ? raw : DEFAULTS;
     } catch {
         return DEFAULTS;
     }
@@ -30,7 +38,7 @@ export function getDefaultView() {
 
 /** Save the preference and broadcast so any mounted component (home route, bottom nav) updates without a reload. */
 export function setDefaultView(view) {
-    const next = view === DEFAULT_VIEW.MUTUAL_FUNDS ? DEFAULT_VIEW.MUTUAL_FUNDS : DEFAULT_VIEW.STOCKS;
+    const next = VALID_VIEWS.includes(view) ? view : DEFAULT_VIEW.STOCKS;
     try {
         localStorage.setItem(KEY, next);
         window.dispatchEvent(new CustomEvent(DEFAULT_VIEW_EVENT, { detail: next }));

@@ -148,9 +148,19 @@ function AppShell() {
                 <Routes>
                     {/* Reads the preference fresh on every visit to "/" — Mutual Funds-first
                         goes straight to MF holdings (not the fund marketplace), matching the
-                        "personal tracking, not browsing" requirement. */}
+                        "personal tracking, not browsing" requirement. Client Tracker is
+                        creator-only in Settings, but a stored preference could theoretically
+                        go stale (e.g. a demoted account on a shared device) — isCreator is
+                        checked again here as the real gate, not just trusted from storage,
+                        so a non-creator never gets redirected toward a page that would just
+                        403 on them. */}
                     <Route path="/" element={
-                        <Navigate to={getDefaultView() === DEFAULT_VIEW.MUTUAL_FUNDS ? "/mf/holdings" : "/stocks"} replace />
+                        <Navigate to={(() => {
+                            const pref = getDefaultView();
+                            if (pref === DEFAULT_VIEW.CLIENT_TRACKER && isCreator) return "/creator/client-tracker";
+                            if (pref === DEFAULT_VIEW.MUTUAL_FUNDS) return "/mf/holdings";
+                            return "/stocks";
+                        })()} replace />
                     } />
 
                     {/* -- ADMIN -- */}

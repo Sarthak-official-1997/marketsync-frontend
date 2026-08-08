@@ -256,7 +256,7 @@ function MiniChart({ points, prevClose, up }) {
 // -- Single Stock Card (smaller  fits inside section grids) -------------------
 function StockCard({ stock, price, holding, dragging, over,
                        onDragStart, onDragEnd, onDragOver, onDrop,
-                       onRemove, onOpen }) {
+                       onRemove, onOpen, onMoveUp, onMoveDown, isFirst, isLast }) {
 
     const { hidden: valuesHidden } = usePrivacy();
 
@@ -318,8 +318,33 @@ function StockCard({ stock, price, holding, dragging, over,
                            active:bg-red-600/70 transition-all text-xs md:text-[10px] z-10"
             >✕</button>
 
-            {/* Row 1  logo + symbol + name */}
-            <button onClick={onOpen} className="text-left w-full block pr-4">
+            {/* Reorder — mobile only. Desktop keeps its existing drag-and-drop
+                (draggable above); touch devices never fire those events at
+                all, so this is the real mobile equivalent, not a duplicate. */}
+            <div className="md:hidden absolute top-1 left-1 z-10 flex flex-col gap-0.5">
+                <button
+                    onClick={e => { e.stopPropagation(); onMoveUp(); }}
+                    disabled={isFirst}
+                    className="w-6 h-5 rounded-md flex items-center justify-center
+                               bg-slate-900/80 border border-slate-600
+                               text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed
+                               active:bg-slate-700 transition-all text-[10px]"
+                >▲</button>
+                <button
+                    onClick={e => { e.stopPropagation(); onMoveDown(); }}
+                    disabled={isLast}
+                    className="w-6 h-5 rounded-md flex items-center justify-center
+                               bg-slate-900/80 border border-slate-600
+                               text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed
+                               active:bg-slate-700 transition-all text-[10px]"
+                >▼</button>
+            </div>
+
+            {/* Row 1  logo + symbol + name — pl-7 reserves space for the
+                mobile-only up/down reorder buttons on the left, matching
+                pr-4's existing reservation for the remove button on the
+                right, so neither overlaps the logo/symbol/name text. */}
+            <button onClick={onOpen} className="text-left w-full block pr-4 pl-7 md:pl-0">
                 <div className="flex items-center gap-2">
                     <StockLogo symbol={stock.symbol} name={stock.name} size={26} />
                     <div className="min-w-0 flex-1">
@@ -641,6 +666,19 @@ function BoardSection({
         setDragStockIdx(null); setOverStockIdx(null);
     };
 
+    // HTML5 drag-and-drop (draggable/onDragStart above) simply never fires
+    // on touch devices — there is no mobile equivalent event for it, not a
+    // configuration gap. moveStock() is the same array-swap onStockDrop
+    // already does, just triggered by a button tap instead of a drag
+    // gesture, so mobile has a real way to reorder at all.
+    const moveStock = (fromIdx, toIdx) => {
+        if (toIdx < 0 || toIdx >= section.symbols.length) return;
+        const arr = [...section.symbols];
+        const [moved] = arr.splice(fromIdx, 1);
+        arr.splice(toIdx, 0, moved);
+        onUpdateSection(section.id, { symbols: arr });
+    };
+
     const removeStockFromSection = (symbol) => {
         onUpdateSection(section.id, {
             symbols: section.symbols.filter(s => s !== symbol),
@@ -794,14 +832,9 @@ function BoardSection({
                     ) : null;
                 })()}
 
-                {/* Controls — permanently visible until this section has its first
-                    real pinned stock (a first-time user has no reason to know
-                    hovering reveals "+ Add stock"). Reverts to hover-only once
-                    populated, so it stays out of the way for returning users. */}
-                <div className={"flex items-center gap-1 flex-shrink-0 transition-opacity " +
-                (section.symbols.filter(sym => allPinned.some(p => p.symbol === sym)).length === 0
-                    ? "opacity-100"
-                    : "opacity-0 group-hover/header:opacity-100")}
+                {/* Controls */}
+                <div className="flex items-center gap-1 flex-shrink-0
+                                opacity-0 group-hover/header:opacity-100 transition-opacity"
                      onMouseDown={e => e.stopPropagation()}>
                     {/* Card size - / + buttons */}
                     <div className="flex items-center gap-0.5 mr-0.5">
@@ -959,6 +992,10 @@ function BoardSection({
                                         onDrop={() => onStockDrop(idx)}
                                         onRemove={() => removeStockFromSection(sym)}
                                         onOpen={() => onOpenStock(stock)}
+                                        onMoveUp={() => moveStock(idx, idx - 1)}
+                                        onMoveDown={() => moveStock(idx, idx + 1)}
+                                        isFirst={idx === 0}
+                                        isLast={idx === section.symbols.length - 1}
                                     />
                                 );
                             })}

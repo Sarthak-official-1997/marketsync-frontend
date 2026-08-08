@@ -52,6 +52,75 @@ const fmtAxisDate = (isoDate) => {
 
 const Dash = () => <span className="text-slate-600 select-none">—</span>;
 
+// --─ MF Summary Bar — same 4-stat layout as stocks' PortfolioPerformanceCard,
+//     computed client-side from mfHoldings (already carries per-scheme
+//     dayChangeAmount/dayChangePercent from the backend), no extra fetch needed. ---
+
+function MfSummaryBar({ mfHoldings }) {
+    const { hidden: valuesHidden } = usePrivacy();
+    const fmtV      = (v) => valuesHidden ? "••••••" : fmt(v);
+    const fmtCroreV = (v) => valuesHidden ? "••••••" : fmtCrore(v);
+
+    const totalInvested = mfHoldings.reduce((s, h) => s + parseFloat(h.totalInvested || 0), 0);
+    const currentValue  = mfHoldings.reduce((s, h) => s + parseFloat(h.currentValue || 0), 0);
+    const totalPL        = currentValue - totalInvested;
+    const totalPLPct      = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+    const isUp            = totalPL >= 0;
+
+    // Only counts holdings that actually have a captured previous-NAV yet —
+    // same "some funds haven't synced a fresh NAV since deploy" tolerance
+    // as the per-row Today's Change display.
+    const withDayData = mfHoldings.filter(h => h.dayChangeAmount != null);
+    const hasTodayData = withDayData.length > 0;
+    const todayPL  = withDayData.reduce((s, h) => s + parseFloat(h.dayChangeAmount || 0), 0);
+    const todayUp  = todayPL >= 0;
+    const prevValue = currentValue - todayPL;
+    const todayPct  = prevValue > 0 ? (todayPL / prevValue) * 100 : 0;
+
+    return (
+        <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
+            <div className="flex divide-x divide-slate-700/60">
+                <div className="flex-1 px-6 py-4">
+                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Current Value</p>
+                    <p className="text-2xl font-bold text-white mt-1">{fmtCroreV(currentValue)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(currentValue)}</p>
+                </div>
+                <div className="flex-1 px-6 py-4">
+                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Invested</p>
+                    <p className="text-2xl font-bold text-slate-300 mt-1">{fmtCroreV(totalInvested)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(totalInvested)}</p>
+                </div>
+                <div className="flex-1 px-6 py-4">
+                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total P&L</p>
+                    <div className="flex items-end gap-2 mt-1 flex-wrap">
+                        <p className={"text-2xl font-bold " + (isUp ? "text-green-400" : "text-red-400")}>
+                            {isUp ? "+" : ""}{fmtCroreV(totalPL)}
+                        </p>
+                        <span className={"text-base font-bold pb-0.5 " + (isUp ? "text-green-400" : "text-red-400")}>
+                            ({isUp ? "+" : ""}{totalPLPct.toFixed(2)}%)
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{fmtV(totalPL)}</p>
+                </div>
+                {hasTodayData && (
+                    <div className="flex-1 px-6 py-4">
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Today&apos;s Change</p>
+                        <div className="flex items-end gap-2 mt-1 flex-wrap">
+                            <p className={"text-2xl font-bold " + (todayUp ? "text-green-400" : "text-red-400")}>
+                                {todayUp ? "+" : ""}{fmtCroreV(todayPL)}
+                            </p>
+                            <span className={"text-base font-bold pb-0.5 " + (todayUp ? "text-green-400" : "text-red-400")}>
+                                ({todayUp ? "+" : ""}{todayPct.toFixed(2)}%)
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">today</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // --─ Portfolio Performance Card ----------------------------------------------─
 
 function PortfolioPerformanceCard({holdings, onRefresh, todayPL, todayPct, todayUp, hasTodayData}) {
@@ -951,7 +1020,10 @@ export default function HoldingsPage(props) {
                     )}
 
                     {view === "mf" && (
-                        <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setMfDetailScheme}/>
+                        <div className="space-y-4">
+                            {mfHoldings.length > 0 && <MfSummaryBar mfHoldings={mfHoldings} />}
+                            <MfHoldingsTable mfHoldings={mfHoldings} onOpenPanel={setMfDetailScheme}/>
+                        </div>
                     )}
 
                     {view === "combined" && (

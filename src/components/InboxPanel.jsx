@@ -23,6 +23,19 @@ function saveSeenAlerts(uid, set) {
     try { localStorage.setItem(seenKey(uid), JSON.stringify([...set])); } catch { /* ignore */ }
 }
 
+// "Clear all" — a SEPARATE local list from "seen". Dismissing an alert from
+// this Inbox view is purely about the notification list itself; it never
+// touches the real PriceAlert data the Alerts page owns, so clearing your
+// inbox can never accidentally delete an actual price alert or trade setup.
+const dismissedKey = (uid) => `folyo_dismissed_alerts_${uid || "me"}`;
+function loadDismissedAlerts(uid) {
+    try { return new Set(JSON.parse(localStorage.getItem(dismissedKey(uid)) || "[]")); }
+    catch { return new Set(); }
+}
+function saveDismissedAlerts(uid, set) {
+    try { localStorage.setItem(dismissedKey(uid), JSON.stringify([...set])); } catch { /* ignore */ }
+}
+
 const fmtTime = (d) => {
     if (!d) return "";
     const dt   = new Date(d);
@@ -66,10 +79,10 @@ function TabBar({ tabs, active, onChange }) {
             {tabs.map(t => (
                 <button key={t.id} onClick={() => onChange(t.id)}
                         className={"flex-1 py-3 text-xs font-semibold transition-colors " +
-                        "flex items-center justify-center gap-1.5 " +
-                        (active === t.id
-                            ? "text-white border-b-2 border-blue-500 bg-slate-800/40"
-                            : "text-slate-500 hover:text-slate-300")}>
+                            "flex items-center justify-center gap-1.5 " +
+                            (active === t.id
+                                ? "text-white border-b-2 border-blue-500 bg-slate-800/40"
+                                : "text-slate-500 hover:text-slate-300")}>
                     {t.label}
                     {t.badge > 0 && (
                         <span className="bg-red-500 text-white text-[10px] font-bold
@@ -95,6 +108,7 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
     const [pending,     setPending]     = useState([]);
     const [triggered,   setTriggered]   = useState([]);   // read-only triggered price alerts
     const [seenAlerts,  setSeenAlerts]  = useState(() => loadSeenAlerts(uid));
+    const [dismissedAlerts, setDismissedAlerts] = useState(() => loadDismissedAlerts(uid));
     const [loading,     setLoading]     = useState(true);
     const [threadId,    setThreadId]    = useState(null);
     const [showContact, setShowContact] = useState(false);
@@ -117,6 +131,31 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
             next.add(id);
             return next;
         });
+    };
+
+    // Bulk actions — operate on whatever's CURRENTLY visible (i.e. not
+    // already dismissed), same write-synchronously-first reasoning as
+    // markAlertSeen above (the panel closes right after these fire).
+    const markAllAlertsRead = () => {
+        const visible = triggered.filter(a => !dismissedAlerts.has(a.id));
+        if (visible.length === 0) return;
+        try {
+            const cur = loadSeenAlerts(uid);
+            visible.forEach(a => cur.add(a.id));
+            saveSeenAlerts(uid, cur);
+        } catch { /* ignore */ }
+        setSeenAlerts(prev => new Set([...prev, ...visible.map(a => a.id)]));
+    };
+
+    const clearAllAlerts = () => {
+        const visible = triggered.filter(a => !dismissedAlerts.has(a.id));
+        if (visible.length === 0) return;
+        try {
+            const cur = loadDismissedAlerts(uid);
+            visible.forEach(a => cur.add(a.id));
+            saveDismissedAlerts(uid, cur);
+        } catch { /* ignore */ }
+        setDismissedAlerts(prev => new Set([...prev, ...visible.map(a => a.id)]));
     };
 
     const panelRef = useRef(null);
@@ -192,7 +231,8 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
 
     const unreadMessages = messages.filter(m => !m.read).length;
 
-    const unseenAlertCount = triggered.reduce((n, a) => n + (seenAlerts.has(a.id) ? 0 : 1), 0);
+    const visibleTriggered = triggered.filter(a => !dismissedAlerts.has(a.id));
+    const unseenAlertCount = visibleTriggered.reduce((n, a) => n + (seenAlerts.has(a.id) ? 0 : 1), 0);
 
     const creatorTabs = [
         { id: "messages",   label: "Messages",  badge: unreadMessages },
@@ -267,17 +307,17 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
                                     <div key={msg.id}
                                          onClick={() => handleMarkRead(msg)}
                                          className={"flex items-start gap-3 px-4 py-3.5 " +
-                                         "cursor-pointer border-b border-slate-800/60 " +
-                                         "last:border-0 hover:bg-slate-800/60 transition-colors " +
-                                         (!msg.read ? "bg-slate-800/30" : "")}>
+                                             "cursor-pointer border-b border-slate-800/60 " +
+                                             "last:border-0 hover:bg-slate-800/60 transition-colors " +
+                                             (!msg.read ? "bg-slate-800/30" : "")}>
                                         <div className="mt-2 flex-shrink-0">
                                             <div className={"w-2 h-2 rounded-full " +
-                                            (!msg.read ? "bg-blue-500" : "bg-transparent")} />
+                                                (!msg.read ? "bg-blue-500" : "bg-transparent")} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-2">
                                                 <p className={"text-sm truncate " +
-                                                (!msg.read ? "text-white font-semibold" : "text-slate-300")}>
+                                                    (!msg.read ? "text-white font-semibold" : "text-slate-300")}>
                                                     {msg.senderName || "Anonymous"}
                                                 </p>
                                                 <span className="text-slate-500 text-xs flex-shrink-0">
@@ -350,9 +390,9 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
                                                     {SOURCE_LABEL[msg.source] || msg.source}
                                                 </p>
                                                 <span className={"text-[10px] px-2 py-0.5 rounded-full " +
-                                                (msg.read
-                                                    ? "bg-green-900/40 text-green-400"
-                                                    : "bg-slate-700 text-slate-400")}>
+                                                    (msg.read
+                                                        ? "bg-green-900/40 text-green-400"
+                                                        : "bg-slate-700 text-slate-400")}>
                                                     {msg.read ? "✓ Seen" : "Pending"}
                                                 </span>
                                             </div>
@@ -361,52 +401,68 @@ export default function InboxPanel({ onClose, onUnreadChange }) {
                                 ))
                             )}
                             {/* Alerts tab (both roles): read-only triggered price alerts.
-                                Tapping a row opens the Alerts page focused on that alert. */}
+                                Tapping a row opens the Alerts page focused on that alert.
+                                "Clear all" / "Mark all read" only affect THIS list — they
+                                never touch the real PriceAlert rows the Alerts page owns. */}
                             {tab === "alerts" && (
-                                triggered.length === 0 ? (
+                                visibleTriggered.length === 0 ? (
                                     <EmptyState icon="🔕" text="No triggered alerts"
                                                 sub="Price alerts that hit their target will show up here" />
-                                ) : triggered.map(a => {
-                                    const unseen = !seenAlerts.has(a.id);
-                                    return (
-                                        <button key={a.id}
-                                                onClick={() => {
-                                                    markAlertSeen(a.id);   // read → drops the badge count
-                                                    navigate("/stocks/alerts", {
-                                                        state: { fromInbox: true, alertId: a.id },
-                                                    });
-                                                    onClose();
-                                                }}
-                                                className="w-full flex items-start gap-3 px-4 py-3.5 text-left
+                                ) : (<>
+                                    <div className="flex items-center justify-end gap-3 px-4 py-2 border-b border-slate-800/60">
+                                        {unseenAlertCount > 0 && (
+                                            <button onClick={markAllAlertsRead}
+                                                    className="text-xs text-blue-400 hover:text-blue-300 font-medium">
+                                                Mark all read
+                                            </button>
+                                        )}
+                                        <button onClick={clearAllAlerts}
+                                                className="text-xs text-slate-500 hover:text-red-400 font-medium">
+                                            Clear all
+                                        </button>
+                                    </div>
+                                    {visibleTriggered.map(a => {
+                                        const unseen = !seenAlerts.has(a.id);
+                                        return (
+                                            <button key={a.id}
+                                                    onClick={() => {
+                                                        markAlertSeen(a.id);   // read → drops the badge count
+                                                        navigate("/stocks/alerts", {
+                                                            state: { fromInbox: true, alertId: a.id },
+                                                        });
+                                                        onClose();
+                                                    }}
+                                                    className="w-full flex items-start gap-3 px-4 py-3.5 text-left
                                                            cursor-pointer border-b border-slate-800/60
                                                            last:border-0 hover:bg-slate-800/60 transition-colors">
-                                            <div className="flex items-center gap-1.5 mt-0.5 flex-shrink-0">
+                                                <div className="flex items-center gap-1.5 mt-0.5 flex-shrink-0">
                                                 <span className={"w-2 h-2 rounded-full " +
-                                                (unseen ? "bg-red-500" : "bg-transparent")} />
-                                                <span className="text-lg">🔔</span>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <p className={"text-sm truncate " +
-                                                    (unseen ? "text-white font-semibold" : "text-slate-300")}>
-                                                        {a.symbol}
-                                                    </p>
-                                                    <span className="text-slate-500 text-xs flex-shrink-0">
+                                                    (unseen ? "bg-red-500" : "bg-transparent")} />
+                                                    <span className="text-lg">🔔</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className={"text-sm truncate " +
+                                                            (unseen ? "text-white font-semibold" : "text-slate-300")}>
+                                                            {a.symbol}
+                                                        </p>
+                                                        <span className="text-slate-500 text-xs flex-shrink-0">
                                                         {fmtTime(a.triggeredAt)}
                                                     </span>
-                                                </div>
-                                                {a.name && (
-                                                    <p className="text-slate-500 text-xs truncate mt-0.5">
-                                                        {a.name}
+                                                    </div>
+                                                    {a.name && (
+                                                        <p className="text-slate-500 text-xs truncate mt-0.5">
+                                                            {a.name}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-green-400 text-[11px] truncate mt-0.5">
+                                                        ✓ {a.description || "Target hit"} · tap to view →
                                                     </p>
-                                                )}
-                                                <p className="text-green-400 text-[11px] truncate mt-0.5">
-                                                    ✓ {a.description || "Target hit"} · tap to view →
-                                                </p>
-                                            </div>
-                                        </button>
-                                    );
-                                })
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </>)
                             )}
                         </>
                     )}
