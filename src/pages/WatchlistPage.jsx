@@ -125,23 +125,40 @@ function WatchlistSparkline({ symbol, exchange, previousClose, changePercent, wi
 // ============================================================================
 //  SHARED — named-list switcher (All · lists · + New) + sort-by-colour toggle
 // ============================================================================
-function WatchlistSwitcher({ lists, selectedId, onSelect, onNew, sortByColour, onToggleSort }) {
+function WatchlistSwitcher({ lists, selectedId, onSelect, onNew, usedColors, colorLabels, onPickColorSort }) {
+    const [sortMenuOpen, setSortMenuOpen] = useState(false);
+    // These pills always keep a fixed dark navy background (#161d31 /
+    // rgba(124,58,237,.18) below) regardless of theme — a deliberate
+    // "always-dark accent badge" look, not something meant to invert in
+    // light themes. Text colour is pulled OUT of Tailwind's text-white/
+    // text-slate-400 classes (which DO correctly invert for light themes,
+    // since most usages of them pair with a background that inverts too)
+    // and set inline instead, paired with the equally-fixed background —
+    // otherwise the background stays dark while the text goes dark too,
+    // exactly the invisible-text bug this replaces.
     const pill = (on, extra = "") =>
         "flex-shrink-0 flex items-center gap-1.5 text-[11px] font-bold px-3 py-[6px] rounded-full border transition-colors " +
-        (on ? "border-[#7c3aed] text-white " : "border-slate-700 text-slate-400 ") + extra;
+        (on ? "border-[#7c3aed] " : "border-slate-700 ") + extra;
+    const pillTextColor = (on) => ({ color: on ? "#ffffff" : "#94a3b8" });
 
     return (
         <div className="flex items-center gap-1.5 px-3 md:px-0 py-2 overflow-x-auto"
              style={{ scrollbarWidth: "none" }}>
             <button onClick={() => onSelect(null)}
                     className={pill(selectedId === null)}
-                    style={selectedId === null ? { background: "rgba(124,58,237,.18)" } : { background: "#161d31" }}>
+                    style={{
+                        ...(selectedId === null ? { background: "rgba(124,58,237,.18)" } : { background: "#161d31" }),
+                        ...pillTextColor(selectedId === null),
+                    }}>
                 All
             </button>
             {lists.map(l => (
                 <button key={l.id} onClick={() => onSelect(l.id)}
                         className={pill(selectedId === l.id)}
-                        style={selectedId === l.id ? { background: "rgba(124,58,237,.18)" } : { background: "#161d31" }}>
+                        style={{
+                            ...(selectedId === l.id ? { background: "rgba(124,58,237,.18)" } : { background: "#161d31" }),
+                            ...pillTextColor(selectedId === l.id),
+                        }}>
                     {l.color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: l.color }} />}
                     <span className="whitespace-nowrap">{l.name}</span>
                     <span className="opacity-50">{(l.items || []).length}</span>
@@ -151,13 +168,38 @@ function WatchlistSwitcher({ lists, selectedId, onSelect, onNew, sortByColour, o
                     className="flex-shrink-0 text-[11px] font-bold px-3 py-[6px] rounded-full border border-dashed border-slate-600 text-slate-400">
                 + New
             </button>
-            <button onClick={onToggleSort}
-                    title="Sort by colour grade"
-                    className={"flex-shrink-0 ml-auto text-[11px] font-bold px-3 py-[6px] rounded-full border transition-colors " +
-                    (sortByColour ? "border-blue-500/50 text-blue-300" : "border-slate-700 text-slate-500")}
-                    style={sortByColour ? { background: "rgba(59,130,246,.12)" } : {}}>
-                ⇅ Colour
-            </button>
+            <div className="relative flex-shrink-0 ml-auto">
+                <button onClick={() => setSortMenuOpen(v => !v)}
+                        title="Sort — find stocks by colour, across all watchlists"
+                        className={"text-[11px] font-bold px-3 py-[6px] rounded-full border transition-colors " +
+                            (sortMenuOpen ? "border-blue-500/50 text-blue-300" : "border-slate-700 text-slate-500")}
+                        style={sortMenuOpen ? { background: "rgba(59,130,246,.12)" } : {}}>
+                    ⇅ Sort
+                </button>
+                {sortMenuOpen && (
+                    <>
+                        <div className="fixed inset-0 z-[9490]" onClick={() => setSortMenuOpen(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-[9491] bg-slate-800 border border-slate-700
+                                        rounded-xl shadow-2xl p-2 w-48"
+                             style={{ maxHeight: "60vh", overflowY: "auto" }}>
+                            {usedColors.length === 0 ? (
+                                <p className="text-slate-500 text-[11px] text-center py-3 px-2">
+                                    No colours applied to any stock yet.
+                                </p>
+                            ) : usedColors.map(hex => (
+                                <button key={hex}
+                                        onClick={() => { onPickColorSort(hex); setSortMenuOpen(false); }}
+                                        className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-700/60 text-left">
+                                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: hex }} />
+                                    <span className="text-white text-xs truncate">
+                                        {colorLabels[hex.toLowerCase()] || hex}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
@@ -200,10 +242,10 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
                 ].map(({ k, l }) => (
                     <button key={k} onClick={() => setFilter(k)}
                             className={"flex-shrink-0 text-[9px] font-bold px-2.5 py-[5px] rounded-[11px] border transition-colors " +
-                            (filter === k
-                                ? "border-[#7c3aed] text-[#b794f6]"
-                                : "border-slate-700 text-slate-500")}
-                            style={filter === k ? { background: "rgba(124,58,237,.14)" } : { background: "#161d31" }}>
+                                (filter === k ? "border-[#7c3aed] text-[#b794f6]" : "border-slate-700")}
+                            style={filter === k
+                                ? { background: "rgba(124,58,237,.14)" }
+                                : { background: "#161d31", color: "#94a3b8" }}>
                         {l}
                     </button>
                 ))}
@@ -289,7 +331,7 @@ function MobileStocksWatchlist({ items, loading, boardSymbols, valuesHidden,
                                     {cp ? "₹" + cp.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}
                                 </div>
                                 <div className={"text-[10px] font-bold tabular-nums mt-px " +
-                                (up ? "text-green-400" : "text-red-400")}>
+                                    (up ? "text-green-400" : "text-red-400")}>
                                     {item.currentPrice
                                         ? (up ? "+" : "") + chg.toFixed(2) + "%"
                                         : ""}
@@ -409,9 +451,10 @@ export default function WatchlistPage(props) {
                      style={{ background: "#161d31" }}>
                     {[{ id: "stocks", l: "Stocks" }, { id: "mf", l: "Mutual Funds" }].map(t => (
                         <button key={t.id} onClick={() => setSuperTab(t.id)}
-                                className={"flex-1 text-center text-[9.5px] font-bold py-[5px] rounded-[5px] transition-colors " +
-                                (superTab === t.id ? "text-white" : "text-slate-500")}
-                                style={superTab === t.id ? { background: "#7c3aed" } : {}}>
+                                className="flex-1 text-center text-[9.5px] font-bold py-[5px] rounded-[5px] transition-colors"
+                                style={superTab === t.id
+                                    ? { background: "#7c3aed", color: "#ffffff" }
+                                    : { color: "#94a3b8" }}>
                             {t.l}
                         </button>
                     ))}
@@ -421,7 +464,7 @@ export default function WatchlistPage(props) {
                     {[{ id: "stocks", label: "📈 Stocks" }, { id: "mf", label: "📊 Mutual Funds" }].map(t => (
                         <button key={t.id} onClick={() => setSuperTab(t.id)}
                                 className={"px-5 py-2 rounded-lg text-sm font-medium transition-colors " +
-                                (superTab === t.id ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
+                                    (superTab === t.id ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
                             {t.label}
                         </button>
                     ))}
@@ -807,8 +850,8 @@ function StocksWatchlist({ toast, isMobile }) {
                                                 {item.currentPrice && (
                                                     <div className="flex items-center justify-end gap-1 mt-1">
                                                 <span className={"text-[11px] font-bold px-1.5 py-0.5 rounded " +
-                                                (up ? "bg-green-500/15 text-green-400"
-                                                    : "bg-red-500/15 text-red-400")}>
+                                                    (up ? "bg-green-500/15 text-green-400"
+                                                        : "bg-red-500/15 text-red-400")}>
                                                     {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
                                                 </span>
                                                         <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
@@ -833,8 +876,8 @@ function StocksWatchlist({ toast, isMobile }) {
                                                 {item.gainPctSinceAdded != null ? (
                                                     <div>
                                                         <p className={"text-xs font-bold " +
-                                                        (parseFloat(item.gainPctSinceAdded) >= 0
-                                                            ? "text-green-400" : "text-red-400")}>
+                                                            (parseFloat(item.gainPctSinceAdded) >= 0
+                                                                ? "text-green-400" : "text-red-400")}>
                                                             {valuesHidden ? "••••" : (
                                                                 (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
                                                                 parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
@@ -895,7 +938,7 @@ function StocksWatchlist({ toast, isMobile }) {
                                         <button onClick={() => handleSetColour(colourItem, c.hex)}
                                                 aria-label={c.key}
                                                 className={"w-8 h-8 rounded-full border-2 transition-transform active:scale-90 " +
-                                                (active ? "border-white" : "border-white/10")}
+                                                    (active ? "border-white" : "border-white/10")}
                                                 style={{ background: c.hex }} />
                                         {editingLabelFor === c.hex ? (
                                             <input autoFocus value={labelDraft}

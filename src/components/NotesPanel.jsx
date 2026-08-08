@@ -159,7 +159,7 @@ function NoteComposerModal({ initial, onSave, onClose, saving }) {
                      overflowX: "hidden",
                  } : {
                      width: "calc(100vw - 32px)", maxWidth: "520px",
-                     maxHeight: "88vh",
+                     minHeight: "480px", maxHeight: "88vh",
                      borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
                      boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
                  }}
