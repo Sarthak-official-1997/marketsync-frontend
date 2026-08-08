@@ -93,8 +93,18 @@ export default function PasskeySetupModal({ onClose, onDone, isBlocking = false 
         }
     };
 
+    // z-[70] was drastically too low compared to the rest of the app's
+    // persistent chrome — the mobile bottom nav sits at z-9000, the
+    // floating "+" bubble at z-9500, both fixed-position and always
+    // mounted. At z-70, this "full-screen" modal was actually rendering
+    // UNDERNEATH both of them the whole time — not on top of the app the
+    // way a takeover-modal needs to be, which is what let the bubble
+    // button visually overlap the passkey form fields. Matching the app's
+    // established highest tier (SearchPickerModal, PushReviewModal — used
+    // for critical, must-complete-first flows) so this genuinely wins
+    // every stacking conflict now.
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-[9700] flex items-center justify-center p-4"
              style={{ backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}>
             <div className="w-full max-w-md bg-slate-900 border border-slate-700
                             rounded-2xl shadow-2xl">
@@ -171,13 +181,13 @@ export default function PasskeySetupModal({ onClose, onDone, isBlocking = false 
                             )}
                             placeholder="Re-enter passkey"
                             className={"w-full bg-slate-800 border rounded-xl px-4 py-3 " +
-                            "text-white font-mono text-sm tracking-widest " +
-                            "focus:outline-none " +
-                            (confirm.length > 0
-                                ? matches
-                                    ? "border-green-500 focus:border-green-500"
-                                    : "border-red-500 focus:border-red-500"
-                                : "border-slate-600 focus:border-blue-500")}
+                                "text-white font-mono text-sm tracking-widest " +
+                                "focus:outline-none " +
+                                (confirm.length > 0
+                                    ? matches
+                                        ? "border-green-500 focus:border-green-500"
+                                        : "border-red-500 focus:border-red-500"
+                                    : "border-slate-600 focus:border-blue-500")}
                         />
                         {confirm.length > 0 && (
                             <p className={`text-xs mt-1 ${matches ? "text-green-400" : "text-red-400"}`}>
