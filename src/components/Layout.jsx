@@ -52,30 +52,21 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
     const [themeExpanded, setThemeExpanded] = useState(false);
     const [creatorOpen,   setCreatorOpen]   = useState(false);
     const acctRef = useRef(null);
-    const creatorRef = useRef(null);
 
     useEffect(() => {
         if (!acctOpen) return;
         const h = (e) => {
             if (acctRef.current && !acctRef.current.contains(e.target)) {
-                setAcctOpen(false); setThemeExpanded(false);
+                // Creator is now an expandable row INSIDE this same dropdown
+                // (used to be its own separate dropdown with its own ref —
+                // that's gone now, this one effect covers everything nested
+                // in here, same as it already did for Theme).
+                setAcctOpen(false); setThemeExpanded(false); setCreatorOpen(false);
             }
         };
         document.addEventListener("mousedown", h);
         return () => document.removeEventListener("mousedown", h);
     }, [acctOpen]);
-
-    // Same outside-click-close pattern as the account dropdown, kept as its
-    // own separate effect/ref rather than merged in — these are two
-    // independent dropdowns that can each open without affecting the other.
-    useEffect(() => {
-        if (!creatorOpen) return;
-        const h = (e) => {
-            if (creatorRef.current && !creatorRef.current.contains(e.target)) setCreatorOpen(false);
-        };
-        document.addEventListener("mousedown", h);
-        return () => document.removeEventListener("mousedown", h);
-    }, [creatorOpen]);
 
     const creatorLinks = [
         { to: "/admin",                      icon: "🏠", label: "Dashboard"      },
@@ -189,81 +180,12 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                 </svg>
             </button>
 
-            {/* AI */}
-            <button onClick={onAiOpen} style={{
-                width: 36, height: 36, flexShrink: 0,
-                background: "rgba(147,51,234,0.2)",
-                border: "1px solid rgba(147,51,234,0.4)",
-                borderRadius: 10, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                fontSize: 18, cursor: "pointer",
-            }}>✨</button>
-
-            {/* Creator quick-access — same dropdown pattern as the account
-                menu, its own independent open/close state and outside-click
-                ref. Only rendered at all for creators, so this whole block
-                simply doesn't exist in the DOM for regular users. */}
-            {isCreator && (
-                <div ref={creatorRef} style={{ position: "relative", flexShrink: 0 }}>
-                    <button onClick={() => setCreatorOpen(v => !v)} title="Creator"
-                            style={{
-                                width: 36, height: 36, flexShrink: 0,
-                                background: "rgba(245,158,11,0.15)",
-                                border: "1px solid rgba(245,158,11,0.4)",
-                                borderRadius: 10, display: "flex",
-                                alignItems: "center", justifyContent: "center",
-                                fontSize: 16, cursor: "pointer",
-                            }}>👑</button>
-
-                    {creatorOpen && (
-                        <div className="bg-slate-900 border border-slate-700/60"
-                             style={{
-                                 position: "absolute", top: 42, right: 0, width: 200,
-                                 borderRadius: 14, boxShadow: "0 14px 44px rgba(0,0,0,0.6)",
-                                 zIndex: 60, overflow: "hidden",
-                             }}>
-                            <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(51,65,85,0.5)" }}>
-                                <p className="text-amber-400" style={{ fontWeight: 700, fontSize: 12 }}>
-                                    👑 Creator
-                                </p>
-                            </div>
-                            {creatorLinks.map(l => (
-                                <button key={l.to} style={menuRow}
-                                        onClick={() => { setCreatorOpen(false); navigate(l.to); }}>
-                                    <span>{l.icon}</span> {l.label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Inbox bell with badge */}
-            <button onClick={onInboxOpen} style={{
-                width: 36, height: 36, flexShrink: 0,
-                background: "transparent", border: "none",
-                borderRadius: 10, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                cursor: "pointer", position: "relative",
-            }}>
-                <svg style={{ width: 20, height: 20 }} fill="none"
-                     stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                </svg>
-                {pendingNotifs > 0 && (
-                    <span style={{
-                        position: "absolute", top: 2, right: 2,
-                        minWidth: 16, height: 16, background: "#ef4444",
-                        borderRadius: 8, fontSize: 9, fontWeight: 700,
-                        color: "white", display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                        padding: "0 3px",
-                    }}>
-                        {pendingNotifs > 9 ? "9+" : pendingNotifs}
-                    </span>
-                )}
-            </button>
+            {/* AI, Creator, and Inbox all moved into the account dropdown
+                below (Ask AI / Creator / Inbox rows) — the main row now
+                shows only Search, the privacy eye, and the avatar, exactly
+                as requested. Nothing was removed, just relocated: every one
+                of these three still does exactly what it did before, one
+                tap further in via the avatar menu. */}
 
             {/* Profile avatar — opens the account dropdown (Settings, password,
                 theme, logout). Phone-app style; does NOT open the More drawer. */}
@@ -275,9 +197,20 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                         background: "#7c3aed", display: "flex",
                         alignItems: "center", justifyContent: "center",
                         color: "white", fontWeight: 700, fontSize: 14,
-                        border: "none", cursor: "pointer",
+                        border: "none", cursor: "pointer", position: "relative",
                     }}>
                     {initial}
+                    {/* A quiet presence dot — the Inbox bell (with its full
+                        count) moved inside the dropdown below, but losing
+                        ALL at-a-glance awareness of unread items felt like
+                        a real functional loss, not just a visual tidy-up. */}
+                    {pendingNotifs > 0 && (
+                        <span style={{
+                            position: "absolute", top: -1, right: -1,
+                            width: 10, height: 10, borderRadius: "50%",
+                            background: "#ef4444", border: "2px solid #0f172a",
+                        }} />
+                    )}
                 </button>
 
                 {acctOpen && (
@@ -302,6 +235,66 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                         <button style={menuRow}
                                 onClick={() => { setAcctOpen(false); navigate("/settings"); }}>
                             <span>⚙️</span> Settings
+                        </button>
+
+                        {/* Creator — expandable, same pattern as Theme below.
+                            Only rendered for creators at all. Was its own
+                            separate crown icon + dropdown in the main row;
+                            same functionality, now living here instead. */}
+                        {isCreator && (
+                            <>
+                                <button style={{ ...menuRow, borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                                        onClick={() => setCreatorOpen(v => !v)}>
+                                    <span>👑</span>
+                                    <span style={{ flex: 1 }}>Creator</span>
+                                    <span className="text-slate-500" style={{ fontSize: 10,
+                                        transform: creatorOpen ? "rotate(180deg)" : "none",
+                                        transition: "transform .15s" }}>▼</span>
+                                </button>
+                                {creatorOpen && (
+                                    <div style={{ background: "#0b1220" }}>
+                                        {creatorLinks.map(l => (
+                                            <button key={l.to}
+                                                    onClick={() => { setAcctOpen(false); setCreatorOpen(false); navigate(l.to); }}
+                                                    style={{
+                                                        width: "100%", display: "flex", alignItems: "center", gap: 10,
+                                                        padding: "9px 14px 9px 30px", background: "transparent",
+                                                        border: "none", cursor: "pointer", textAlign: "left",
+                                                        color: "#cbd5e1", fontSize: 12.5,
+                                                    }}>
+                                                <span>{l.icon}</span> {l.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Ask AI — was its own sparkles icon in the main row;
+                            same AI chat, now one tap further in. */}
+                        <button style={{ ...menuRow, borderTop: "1px solid rgba(51,65,85,0.4)" }}
+                                onClick={() => { setAcctOpen(false); onAiOpen(); }}>
+                            <span>✨</span> Ask AI
+                        </button>
+
+                        {/* Inbox — was its own bell icon with a badge in the
+                            main row; the avatar's small red dot now covers
+                            "something's unread", the exact count shows here. */}
+                        <button style={menuRow}
+                                onClick={() => { setAcctOpen(false); onInboxOpen(); }}>
+                            <span>🔔</span>
+                            <span style={{ flex: 1, textAlign: "left" }}>Inbox</span>
+                            {pendingNotifs > 0 && (
+                                <span style={{
+                                    minWidth: 18, height: 18, background: "#ef4444",
+                                    borderRadius: 9, fontSize: 10, fontWeight: 700,
+                                    color: "white", display: "flex",
+                                    alignItems: "center", justifyContent: "center",
+                                    padding: "0 5px",
+                                }}>
+                                    {pendingNotifs > 9 ? "9+" : pendingNotifs}
+                                </span>
+                            )}
                         </button>
 
                         {/* Change password */}
