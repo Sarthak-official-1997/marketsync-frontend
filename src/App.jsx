@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect }     from "react";
 import { ThemeProvider }   from "./context/ThemeContext";
 import { AuthProvider }    from "./context/AuthContext";
@@ -8,7 +8,7 @@ import ProtectedRoute      from "./components/ProtectedRoute";
 import Layout              from "./components/Layout";
 import ErrorBoundary       from "./components/ErrorBoundary";
 import { NotFoundPage }    from "./components/ErrorFallback";
-import { getDefaultView, DEFAULT_VIEW } from "./utils/homePreference";
+import { getHomePath } from "./utils/homePreference";
 import NotificationModal   from "./components/NotificationModal";
 import LightNotificationToast from "./components/LightNotificationToast";
 import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
@@ -78,6 +78,7 @@ function CreatorRoute({ children }) {
 
 function AppShell() {
     const location = useLocation();
+    const navigate = useNavigate();
     const locationKey = location.pathname;
 
     const [portfolioSummary, setPortfolioSummary] = useState(null);
@@ -86,6 +87,30 @@ function AppShell() {
     const [showWelcome, setShowWelcome] = useState(false);
     const [showChecklist, setShowChecklist] = useState(false);
     const { user, isCreator } = useAuth();
+
+    // The "/" redirect and the logo link both only ever fire when something
+    // actually NAVIGATES to "/" — but a plain browser reload keeps whatever
+    // URL was already in the address bar. If someone was sitting on
+    // "/stocks" from before they'd ever set a preference (the old
+    // hardcoded default), reloading just reloads "/stocks" again — "/"
+    // is never touched, so the preference-aware redirect never gets a
+    // chance to run at all. This is a genuinely different case from "the
+    // redirect is broken" — it's that reload doesn't go through the
+    // redirect's entry point in the first place.
+    //
+    // This runs ONCE, only on the very first mount of the whole app, and
+    // ONLY corrects the exact bare "/stocks" path specifically — not
+    // "/stocks/holdings" or any deeper route — so it can never interfere
+    // with someone deliberately reloading a specific page they're already
+    // looking at. It exists purely to self-correct the one specific case
+    // of "I'm on the old default because that's where I happened to be
+    // sitting before I ever changed my preference."
+    useEffect(() => {
+        if (location.pathname !== "/stocks") return;
+        const home = getHomePath(isCreator);
+        if (home !== "/stocks") navigate(home, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // CREATOR never sees onboarding nudges (Welcome modal, setup checklist,
     // or the stock-modal coachmark) on any device — Sarthak already knows
@@ -155,12 +180,7 @@ function AppShell() {
                         so a non-creator never gets redirected toward a page that would just
                         403 on them. */}
                     <Route path="/" element={
-                        <Navigate to={(() => {
-                            const pref = getDefaultView();
-                            if (pref === DEFAULT_VIEW.CLIENT_TRACKER && isCreator) return "/creator/client-tracker";
-                            if (pref === DEFAULT_VIEW.MUTUAL_FUNDS) return "/mf/holdings";
-                            return "/stocks";
-                        })()} replace />
+                        <Navigate to={getHomePath(isCreator)} replace />
                     } />
 
                     {/* -- ADMIN -- */}

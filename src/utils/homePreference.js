@@ -47,3 +47,23 @@ export function setDefaultView(view) {
 }
 
 export const DEFAULT_VIEW_EVENT = "folyo:default-view-changed";
+
+/**
+ * Turns the stored preference into an actual route path — the single
+ * source of truth for "where does home actually go," used by BOTH the
+ * initial "/" redirect (App.jsx) and every "take me home" affordance in
+ * the app (the FOLYO logo, currently). Previously the logo was hardcoded
+ * to "/stocks" in two separate places (mobile + desktop header) and never
+ * read this preference at all — clicking it always went to Stocks
+ * regardless of what was chosen in Settings, which is the actual bug this
+ * fixes. isCreator is checked here too, same reasoning as the "/" route:
+ * a stale CLIENT_TRACKER preference (e.g. after a role change on a shared
+ * device) should never send a non-creator toward a page that would just
+ * 403 on them.
+ */
+export function getHomePath(isCreator) {
+    const pref = getDefaultView();
+    if (pref === DEFAULT_VIEW.CLIENT_TRACKER && isCreator) return "/creator/client-tracker";
+    if (pref === DEFAULT_VIEW.MUTUAL_FUNDS) return "/mf/holdings";
+    return "/stocks";
+}

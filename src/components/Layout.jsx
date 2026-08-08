@@ -27,7 +27,7 @@ import { getPendingNotifications, getInboxUnread } from "../api/admin";
 import { usePrivacy } from "../context/PrivacyContext";
 import FloatingBubble from "./FloatingBubble";
 import PrivacyBlackoutOverlay from "./PrivacyBlackoutOverlay";
-import { getDefaultView, DEFAULT_VIEW, DEFAULT_VIEW_EVENT } from "../utils/homePreference";
+import { getDefaultView, DEFAULT_VIEW, DEFAULT_VIEW_EVENT, getHomePath } from "../utils/homePreference";
 
 // ── Inline mobile hook — no external file dependency ──────────────────────────
 function useMobile() {
@@ -109,8 +109,11 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
                     position: "sticky", top: 0, zIndex: 50,
                     height: 56, flexShrink: 0,
                 }}>
-            {/* Logo + portfolio value */}
-            <Link to="/stocks" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
+            {/* Logo + portfolio value — was hardcoded to "/stocks", so tapping
+                the logo always went to Stocks regardless of the Settings
+                preference. Same bug as the "/" route had before it read
+                getHomePath(). */}
+            <Link to={getHomePath(isCreator)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
                 <span className="text-white" style={{ fontWeight: 900, fontSize: 18,
                     letterSpacing: "-0.5px" }}>FOLYO</span>
             </Link>
@@ -815,7 +818,7 @@ export default function Layout({ children, portfolioSummary }) {
                        border-slate-700/60 flex items-center px-3 sm:px-4
                        gap-2 sm:gap-3 z-30">
 
-                    <Link to="/stocks" className="flex items-center gap-2 flex-shrink-0">
+                    <Link to={getHomePath(isCreator)} className="flex items-center gap-2 flex-shrink-0">
                         <AppLogo className="w-8 h-8" />
                         <div className="hidden sm:block">
                             <FolyoBrand size="xs" />
