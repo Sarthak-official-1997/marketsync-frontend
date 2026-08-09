@@ -14,6 +14,8 @@ import SearchPickerModal from "../components/SearchPickerModal";
 import StockConfirmPreview from "../components/StockConfirmPreview";
 import TransactionsStagingModal from "../components/TransactionsStagingModal";
 import PushReviewModal from "../components/PushReviewModal";
+import PortfolioValueChart from "../components/PortfolioValueChart";
+import { getClientPortfolioHistory } from "../api/admin";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
     addTrackedHolding, deleteTrackedHolding,
@@ -524,6 +526,18 @@ export default function TrackedClientDetailPage() {
                     )}
                 </div>
             </div>
+
+            {/* Google Finance-style value chart — only for mapped clients,
+                since there's no real account to have a price history for
+                an untracked one yet. */}
+            {client.mappedUserId && (
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                    <PortfolioValueChart
+                        currentValue={client.realPortfolioValue}
+                        fetchHistory={(range) => getClientPortfolioHistory(client.mappedUserId, range)}
+                    />
+                </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                 {(client.holdings || []).length === 0 ? (

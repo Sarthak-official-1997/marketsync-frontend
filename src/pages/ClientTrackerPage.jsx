@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { listTrackedClients, createTrackedClient } from "../api/clientTracker";
+import { getPortfolioSummary, getMfPortfolioSummary } from "../api/portfolio";
+import { useAuth } from "../context/AuthContext";
 
 const fmtCrore = (v) => {
     if (v == null) return "—";
@@ -24,12 +26,43 @@ export default function ClientTrackerPage() {
     const navigate = useNavigate();
     const toast = useToast();
     const { hidden: valuesHidden } = usePrivacy();
+    const { user } = useAuth();
 
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showNew, setShowNew] = useState(false);
     const [newName, setNewName] = useState("");
     const [creating, setCreating] = useState(false);
+
+    // Your OWN portfolio, shown as the first row in this same list — not a
+    // tracked client, your real holdings. For now "my portfolio" simply
+    // means every stock+MF holding you have, since there's only ever one
+    // holdings set per account today. Deliberately isolated behind this one
+    // fetch rather than assumed inline, so when the multi-holdings feature
+    // lands (letting you mark WHICH holdings set is "main"), only this one
+    // spot needs to change — swap these two calls for whatever the
+    // multi-holdings API ends up being, nothing else on this page needs to
+    // know the difference.
+    const [ownSummary, setOwnSummary] = useState(null);
+    useEffect(() => {
+        Promise.allSettled([getPortfolioSummary(), getMfPortfolioSummary()])
+            .then(([s, m]) => {
+                const stockVal = s.status === "fulfilled" ? parseFloat(s.value.data?.currentValue || 0) : 0;
+                const stockDayPL = s.status === "fulfilled" ? parseFloat(s.value.data?.dayPL || 0) : 0;
+                const mfVal = m.status === "fulfilled" ? parseFloat(m.value.data?.currentValue || 0) : 0;
+                const mfDayChange = m.status === "fulfilled" && m.value.data?.dayChangeAmount != null
+                    ? parseFloat(m.value.data.dayChangeAmount) : 0;
+                const totalVal = stockVal + mfVal;
+                const totalDayChange = stockDayPL + mfDayChange;
+                const yesterdayVal = totalVal - totalDayChange;
+                setOwnSummary({
+                    value: totalVal,
+                    dayChangeAmount: totalDayChange,
+                    dayChangePercent: yesterdayVal > 0 ? (totalDayChange / yesterdayVal) * 100 : 0,
+                });
+            })
+            .catch(() => setOwnSummary(null));
+    }, []);
 
     const load = () => {
         setLoading(true);
@@ -138,6 +171,45 @@ export default function ClientTrackerPage() {
                                            text-white text-sm font-semibold rounded-xl transition-colors">
                             {creating ? "Creating…" : "Create"}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Your own portfolio — first row, always, regardless of how
+                many (if any) tracked clients you have. Not a tracked
+                client card, deliberately styled distinctly (accent border)
+                so it reads as "this one's you," not just another entry. */}
+            {ownSummary && (
+                // Links to the existing Combined Portfolio page for now — a
+                // dedicated chart-style detail view (matching the tracked-
+                // client one) for your own portfolio specifically is real,
+                // separate work, not built in this pass.
+                <div onClick={() => navigate("/portfolio")}
+                     className="px-4 py-3 bg-slate-800/60 hover:bg-slate-800 border border-purple-500/40
+                                rounded-2xl mb-2 cursor-pointer transition-colors">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <p className="text-white font-semibold text-sm">
+                                {user?.fullName || user?.username || "You"}
+                            </p>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-purple-900/40 text-purple-300">
+                                Your Portfolio
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-slate-700/40">
+                        <div>
+                            <p className="text-[10px] text-slate-500">Value</p>
+                            <p className="text-sm font-bold text-white">
+                                {valuesHidden ? "••••••" : fmtCrore(ownSummary.value)}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-slate-500">Today</p>
+                            <p className={"text-sm font-bold " + (ownSummary.dayChangePercent >= 0 ? "text-green-400" : "text-red-400")}>
+                                {valuesHidden ? "••••" : (ownSummary.dayChangePercent >= 0 ? "+" : "") + ownSummary.dayChangePercent.toFixed(2) + "%"}
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
