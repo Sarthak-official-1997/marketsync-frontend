@@ -11,7 +11,7 @@ import { useToast }      from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import { useAuth }       from "../context/AuthContext";
 import { addToBoard, removeFromBoard } from "../components/Layout";
-import { getBoardApi } from "../api/board";
+import { getBoardApi, getBoardLayout, saveBoardLayout } from "../api/board";
 import { trackStockView } from "../components/RecentStocksMarquee";
 import RecentStocksMarquee from "../components/RecentStocksMarquee";
 
@@ -52,10 +52,19 @@ const SECTIONS_KEY = "ms_board_sections_v2";
 
 
 function saveSections(sections, canvasWidth) {
+    const payload = { sections, canvasWidth: canvasWidth || window.innerWidth };
     try {
-        const payload = { sections, canvasWidth: canvasWidth || window.innerWidth };
         localStorage.setItem(SECTIONS_KEY, JSON.stringify(payload));
     } catch {}
+    // Also persist to the backend (getBoardLayout/saveBoardLayout — these
+    // existed already but were never actually called anywhere in this file).
+    // localStorage alone meant reordering never crossed devices or
+    // browsers — reorder on desktop, open on mobile, and it would look
+    // like reordering "doesn't work" because the layout genuinely never
+    // reached the one place both devices could read from. Fire-and-forget:
+    // localStorage above is still the fast, always-available local copy,
+    // this is the sync layer on top of it.
+    saveBoardLayout(payload).catch(() => {});
 }
 
 function loadSectionsWithMeta() {
@@ -1972,7 +1981,29 @@ export default function StocksMarketPage() {
     }, [sections]);
 
     useEffect(() => {
-        loadBoard(false);
+        // If this device/browser has never saved a layout locally (fresh
+        // install, cleared storage, or first time on a new device), check
+        // whether the backend has one from elsewhere before falling
+        // through to loadBoard's "new user" default-board path. Writing it
+        // into localStorage FIRST means loadBoard's existing synchronous
+        // loadSectionsWithMeta() call picks it up naturally — no need to
+        // touch loadBoard's own logic at all.
+        (async () => {
+            if (!loadSectionsWithMeta()) {
+                try {
+                    // GET /board/layout responds { layout: <whatever was
+                    // originally saved> } — matches how saveBoardLayout()
+                    // wraps it going out, or { layout: [] } (empty array,
+                    // not an object) for a user who's never saved one yet.
+                    const res = await getBoardLayout();
+                    const remote = res.data?.layout;
+                    if (remote && remote.sections && remote.sections.length > 0) {
+                        localStorage.setItem(SECTIONS_KEY, JSON.stringify(remote));
+                    }
+                } catch { /* no remote layout yet, or offline — fall through normally */ }
+            }
+            loadBoard(false);
+        })();
         const onUpdate = () => loadBoard(true);
         // Targeted add: add stock to a specific section by id
         const onAddToSection = (e) => {
