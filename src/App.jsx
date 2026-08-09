@@ -14,6 +14,7 @@ import LightNotificationToast from "./components/LightNotificationToast";
 import WelcomeModal, { SetupChecklist } from "./components/WelcomeModal";
 import PasskeyBlocker      from "./components/PasskeyBlocker";
 import BuildBadge          from "./components/BuildBadge"; // DEV BUILD BADGE — remove before sharing
+import HomePage            from "./pages/HomePage";
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
 import AdminClientViewPage    from "./pages/AdminClientViewPage";
 
@@ -232,6 +233,13 @@ function AppShell() {
                                 <TrackedClientDetailPage />
                             </ErrorBoundary>
                         </CreatorRoute>
+                    } />
+
+                    {/* -- HOME -- a real dashboard, separate from Stocks Market */}
+                    <Route path="/home" element={
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Home failed to load">
+                            <HomePage />
+                        </ErrorBoundary>
                     } />
 
                     {/* -- STOCKS -- */}

@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import { getBubblePrefs, setBubblePrefs } from "../utils/bubblePrefs";
 import { getDefaultView, setDefaultView, DEFAULT_VIEW } from "../utils/homePreference";
 import { getShowBuildBadge, setShowBuildBadge } from "../utils/buildBadgePrefs";
+import { getNavOrder, setNavOrder } from "../utils/bottomNavPrefs";
 
 // Collapsible section. Header is a toggle; body only renders when open.
 function Section({ icon, title, children, defaultOpen = false }) {
@@ -57,6 +58,16 @@ export default function SettingsPage() {
     const chooseDefaultView = (view) => setDefaultViewState(setDefaultView(view));
     const [showBuildBadge, setShowBuildBadgeState] = useState(getShowBuildBadge());
     const toggleBuildBadge = () => setShowBuildBadgeState(setShowBuildBadge(!showBuildBadge));
+
+    const [navList, setNavList] = useState(() => getNavOrder(isCreator));
+    const moveNav = (fromIdx, toIdx) => {
+        if (toIdx < 0 || toIdx >= navList.length) return;
+        const arr = [...navList];
+        const [moved] = arr.splice(fromIdx, 1);
+        arr.splice(toIdx, 0, moved);
+        setNavList(arr);
+        setNavOrder(arr.map(c => c.id));
+    };
 
     const transparencyPct = Math.round((bubble.transparency / 0.8) * 100);
 
@@ -122,9 +133,10 @@ export default function SettingsPage() {
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">
                         Default primary view
                     </p>
-                    <div className={isCreator ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+                    <div className={isCreator ? "grid grid-cols-2 sm:grid-cols-4 gap-2" : "grid grid-cols-3 gap-2"}>
                         {[
-                            { id: DEFAULT_VIEW.STOCKS, label: "Stocks", sub: "Current default", emoji: "📈" },
+                            { id: DEFAULT_VIEW.HOME, label: "Home", sub: "Recommended", emoji: "🏠" },
+                            { id: DEFAULT_VIEW.STOCKS, label: "Stocks", sub: "Market page first", emoji: "📈" },
                             { id: DEFAULT_VIEW.MUTUAL_FUNDS, label: "Mutual Funds", sub: "MF holdings first", emoji: "📊" },
                             // Creator-only — a client with no clients to track has nothing
                             // useful to land on here, so this option simply doesn't exist
@@ -151,6 +163,52 @@ export default function SettingsPage() {
                         {isCreator && " Client Tracker skips your own portfolio entirely and opens straight to your tracked clients."}
                         {" "}Takes effect immediately, no restart needed. Saved on this device only.
                     </p>
+                </div>
+            </Section>
+
+            {/* Bottom navigation order — the first 4 in this list become the
+                main tab bar (mobile), everything else falls into More. Fully
+                free-form: Home, Stocks pages, MF pages, and Client Tracker
+                can be mixed in any order, not locked to one fund type's
+                whole tab set at a time. */}
+            <Section icon="📱" title="Bottom navigation">
+                <div className="px-3 py-2">
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-1">
+                        Reorder your tabs
+                    </p>
+                    <p className="text-[11px] text-slate-600 mb-2">
+                        The first 4 show in your main tab bar — everything else lives under "More."
+                    </p>
+                    <div className="space-y-1.5">
+                        {navList.map((item, idx) => {
+                            const NAV_EMOJI = {
+                                "home": "🏠", "market": "📈", "holdings": "💼", "trades": "🔄", "watchlist": "👁",
+                                "mf-market": "📊", "mf-holdings": "💼", "mf-trades": "🔄", "mf-watchlist": "👁",
+                                "client-tracker": "📋",
+                            };
+                            return (
+                                <div key={item.id}
+                                     className={"flex items-center gap-2 px-3 py-2 rounded-xl border " +
+                                         (idx < 4 ? "border-purple-500/40 bg-purple-500/5" : "border-slate-700 bg-slate-800/40")}>
+                                    <span className="text-base flex-shrink-0">{NAV_EMOJI[item.id] || "•"}</span>
+                                    <span className="text-sm text-white flex-1 truncate">{item.label}</span>
+                                    <span className="text-[10px] text-slate-500 flex-shrink-0">
+                                        {idx < 4 ? "Main bar" : "More"}
+                                    </span>
+                                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                        <button onClick={() => moveNav(idx, idx - 1)} disabled={idx === 0}
+                                                className="w-6 h-5 rounded flex items-center justify-center
+                                                           bg-slate-700 text-slate-300 disabled:opacity-30
+                                                           disabled:cursor-not-allowed text-[10px]">▲</button>
+                                        <button onClick={() => moveNav(idx, idx + 1)} disabled={idx === navList.length - 1}
+                                                className="w-6 h-5 rounded flex items-center justify-center
+                                                           bg-slate-700 text-slate-300 disabled:opacity-30
+                                                           disabled:cursor-not-allowed text-[10px]">▼</button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </Section>
 

@@ -12,6 +12,12 @@
 const KEY = "folyo_default_view";
 
 export const DEFAULT_VIEW = {
+    // The genuine default now — a real dashboard page (greeting, combined
+    // portfolio snapshot, quick links to everywhere else), not the Stocks
+    // Market page pretending to be one. Stocks/MF/Client Tracker remain as
+    // direct-landing options for anyone who'd rather skip the dashboard
+    // and go straight into one destination.
+    HOME: "home",
     STOCKS: "stocks",
     MUTUAL_FUNDS: "mutual_funds",
     // Creator-only — the Settings UI only ever offers this option to
@@ -23,7 +29,7 @@ export const DEFAULT_VIEW = {
     CLIENT_TRACKER: "client_tracker",
 };
 
-const DEFAULTS = DEFAULT_VIEW.STOCKS;
+const DEFAULTS = DEFAULT_VIEW.HOME;
 const VALID_VIEWS = Object.values(DEFAULT_VIEW);
 
 /** Read the current default-view preference, falling back to Stocks for anything missing/corrupt. */
@@ -65,5 +71,6 @@ export function getHomePath(isCreator) {
     const pref = getDefaultView();
     if (pref === DEFAULT_VIEW.CLIENT_TRACKER && isCreator) return "/creator/client-tracker";
     if (pref === DEFAULT_VIEW.MUTUAL_FUNDS) return "/mf/holdings";
-    return "/stocks";
+    if (pref === DEFAULT_VIEW.STOCKS) return "/stocks";
+    return "/home";
 }

@@ -28,6 +28,7 @@ import { usePrivacy } from "../context/PrivacyContext";
 import FloatingBubble from "./FloatingBubble";
 import PrivacyBlackoutOverlay from "./PrivacyBlackoutOverlay";
 import { getDefaultView, DEFAULT_VIEW, DEFAULT_VIEW_EVENT, getHomePath } from "../utils/homePreference";
+import { getNavOrder, BOTTOM_NAV_EVENT } from "../utils/bottomNavPrefs";
 
 // ── Inline mobile hook — no external file dependency ──────────────────────────
 function useMobile() {
@@ -358,33 +359,42 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
 }
 
 // ── Inline MobileBottomNav ────────────────────────────────────────────────────
-function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, defaultView }) {
+function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, isCreator }) {
     const navigate = useNavigate();
+    const [navOrder, setNavOrderState] = useState(() => getNavOrder(isCreator));
 
+    useEffect(() => {
+        const onChange = () => setNavOrderState(getNavOrder(isCreator));
+        window.addEventListener(BOTTOM_NAV_EVENT, onChange);
+        return () => window.removeEventListener(BOTTOM_NAV_EVENT, onChange);
+    }, [isCreator]);
+
+    const homeIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     const marketIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     const holdingsIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4" strokeLinecap="round"/></svg>;
     const tradesIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     const watchlistIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M12 4.318C9.403.5 3 1.545 3 8c0 4.5 9 12 9 12s9-7.5 9-12c0-6.455-6.403-7.5-9-3.682z" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    const trackerIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 12h6M9 16h6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     const moreIcon = <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>;
 
-    const stocksTabs = [
-        { id: "market",       label: "Market",    to: "/stocks",              exact: true, icon: marketIcon },
-        { id: "holdings",     label: "Holdings",  to: "/stocks/holdings",     icon: holdingsIcon },
-        { id: "transactions", label: "Trades",    to: "/stocks/transactions", icon: tradesIcon },
-        { id: "watchlist",    label: "Watchlist", to: "/stocks/watchlist",    icon: watchlistIcon },
-    ];
-    // Holdings leads for MF — "Holdings-Centric Dashboard" was the explicit
-    // requirement, not the fund marketplace, so the tab order differs from
-    // stocks' Market-first arrangement, not just a relabeled copy of it.
-    const mfTabs = [
-        { id: "mf-holdings",     label: "Holdings",  to: "/mf/holdings",     exact: true, icon: holdingsIcon },
-        { id: "mf-market",       label: "Market",    to: "/mf",              icon: marketIcon },
-        { id: "mf-transactions", label: "Trades",    to: "/mf/transactions", icon: tradesIcon },
-        { id: "mf-watchlist",    label: "Watchlist", to: "/mf/watchlist",    icon: watchlistIcon },
-    ];
+    // Icons keyed by candidate id — labels/paths come from getNavOrder(),
+    // which is plain data (no JSX) so it can live in a shared util both
+    // this nav and the Settings reorder screen import.
+    const ICONS = {
+        "home": homeIcon, "market": marketIcon, "holdings": holdingsIcon,
+        "trades": tradesIcon, "watchlist": watchlistIcon,
+        "mf-market": marketIcon, "mf-holdings": holdingsIcon,
+        "mf-trades": tradesIcon, "mf-watchlist": watchlistIcon,
+        "client-tracker": trackerIcon,
+    };
+    // Root-level destinations need exact matching — /stocks would otherwise
+    // startsWith-match its own children like /stocks/holdings too.
+    const EXACT_ROOTS = new Set(["home", "market", "mf-market"]);
 
     const tabs = [
-        ...(defaultView === DEFAULT_VIEW.MUTUAL_FUNDS ? mfTabs : stocksTabs),
+        ...navOrder.slice(0, 4).map(c => ({
+            id: c.id, label: c.label, to: c.path, exact: EXACT_ROOTS.has(c.id), icon: ICONS[c.id],
+        })),
         { id: "more", label: "More", to: null, icon: moreIcon },
     ];
     const isActive = (tab) => {
@@ -430,32 +440,27 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, defaul
 }
 
 // ── Inline More Drawer ────────────────────────────────────────────────────────
-function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
+function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
     const navigate = useNavigate();
     const go = (to) => { onClose(); navigate(to); };
-    const [secondaryExpanded, setSecondaryExpanded] = useState(false);
-    const isMfPrimary = defaultView === DEFAULT_VIEW.MUTUAL_FUNDS;
 
-    // Whichever fund type ISN'T leading the bottom nav lives behind a single
-    // expandable tile here instead — mirrors whatever's currently primary,
-    // so the drawer always demotes the other one, not just MF by default.
-    const mfLinks = [
-        { label: "MF Market",       to: "/mf",              icon: "📊" },
-        { label: "MF Holdings",     to: "/mf/holdings",     icon: "💼" },
-        { label: "MF Transactions", to: "/mf/transactions", icon: "🔄" },
-        { label: "MF Watchlist",    to: "/mf/watchlist",    icon: "👁" },
-    ];
-    const stockLinks = [
-        { label: "Stock Market",       to: "/stocks",              icon: "📈" },
-        { label: "Stock Holdings",     to: "/stocks/holdings",     icon: "💼" },
-        { label: "Stock Transactions", to: "/stocks/transactions", icon: "🔄" },
-        { label: "Stock Watchlist",    to: "/stocks/watchlist",    icon: "👁" },
-    ];
-    const secondaryLinks = isMfPrimary ? stockLinks : mfLinks;
-    const secondaryLabel = isMfPrimary ? "Stocks" : "Mutual Funds";
-    const secondaryEmoji = isMfPrimary ? "📈" : "📊";
+    // Whatever falls beyond the top 4 in the user's own custom nav order —
+    // no more "demoted fund type" concept now that ordering is fully free-
+    // form (Home/Stocks/MF/Client Tracker can mix in any order the user
+    // wants), so each leftover destination gets its own direct tile here
+    // instead of being grouped behind one expandable "the other fund type"
+    // tile the way it worked before.
+    const EMOJI = {
+        "home": "🏠", "market": "📈", "holdings": "💼", "trades": "🔄", "watchlist": "👁",
+        "mf-market": "📊", "mf-holdings": "💼", "mf-trades": "🔄", "mf-watchlist": "👁",
+        "client-tracker": "📋",
+    };
+    const overflowNav = getNavOrder(isCreator).slice(4)
+        .map(c => ({ label: c.label, to: c.path, icon: EMOJI[c.id] || "•" }));
+
     // Creator / Admin links intentionally NOT here — they live in Settings now.
     const mainTiles = [
+        ...overflowNav,
         { label: "Alerts",             to: "/stocks/alerts", icon: "🔔" },
         { label: "Combined Portfolio", to: "/portfolio",     icon: "⊞"  },
         { label: "Settings",           to: "/settings",      icon: "⚙️" },
@@ -495,14 +500,6 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                     borderRadius: 2, margin: "0 auto 16px" }} />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    {/* The demoted fund type — expandable */}
-                    <button onClick={() => setSecondaryExpanded(v => !v)}
-                            className={tileClassName}
-                            style={{ ...tileStyle,
-                                borderColor: secondaryExpanded ? "rgba(124,58,237,0.6)" : "rgba(51,65,85,0.6)" }}>
-                        <span style={{ fontSize: 22 }}>{secondaryEmoji}</span>
-                        <span style={labelStyle}>{secondaryLabel} {secondaryExpanded ? "▲" : "▼"}</span>
-                    </button>
                     {mainTiles.map(item => (
                         <button key={item.to} onClick={() => go(item.to)} className={tileClassName} style={tileStyle}>
                             <span style={{ fontSize: 22 }}>{item.icon}</span>
@@ -510,22 +507,6 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator, defaultView }) {
                         </button>
                     ))}
                 </div>
-
-                {/* Sub-tiles — revealed when the demoted fund type's tile is tapped */}
-                {secondaryExpanded && (
-                    <div style={{ marginTop: 8, padding: 8,
-                        background: "rgba(30,41,59,0.45)", borderRadius: 12,
-                        display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                        {secondaryLinks.map(item => (
-                            <button key={item.to} onClick={() => go(item.to)}
-                                    className="bg-slate-900 text-slate-300"
-                                    style={{ ...tileStyle, padding: "10px 8px" }}>
-                                <span style={{ fontSize: 18 }}>{item.icon}</span>
-                                <span style={{ ...labelStyle, fontSize: 10.5 }}>{item.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                )}
 
                 {/* Install-to-home-screen shortcut (+ enables alert notifications) */}
                 <InstallAppButton />
@@ -1264,7 +1245,6 @@ export default function Layout({ children, portfolioSummary }) {
                             onClose={() => setShowMore(false)}
                             isAdmin={isAdmin}
                             isCreator={isCreator}
-                            defaultView={defaultView}
                         />
                     )}
                     <MobileBottomNav
@@ -1272,7 +1252,7 @@ export default function Layout({ children, portfolioSummary }) {
                         showMore={showMore}
                         onShowMore={() => setShowMore(true)}
                         onHideMore={() => setShowMore(false)}
-                        defaultView={defaultView}
+                        isCreator={isCreator}
                     />
                 </>
             )}
