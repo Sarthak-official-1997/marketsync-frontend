@@ -70,7 +70,10 @@ function MobileHeader({ onSearchOpen, onAiOpen, pendingNotifs = 0, user, onInbox
 
     const creatorLinks = [
         { to: "/admin",                      icon: "🏠", label: "Dashboard"      },
-        { to: "/admin/clients",              icon: "👥", label: "Clients"        },
+        // "Clients" removed — Client Tracker below now carries the same
+        // real portfolio data (value, day change, P&L) that this page
+        // used to be the only place to see, so having both here just
+        // presented two destinations for the same thing.
         { to: "/admin/analytics",            icon: "📊", label: "Analytics"      },
         { to: "/admin/notifications",        icon: "🔔", label: "Notifications"  },
         { to: "/admin/users",                icon: "👤", label: "Users"          },
@@ -1161,7 +1164,14 @@ export default function Layout({ children, portfolioSummary }) {
                                     </div>
                                     <div className="space-y-0.5 pl-1">
                                         <AdminNavLink to="/admin"           icon="🏠" label="Dashboard" exact />
-                                        <AdminNavLink to="/admin/clients"   icon="👥" label="Clients"   />
+                                        {/* Only shown to regular Admins, not Creator — Creator has
+                                            Client Tracker instead, which now carries the same real
+                                            portfolio data this page shows. Admins have no Client
+                                            Tracker access at all (it's hasRole('CREATOR') on the
+                                            backend), so this stays their only way to see clients. */}
+                                        {!isCreator && (
+                                            <AdminNavLink to="/admin/clients" icon="👥" label="Clients" />
+                                        )}
                                         <AdminNavLink to="/admin/analytics" icon="📊" label="Analytics" />
                                         {isCreator && CREATOR_LINKS.map(l => (
                                             <AdminNavLink key={l.to} {...l} />

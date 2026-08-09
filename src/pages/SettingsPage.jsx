@@ -62,7 +62,8 @@ export default function SettingsPage() {
 
     const creatorLinks = [
         { to: "/admin",               icon: "🏠", label: "Dashboard"     },
-        { to: "/admin/clients",       icon: "👥", label: "Clients"       },
+        // "Clients" removed — same reasoning as Layout.jsx's creatorLinks:
+        // Client Tracker below now carries the same real portfolio data.
         { to: "/admin/analytics",     icon: "📊", label: "Analytics"     },
         { to: "/admin/notifications", icon: "🔔", label: "Notifications" },
         { to: "/admin/users",         icon: "👤", label: "Users"         },
