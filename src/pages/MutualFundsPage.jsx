@@ -170,10 +170,21 @@ function MfSummaryBar() {
     const [summary, setSummary] = useState(null);
     const toast = useToast();
 
-    useEffect(() => {
+    const load = () => {
         getMfPortfolioSummary()
             .then((res) => setSummary(res.data))
             .catch(() => {});
+    };
+
+    useEffect(() => {
+        load();
+        // This bar was persistently mounted with no connection at all to
+        // the add-transaction form or the history tab's delete action —
+        // fetched once and simply never updated again, which is exactly
+        // the "total summary doesn't update" bug. See MfTransactionPanel
+        // for where this event actually fires from.
+        window.addEventListener("ms_mf_updated", load);
+        return () => window.removeEventListener("ms_mf_updated", load);
     }, []);
 
     if (!summary || summary.schemeCount === 0) return null;
@@ -230,11 +241,21 @@ function MfHoldingsTab({ toast }) {
     const [holdings, setHoldings] = useState([]);
     const [loading,  setLoading]  = useState(true);
 
-    useEffect(() => {
+    const load = () => {
         getMfHoldings()
             .then((res) => setHoldings(res.data))
             .catch(() => toast.error("Failed to load MF holdings"))
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        load();
+        // Previously only refreshed by accident — this tab is conditionally
+        // mounted (activeTab === "holdings" && <MfHoldingsTab/>), so
+        // switching TO this tab after adding a transaction elsewhere would
+        // remount it fresh, but staying on it the whole time never did.
+        window.addEventListener("ms_mf_updated", load);
+        return () => window.removeEventListener("ms_mf_updated", load);
     }, []);
 
     if (loading) return (
@@ -441,6 +462,7 @@ function MfTransactTab({ toast, onSuccess, preselectedScheme }) {
                 notes:            form.notes || null,
             });
             toast.success("Transaction recorded successfully");
+            window.dispatchEvent(new Event("ms_mf_updated"));
             onSuccess();
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to record transaction");
@@ -677,14 +699,39 @@ function MfHistoryTab({ toast }) {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { load(); }, []);
+    // Tracks the current page WITHOUT the update-listener effect below
+    // needing [page] as a dependency — depending on page there would mean
+    // this effect re-runs (and re-fires load()) every time the user
+    // paginates, snapping them back to page 0 right after navigating away
+    // from it, which is its own bug. The ref lets the listener always read
+    // whatever page is current at the moment the event actually fires,
+    // while the effect itself only ever runs once.
+    const pageRef = useRef(page);
+    useEffect(() => { pageRef.current = page; }, [page]);
+
+    useEffect(() => {
+        load();
+        // Re-fetches whatever page is currently showing, not always page 0 —
+        // if someone deletes or adds while browsing older history, jumping
+        // them back to the newest page on every change would be disorienting.
+        // load takes (page) but addEventListener calls its handler with the
+        // Event object, so binding load directly would pass that Event in
+        // as the page number — the wrapper here is what avoids that.
+        const onUpdate = () => load(pageRef.current);
+        window.addEventListener("ms_mf_updated", onUpdate);
+        return () => window.removeEventListener("ms_mf_updated", onUpdate);
+    }, []);
 
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this transaction? Holdings will be recalculated.")) return;
         try {
             await deleteMfTransaction(id);
             toast.success("Transaction deleted");
-            load(page);
+            // load(page) isn't called directly here — dispatching this event
+            // triggers this SAME tab's own update-listener (see above),
+            // which calls load(pageRef.current). Calling load() directly
+            // too would just double-fetch the identical page.
+            window.dispatchEvent(new Event("ms_mf_updated"));
         } catch { toast.error("Failed to delete transaction"); }
     };
 

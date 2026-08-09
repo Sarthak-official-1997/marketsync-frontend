@@ -115,6 +115,14 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
             if (!keepOpen) setShowForm(false);
             load();
             if (onChanged) onChanged();
+            // Global signal — every MF summary/holdings/history component
+            // anywhere in the app fetches its own data independently on
+            // mount with no shared refresh mechanism between them. Rather
+            // than wire onChanged through every single one, this one event
+            // lets any of them opt in to "something about my MF data just
+            // changed, refetch" without needing a direct prop connection
+            // to whichever component actually made the change.
+            window.dispatchEvent(new Event("ms_mf_updated"));
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to save");
         } finally { setSaving(false); }
@@ -127,6 +135,7 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
             toast.success("Transaction deleted");
             load();
             if (onChanged) onChanged();
+            window.dispatchEvent(new Event("ms_mf_updated")); // see the first onChanged above for why
         } catch { toast.error("Failed to delete"); }
     };
 
@@ -159,6 +168,7 @@ export default function MfTransactionPanel({ scheme, onClose, onChanged }) {
             setEditingId(null);
             load();
             if (onChanged) onChanged();
+            window.dispatchEvent(new Event("ms_mf_updated")); // see the first onChanged above for why
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to save changes");
         } finally { setSaving(false); }
