@@ -19,6 +19,7 @@ import {
 import { addToBoard, removeFromBoard } from "./Layout";
 import { getBoardApi } from "../api/board";
 import { trackStockView } from "./RecentStocksMarquee";
+import { getNotesByStock, createNote, updateNote } from "../api/notes";
 
 const fmt = (val, currency = "INR") => {
     if (val == null || isNaN(val)) return "—";
@@ -92,6 +93,21 @@ export default function StockDetailModal({ stock, onClose }) {
     const [showReturns,  setShowReturns] = useState(false);
     const [onBoard,      setOnBoard]      = useState(false);
     const [activeIdx,    setActiveIdx]   = useState(null);
+
+    // ── Remind Me state ──────────────────────────────────────────────────────
+    // A quiet nudge system living directly on the stock itself instead of
+    // routing through Notes — no note text required. Under the hood it
+    // still reuses the existing Note+NoteReminder infrastructure (same
+    // scheduler, same notification path) via a single auto-generated note
+    // per stock, marked with REMIND_MARKER so repeated taps add reminders
+    // to that ONE note instead of creating a new note every time.
+    const [remindOpen,   setRemindOpen]   = useState(false);
+    const [remindNote,   setRemindNote]   = useState(null); // the auto-note, if one exists
+    const [remindBusy,   setRemindBusy]   = useState(false);
+    const remindRef = useRef(null);
+    const hasActiveReminder = remindNote
+        ? (remindNote.reminders || []).some(r => !r.fired)
+        : false;
     const [showSectionPicker, setShowSectionPicker] = useState(false);
     const [boardSections,     setBoardSections]     = useState([]);
 
@@ -173,6 +189,60 @@ export default function StockDetailModal({ stock, onClose }) {
             .then(r => setListIds(new Set(r.data || [])))
             .catch(() => setListIds(new Set()));
     }, [stock?.id]);
+
+    const REMIND_MARKER = "[REMIND_ME_AUTO]";
+
+    useEffect(() => {
+        if (!stock?.symbol) { setRemindNote(null); return; }
+        getNotesByStock(stock.symbol)
+            .then(r => setRemindNote((r.data || []).find(n => (n.body || "").startsWith(REMIND_MARKER)) || null))
+            .catch(() => setRemindNote(null));
+    }, [stock?.symbol]);
+
+    useEffect(() => {
+        if (!remindOpen) return;
+        const h = (e) => { if (remindRef.current && !remindRef.current.contains(e.target)) setRemindOpen(false); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [remindOpen]);
+
+    /**
+     * Adds one nudge at `days` from now (9 AM) — reuses a single
+     * auto-generated note per stock (found via the REMIND_MARKER prefix)
+     * rather than creating a fresh one on every tap, so tapping "Tomorrow"
+     * then later "Next week" for the same stock adds a second reminder to
+     * the SAME note instead of two separate ones piling up.
+     */
+    const applyReminder = async (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        d.setHours(9, 0, 0, 0);
+        const iso = d.toISOString();
+
+        setRemindBusy(true);
+        try {
+            if (remindNote) {
+                const existing = (remindNote.reminders || []).filter(r => !r.fired).map(r => r.remindAt);
+                const res = await updateNote(remindNote.id, {
+                    reminders: existing.includes(iso) ? existing : [...existing, iso],
+                });
+                setRemindNote(res.data);
+            } else {
+                const res = await createNote({
+                    body: `${REMIND_MARKER} Check on ${stock.symbol} (${stock.name || stock.symbol})`,
+                    stocks: [{ symbol: stock.symbol, name: stock.name || stock.symbol, exchange: stock.exchange || "NSE" }],
+                    reminders: [iso],
+                });
+                setRemindNote(res.data);
+            }
+            toast.success(`Reminder set for ${stock.symbol}`);
+            setRemindOpen(false);
+        } catch {
+            toast.error("Couldn't set reminder");
+        } finally {
+            setRemindBusy(false);
+        }
+    };
 
     useEffect(() => {
         if (!stock) return;
@@ -415,7 +485,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                 <button
                                     onClick={e => { e.stopPropagation(); openWatchSheet(); }}
                                     className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
-                                    (inAnyList ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
+                                        (inAnyList ? "bg-green-700 text-white" : "bg-slate-700/80 text-slate-300")}>
                                     {inAnyList ? "✓ Watch" : "👁 Watch"}
                                 </button>
                                 <button
@@ -437,9 +507,30 @@ export default function StockDetailModal({ stock, onClose }) {
                                         }
                                     }}
                                     className={"flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
-                                    (onBoard ? "bg-purple-700 text-white" : "bg-slate-700/80 text-slate-300")}>
+                                        (onBoard ? "bg-purple-700 text-white" : "bg-slate-700/80 text-slate-300")}>
                                     {onBoard ? "✓ Board" : "📌 Board"}
                                 </button>
+                                <div ref={remindRef} className="relative flex-shrink-0">
+                                    <button
+                                        onClick={e => { e.stopPropagation(); setRemindOpen(v => !v); }}
+                                        className={"text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
+                                            (hasActiveReminder ? "bg-amber-700 text-white" : "bg-slate-700/80 text-slate-300")}>
+                                        {hasActiveReminder ? "🔔 Reminder set" : "🔔 Remind Me"}
+                                    </button>
+                                    {remindOpen && (
+                                        <div onClick={e => e.stopPropagation()}
+                                             className="absolute top-full left-0 mt-1 z-20 bg-slate-800 border border-slate-600
+                                                        rounded-xl shadow-2xl overflow-hidden w-40">
+                                            {[["Tomorrow", 1], ["In 2 days", 2], ["Next week", 7], ["Next month", 30]].map(([label, days]) => (
+                                                <button key={label} disabled={remindBusy} onClick={() => applyReminder(days)}
+                                                        className="w-full text-left px-3 py-2 text-xs text-slate-200
+                                                                   hover:bg-slate-700/60 transition-colors disabled:opacity-40">
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <a href={tvUrl} target="_blank" rel="noopener noreferrer"
                                    className="flex-shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
                                               bg-blue-600/80 text-white">
@@ -572,6 +663,38 @@ export default function StockDetailModal({ stock, onClose }) {
                                         }>
                                         {onBoard ? "✓ On Board" : boardSections.length > 1 && !onBoard ? "📌 Board ▾" : "📌 Board"}
                                     </button>
+                                </div>
+
+                                {/* Remind Me — a quiet nudge on the stock itself, no note
+                                    writing required. See REMIND_MARKER above for how repeat
+                                    taps for the same stock reuse one note instead of piling up. */}
+                                <div ref={remindRef} className="relative">
+                                    <button
+                                        onClick={e => { e.stopPropagation(); setRemindOpen(v => !v); }}
+                                        className={
+                                            "flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold " +
+                                            "rounded-xl transition-all whitespace-nowrap " +
+                                            (hasActiveReminder
+                                                ? "bg-amber-700 hover:bg-amber-600 text-white ring-1 ring-amber-500/40"
+                                                : "bg-slate-700 hover:bg-amber-600 text-white")
+                                        }>
+                                        {hasActiveReminder ? "🔔 Reminder set" : "🔔 Remind Me"}
+                                    </button>
+                                    {remindOpen && (
+                                        <div onClick={e => e.stopPropagation()}
+                                             className="absolute top-full right-0 mt-1 bg-slate-800
+                                                        border border-slate-700 rounded-xl shadow-xl
+                                                        z-10 min-w-[160px] overflow-hidden">
+                                            {[["Tomorrow", 1], ["In 2 days", 2], ["Next week", 7], ["Next month", 30]].map(([label, days]) => (
+                                                <button key={label} disabled={remindBusy} onClick={() => applyReminder(days)}
+                                                        className="w-full text-left px-3 py-2.5 text-sm
+                                                                   text-slate-300 hover:bg-slate-700
+                                                                   transition-colors disabled:opacity-40">
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* TradingView */}
