@@ -1,17 +1,29 @@
 // src/pages/ClientTrackerPage.jsx
-// Creator-only. Lists everyone being tracked, with a quick "still in sync?"
-// indicator per client (derived from their holdings' inSync flags), and a
-// button to add a new tracked client. Tapping a client opens their full
-// holdings detail (TrackedClientDetailPage).
+// Creator-only. Lists everyone being tracked — for mapped clients, this now
+// shows the SAME real portfolio performance (value, day change, P&L, MF
+// holdings) the separate Clients admin page shows, so checking "how are my
+// clients actually doing" no longer means leaving this page. Unmapped
+// entries ("untracked" — no real account attached yet) keep the simpler
+// card, since there's no live performance to report on for them.
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
+import { usePrivacy } from "../context/PrivacyContext";
 import { listTrackedClients, createTrackedClient } from "../api/clientTracker";
+
+const fmtCrore = (v) => {
+    if (v == null) return "—";
+    const n = parseFloat(v);
+    if (Math.abs(n) >= 10_000_000) return "₹" + (n / 10_000_000).toFixed(2) + "Cr";
+    if (Math.abs(n) >= 100_000)    return "₹" + (n / 100_000).toFixed(2) + "L";
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+};
 
 export default function ClientTrackerPage() {
     const navigate = useNavigate();
     const toast = useToast();
+    const { hidden: valuesHidden } = usePrivacy();
 
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -45,7 +57,7 @@ export default function ClientTrackerPage() {
 
     // Summarize a client's sync status across all their holdings.
     const syncSummary = (client) => {
-        if (!client.mappedUserId) return { label: "Not mapped", color: "text-slate-500" };
+        if (!client.mappedUserId) return { label: "Untracked — no account", color: "text-slate-500" };
         const holdings = client.holdings || [];
         if (holdings.length === 0) return { label: "No holdings yet", color: "text-slate-500" };
         const outOfSync = holdings.filter(h => h.inSync === false).length;
@@ -53,13 +65,20 @@ export default function ClientTrackerPage() {
         return { label: `${outOfSync} out of sync`, color: "text-amber-400" };
     };
 
+    const mapped = clients.filter(c => c.mappedUserId);
+    const totalAum = mapped.reduce((s, c) => s + parseFloat(c.realPortfolioValue || 0), 0);
+    const totalDayChange = mapped
+        .filter(c => c.realDayChangeAmount != null)
+        .reduce((s, c) => s + parseFloat(c.realDayChangeAmount || 0), 0);
+    const anyDayChangeData = mapped.some(c => c.realDayChangeAmount != null);
+
     return (
         <div className="max-w-2xl mx-auto space-y-4">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-white">📋 Client Tracker</h1>
                     <p className="text-slate-500 text-xs mt-0.5">
-                        Your own reference copies — replaces the old Google Finance workflow.
+                        Everyone you're tracking — real performance for mapped clients, reference-only for the rest.
                     </p>
                 </div>
                 <button onClick={() => setShowNew(true)}
@@ -68,6 +87,34 @@ export default function ClientTrackerPage() {
                     + New
                 </button>
             </div>
+
+            {/* At-a-glance across every MAPPED client — the "how's everyone
+                doing" summary that used to only exist on the separate
+                Clients page. */}
+            {mapped.length > 0 && (
+                <div className="bg-slate-800 border border-slate-700/60 rounded-2xl overflow-hidden">
+                    <div className="flex divide-x divide-slate-700/60">
+                        <div className="flex-1 px-4 py-3">
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Tracked (mapped)</p>
+                            <p className="text-lg font-bold text-white mt-0.5">{mapped.length}</p>
+                        </div>
+                        <div className="flex-1 px-4 py-3">
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Total AUM</p>
+                            <p className="text-lg font-bold text-white mt-0.5">
+                                {valuesHidden ? "••••••" : fmtCrore(totalAum)}
+                            </p>
+                        </div>
+                        {anyDayChangeData && (
+                            <div className="flex-1 px-4 py-3">
+                                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Today</p>
+                                <p className={"text-lg font-bold mt-0.5 " + (totalDayChange >= 0 ? "text-green-400" : "text-red-400")}>
+                                    {valuesHidden ? "••••" : (totalDayChange >= 0 ? "+" : "") + fmtCrore(totalDayChange)}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {showNew && (
                 <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-3">
@@ -108,20 +155,66 @@ export default function ClientTrackerPage() {
                 <div className="space-y-2">
                     {clients.map(c => {
                         const sync = syncSummary(c);
+                        const isMapped = !!c.mappedUserId;
+                        const pl = parseFloat(c.realUnrealizedPL || 0);
+                        const plPct = parseFloat(c.realUnrealizedPLPercent || 0);
+                        const plUp = pl >= 0;
+                        const dayChange = c.realDayChangeAmount != null ? parseFloat(c.realDayChangeAmount) : null;
+                        const dayChangePct = c.realDayChangePercent != null ? parseFloat(c.realDayChangePercent) : null;
+                        const dayUp = dayChange >= 0;
+
                         return (
                             <button key={c.id}
                                     onClick={() => navigate(`/creator/client-tracker/${c.id}`)}
-                                    className="w-full flex items-center justify-between px-4 py-3
-                                               bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60
-                                               rounded-2xl transition-colors text-left">
-                                <div className="min-w-0">
-                                    <p className="text-white font-semibold text-sm">{c.displayName}</p>
-                                    <p className="text-slate-500 text-xs mt-0.5">
-                                        {c.mappedUsername ? `Mapped to @${c.mappedUsername}` : "Not mapped to a real account"}
-                                        {" · "}{(c.holdings || []).length} holding{(c.holdings || []).length === 1 ? "" : "s"}
-                                    </p>
+                                    className="w-full px-4 py-3 bg-slate-800/60 hover:bg-slate-800
+                                               border border-slate-700/60 rounded-2xl transition-colors text-left">
+                                <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-white font-semibold text-sm">{c.displayName}</p>
+                                            <span className={"text-[9px] font-bold px-1.5 py-0.5 rounded uppercase " +
+                                                (isMapped ? "bg-green-900/30 text-green-400" : "bg-slate-700 text-slate-400")}>
+                                                {isMapped ? "Tracked" : "Untracked"}
+                                            </span>
+                                        </div>
+                                        <p className="text-slate-500 text-xs mt-0.5">
+                                            {c.mappedUsername ? `@${c.mappedUsername}` : "No real account mapped yet"}
+                                            {" · "}{(c.holdings || []).length} holding{(c.holdings || []).length === 1 ? "" : "s"}
+                                            {isMapped && c.realMfHoldingCount != null && parseInt(c.realMfHoldingCount) > 0 &&
+                                                ` · ${c.realMfHoldingCount} MF`}
+                                        </p>
+                                    </div>
+                                    <span className={"text-xs font-semibold flex-shrink-0 " + sync.color}>{sync.label}</span>
                                 </div>
-                                <span className={"text-xs font-semibold flex-shrink-0 " + sync.color}>{sync.label}</span>
+
+                                {/* Real performance — only for mapped clients with
+                                    an actual portfolio value to show. */}
+                                {isMapped && c.realPortfolioValue != null && (
+                                    <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-slate-700/40">
+                                        <div>
+                                            <p className="text-[10px] text-slate-500">Value</p>
+                                            <p className="text-sm font-bold text-white">
+                                                {valuesHidden ? "••••••" : fmtCrore(c.realPortfolioValue)}
+                                            </p>
+                                        </div>
+                                        {c.realUnrealizedPL != null && (
+                                            <div>
+                                                <p className="text-[10px] text-slate-500">P&amp;L</p>
+                                                <p className={"text-sm font-bold " + (plUp ? "text-green-400" : "text-red-400")}>
+                                                    {valuesHidden ? "••••" : (plUp ? "+" : "") + plPct.toFixed(1) + "%"}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {dayChange != null && (
+                                            <div>
+                                                <p className="text-[10px] text-slate-500">Today</p>
+                                                <p className={"text-sm font-bold " + (dayUp ? "text-green-400" : "text-red-400")}>
+                                                    {valuesHidden ? "••••" : (dayUp ? "+" : "") + dayChangePct.toFixed(2) + "%"}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </button>
                         );
                     })}
