@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useMobile } from "../hooks/useMobile";
 import SearchPickerModal from "../components/SearchPickerModal";
+import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import {
+    getColumnPrefs as getWatchlistColumnPrefs,
+    setColumnPrefs as setWatchlistColumnPrefs,
+    WATCHLIST_COLUMNS_EVENT,
+} from "../utils/watchlistColumnPrefs";
 import {
     removeFromWatchlist, searchStocks,
     getMfWatchlist, addToMfWatchlist, removeFromMfWatchlist, searchMfSchemes,
@@ -528,6 +534,14 @@ function StocksWatchlist({ toast, isMobile }) {
     const [colorLabels,  setColorLabels] = useState({});     // { "#f59e0b": "Breakout candidates" }
     const [editingLabelFor, setEditingLabelFor] = useState(null); // colour hex whose name is being edited
     const [labelDraft,   setLabelDraft]  = useState("");
+    const [columns, setColumns] = useState(() => getWatchlistColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getWatchlistColumnPrefs());
+        window.addEventListener(WATCHLIST_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(WATCHLIST_COLUMNS_EVENT, onChange);
+    }, []);
     const [colorSearchOpen, setColorSearchOpen] = useState(false); // "search this colour across all lists"
     const [colorSearchResults, setColorSearchResults] = useState(null);
     const [colorSearchHex, setColorSearchHex] = useState(null);
@@ -788,12 +802,22 @@ function StocksWatchlist({ toast, isMobile }) {
                                 <thead>
                                 <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wide">
                                     <th className="w-8 px-2 py-3"></th>
-                                    <th className="text-left px-4 py-3">Stock</th>
-                                    <th className="text-right px-4 py-3">Price &amp; Change</th>
-                                    <th className="px-4 py-3 text-center">Chart</th>
-                                    <th className="text-right px-4 py-3">Since Added</th>
-                                    <th className="text-center px-4 py-3">Added On</th>
-                                    <th className="text-center px-4 py-3">Exchange</th>
+                                    <th className="text-left px-4 py-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span>Stock</span>
+                                            <button onClick={() => setShowCustomize(true)}
+                                                    title="Customize columns"
+                                                    className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                                ⚙
+                                            </button>
+                                        </div>
+                                    </th>
+                                    {columns.filter(c => c.visible).map(c => (
+                                        <th key={c.id}
+                                            className={(c.id === "chart" || c.id === "addedOn" || c.id === "exchange" ? "text-center" : "text-right") + " px-4 py-3 whitespace-nowrap"}>
+                                            {c.label}
+                                        </th>
+                                    ))}
                                     <th className="px-4 py-3"></th>
                                 </tr>
                                 </thead>
@@ -842,64 +866,80 @@ function StocksWatchlist({ toast, isMobile }) {
                                                     </div>
                                                 </button>
                                             </td>
-                                            {/* Price + Change merged */}
-                                            <td className="text-right px-4 py-3">
-                                                <p className="text-white font-bold text-sm leading-none">
-                                                    {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
-                                                </p>
-                                                {item.currentPrice && (
-                                                    <div className="flex items-center justify-end gap-1 mt-1">
-                                                <span className={"text-[11px] font-bold px-1.5 py-0.5 rounded " +
-                                                    (up ? "bg-green-500/15 text-green-400"
-                                                        : "bg-red-500/15 text-red-400")}>
-                                                    {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
-                                                </span>
-                                                        <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
-                                                    ({up ? "+" : ""}{chgAbs.toFixed(2)})
-                                                </span>
-                                                    </div>
-                                                )}
-                                            </td>
-                                            {/* Sparkline chart */}
-                                            <td className="px-4 py-2 text-center">
-                                                <div className="inline-block">
-                                                    <WatchlistSparkline
-                                                        symbol={item.stock.symbol}
-                                                        exchange={item.stock.exchange}
-                                                        previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
-                                                        changePercent={item.currentPrice?.changePercent}
-                                                    />
-                                                </div>
-                                            </td>
-                                            {/* Since added % */}
-                                            <td className="px-4 py-3 text-right">
-                                                {item.gainPctSinceAdded != null ? (
-                                                    <div>
-                                                        <p className={"text-xs font-bold " +
-                                                            (parseFloat(item.gainPctSinceAdded) >= 0
-                                                                ? "text-green-400" : "text-red-400")}>
-                                                            {valuesHidden ? "••••" : (
-                                                                (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
-                                                                parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
-                                                            )}
-                                                        </p>
-                                                        <p className="text-slate-600 text-[10px]">since added</p>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-700 text-xs">—</span>
-                                                )}
-                                            </td>
-                                            {/* Added on date */}
-                                            <td className="px-4 py-3 text-center text-slate-500 text-xs">
-                                                {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
-                                            </td>
-                                            {/* Exchange */}
-                                            <td className="px-4 py-3 text-center">
-                                        <span className="text-[10px] text-slate-500 bg-slate-700/50
-                                                         px-1.5 py-0.5 rounded font-medium">
-                                            {item.stock.exchange}
-                                        </span>
-                                            </td>
+                                            {columns.filter(c => c.visible).map(c => {
+                                                switch (c.id) {
+                                                    case "priceChange":
+                                                        return (
+                                                            <td key={c.id} className="text-right px-4 py-3">
+                                                                <p className="text-white font-bold text-sm leading-none">
+                                                                    {item.currentPrice ? fmt(item.currentPrice.currentPrice) : "—"}
+                                                                </p>
+                                                                {item.currentPrice && (
+                                                                    <div className="flex items-center justify-end gap-1 mt-1">
+                                                                        <span className={"text-[11px] font-bold px-1.5 py-0.5 rounded " +
+                                                                            (up ? "bg-green-500/15 text-green-400"
+                                                                                : "bg-red-500/15 text-red-400")}>
+                                                                            {up ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
+                                                                        </span>
+                                                                        <span className={"text-[11px] " + (up ? "text-green-400/70" : "text-red-400/70")}>
+                                                                            ({up ? "+" : ""}{chgAbs.toFixed(2)})
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    case "chart":
+                                                        return (
+                                                            <td key={c.id} className="px-4 py-2 text-center">
+                                                                <div className="inline-block">
+                                                                    <WatchlistSparkline
+                                                                        symbol={item.stock.symbol}
+                                                                        exchange={item.stock.exchange}
+                                                                        previousClose={parseFloat(item.currentPrice?.previousClose || 0)}
+                                                                        changePercent={item.currentPrice?.changePercent}
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                        );
+                                                    case "sinceAdded":
+                                                        return (
+                                                            <td key={c.id} className="px-4 py-3 text-right">
+                                                                {item.gainPctSinceAdded != null ? (
+                                                                    <div>
+                                                                        <p className={"text-xs font-bold " +
+                                                                            (parseFloat(item.gainPctSinceAdded) >= 0
+                                                                                ? "text-green-400" : "text-red-400")}>
+                                                                            {valuesHidden ? "••••" : (
+                                                                                (parseFloat(item.gainPctSinceAdded) >= 0 ? "+" : "") +
+                                                                                parseFloat(item.gainPctSinceAdded).toFixed(2) + "%"
+                                                                            )}
+                                                                        </p>
+                                                                        <p className="text-slate-600 text-[10px]">since added</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-700 text-xs">—</span>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    case "addedOn":
+                                                        return (
+                                                            <td key={c.id} className="px-4 py-3 text-center text-slate-500 text-xs">
+                                                                {item.addedAt ? fmtDate(item.addedAt.split("T")[0]) : "—"}
+                                                            </td>
+                                                        );
+                                                    case "exchange":
+                                                        return (
+                                                            <td key={c.id} className="px-4 py-3 text-center">
+                                                                <span className="text-[10px] text-slate-500 bg-slate-700/50
+                                                                                 px-1.5 py-0.5 rounded font-medium">
+                                                                    {item.stock.exchange}
+                                                                </span>
+                                                            </td>
+                                                        );
+                                                    default:
+                                                        return null;
+                                                }
+                                            })}
                                             {/* Remove */}
                                             <td className="px-4 py-3 text-right">
                                                 <button onClick={() => handleRemove(item)}
@@ -915,6 +955,19 @@ function StocksWatchlist({ toast, isMobile }) {
                         </div>
                     )}
                 </>
+            )}
+
+            {showCustomize && (
+                <CustomizeColumnsModal
+                    columns={columns}
+                    fixedLabel="Stock"
+                    onClose={() => setShowCustomize(false)}
+                    onSave={(order, visible) => {
+                        setWatchlistColumnPrefs(order, visible);
+                        setColumns(getWatchlistColumnPrefs());
+                        setShowCustomize(false);
+                    }}
+                />
             )}
 
             {/* ── Colour picker overlay (shared) ── */}

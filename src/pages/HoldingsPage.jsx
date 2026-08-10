@@ -10,6 +10,12 @@ import StockTransactionPanel from "../components/StockTransactionPanel";
 import MfTransactionPanel from "../components/MfTransactionPanel";
 import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import StockQuickMenu from "../components/StockQuickMenu";
+import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import {
+    getColumnPrefs as getStocksHoldingsColumnPrefs,
+    setColumnPrefs as setStocksHoldingsColumnPrefs,
+    STOCKS_HOLDINGS_COLUMNS_EVENT,
+} from "../utils/stocksHoldingsColumnPrefs";
 import StockDetailModal from "../components/StockDetailModal";
 import {useToast} from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
@@ -1145,6 +1151,15 @@ function HoldingSparkline({ symbol, exchange }) {
 // --─ Stocks table ------------------------------------------------------------─
 
 function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
+    const [columns, setColumns] = useState(() => getStocksHoldingsColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getStocksHoldingsColumnPrefs());
+        window.addEventListener(STOCKS_HOLDINGS_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(STOCKS_HOLDINGS_COLUMNS_EVENT, onChange);
+    }, []);
+
     if (holdings.length === 0) {
         return (
             <EmptyState icon="💼" title="No stock holdings yet"
@@ -1154,6 +1169,68 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
     }
 
     const hasMissingPrices = holdings.some(h => h.currentPrice == null);
+    const visibleColumns = columns.filter(c => c.visible);
+
+    const columnHeader = (colId) => {
+        switch (colId) {
+            case "qty": return "Qty";
+            case "avgBuy": return "Avg Buy";
+            case "current": return "Current";
+            case "chart": return "Chart";
+            case "day": return "Day";
+            case "value": return "Value";
+            case "pl": return "P&L";
+            case "plPct": return "P&L %";
+            default: return "";
+        }
+    };
+
+    const columnAlign = (colId) => colId === "chart" ? "text-center" : "text-right";
+
+    const columnCell = (colId, row) => {
+        const { h, hasPrice, pl, plPct, isPos, plColor } = row;
+        switch (colId) {
+            case "qty":
+                return <span className="text-white">{parseFloat(h.quantity || 0).toFixed(2)}</span>;
+            case "avgBuy":
+                return <span className="text-slate-300">{fmt(h.averageBuyPrice)}</span>;
+            case "current":
+                return hasPrice ? <span className="text-slate-300">{fmt(h.currentPrice)}</span> : <Dash/>;
+            case "chart":
+                return <HoldingSparkline symbol={h.stock.symbol} exchange={h.stock.exchange} />;
+            case "day":
+                return hasPrice && h.dayChangePercent != null ? (
+                    <div>
+                        <span className={"text-xs font-semibold " +
+                            (parseFloat(h.dayChangePercent) >= 0 ? "text-green-400" : "text-red-400")}>
+                            {parseFloat(h.dayChangePercent) >= 0 ? "▲ +" : "▼ "}
+                            {Math.abs(parseFloat(h.dayChangePercent)).toFixed(2)}%
+                        </span>
+                        <p className="text-[10px] text-slate-600 mt-0.5">
+                            {parseFloat(h.dayChange) >= 0 ? "+" : ""}
+                            {parseFloat(h.dayChange || 0).toFixed(2)}
+                        </p>
+                    </div>
+                ) : <Dash/>;
+            case "value":
+                return hasPrice ? <span className="text-white font-medium">{fmt(h.currentValue)}</span> : <Dash/>;
+            case "pl":
+                return hasPrice ? <span className={"font-medium " + plColor}>{fmt(h.unrealizedPL)}</span> : <Dash/>;
+            case "plPct":
+                return hasPrice ? <span className={"font-medium " + plColor}>{`${isPos ? "+" : ""}${plPct.toFixed(2)}%`}</span> : <Dash/>;
+            default:
+                return null;
+        }
+    };
+
+    const rows = holdings.map(h => {
+        const hasPrice = h.currentPrice != null;
+        const pl       = parseFloat(h.unrealizedPL || 0);
+        const plPct    = parseFloat(h.unrealizedPLPercent || 0);
+        const isPos    = pl >= 0;
+        const plColor  = hasPrice ? (isPos ? "text-green-400" : "text-red-400") : "text-slate-600";
+        return { h, hasPrice, pl, plPct, isPos, plColor };
+    });
 
     return (
         <div className="space-y-2">
@@ -1175,108 +1252,81 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                 <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                     <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                        <th className="text-left px-4 py-3">Stock</th>
-                        <th className="text-right px-4 py-3">Qty</th>
-                        <th className="text-right px-4 py-3">Avg Buy</th>
-                        <th className="text-right px-4 py-3">Current</th>
-                        <th className="text-center px-4 py-3">Chart</th>
-                        <th className="text-right px-4 py-3">Day</th>
-                        <th className="text-right px-4 py-3">Value</th>
-                        <th className="text-right px-4 py-3">P&amp;L</th>
-                        <th className="text-right px-4 py-3">P&amp;L %</th>
+                        <th className="text-left px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <span>Stock</span>
+                                <button onClick={() => setShowCustomize(true)}
+                                        title="Customize columns"
+                                        className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                    ⚙
+                                </button>
+                            </div>
+                        </th>
+                        {visibleColumns.map(c => (
+                            <th key={c.id} className={columnAlign(c.id) + " px-4 py-3 whitespace-nowrap"}>
+                                {columnHeader(c.id)}
+                            </th>
+                        ))}
                         <th className="px-4 py-3"></th>
                     </tr>
                     </thead>
                     <tbody>
-                    {holdings.map(h => {
-                        const hasPrice = h.currentPrice != null;
-                        const pl       = parseFloat(h.unrealizedPL || 0);
-                        const plPct    = parseFloat(h.unrealizedPLPercent || 0);
-                        const isPos    = pl >= 0;
-                        const plColor  = hasPrice
-                            ? (isPos ? "text-green-400" : "text-red-400")
-                            : "text-slate-600";
-                        return (
-                            <tr key={h.id}
-                                className="border-b border-slate-700/40 last:border-0
-                                           hover:bg-slate-700/30 transition-colors">
-                                <td className="px-4 py-3.5">
-                                    <button onClick={() => onStockClick(h.stock)}
-                                            className="text-left group flex items-center gap-2.5">
-                                        <StockLogo symbol={h.stock.symbol} name={h.stock.name} size={32} />
-                                        <div>
-                                            <p className="font-bold text-white group-hover:text-blue-400
-                                                          transition-colors text-sm leading-tight">
-                                                {h.stock.symbol}
-                                            </p>
-                                            <p className="text-xs text-slate-500 truncate max-w-[120px] leading-tight">
-                                                {h.stock.name}
-                                            </p>
-                                        </div>
-                                    </button>
-                                </td>
-                                <td className="text-right px-4 py-3.5 text-white">
-                                    {parseFloat(h.quantity || 0).toFixed(2)}
-                                </td>
-                                <td className="text-right px-4 py-3.5 text-slate-300">
-                                    {fmt(h.averageBuyPrice)}
-                                </td>
-                                <td className="text-right px-4 py-3.5 text-slate-300">
-                                    {hasPrice ? fmt(h.currentPrice) : <Dash/>}
-                                </td>
-                                {/* Sparkline */}
-                                <td className="px-4 py-3.5">
-                                    <HoldingSparkline
-                                        symbol={h.stock.symbol}
-                                        exchange={h.stock.exchange}
-                                    />
-                                </td>
-                                {/* Day change */}
-                                <td className="text-right px-4 py-3.5 whitespace-nowrap">
-                                    {hasPrice && h.dayChangePercent != null ? (
-                                        <div>
-                                            <span className={"text-xs font-semibold " +
-                                                (parseFloat(h.dayChangePercent) >= 0
-                                                    ? "text-green-400" : "text-red-400")}>
-                                                {parseFloat(h.dayChangePercent) >= 0 ? "▲ +" : "▼ "}
-                                                {Math.abs(parseFloat(h.dayChangePercent)).toFixed(2)}%
-                                            </span>
-                                            <p className="text-[10px] text-slate-600 mt-0.5">
-                                                {parseFloat(h.dayChange) >= 0 ? "+" : ""}
-                                                {parseFloat(h.dayChange || 0).toFixed(2)}
-                                            </p>
-                                        </div>
-                                    ) : <Dash/>}
-                                </td>
-                                <td className="text-right px-4 py-3.5 text-white font-medium">
-                                    {hasPrice ? fmt(h.currentValue) : <Dash/>}
-                                </td>
-                                <td className={"text-right px-4 py-3.5 font-medium " + plColor}>
-                                    {hasPrice ? fmt(h.unrealizedPL) : <Dash/>}
-                                </td>
-                                <td className={"text-right px-4 py-3.5 font-medium " + plColor}>
-                                    {hasPrice ? `${isPos ? "+" : ""}${plPct.toFixed(2)}%` : <Dash/>}
-                                </td>
-                                <td className="px-4 py-3.5">
-                                    <div className="flex gap-1.5 justify-end">
-                                        {["BUY", "SELL"].map(t => (
-                                            <button key={t} onClick={() => onTransact(h.stock)}
-                                                    className={"text-xs px-2.5 py-1 rounded-lg " +
-                                                        "transition-colors font-medium " +
-                                                        (t === "BUY"
-                                                            ? "bg-green-800/50 text-green-400 hover:bg-green-700/50"
-                                                            : "bg-red-800/50 text-red-400 hover:bg-red-700/50")}>
-                                                {t}
-                                            </button>
-                                        ))}
+                    {rows.map(row => (
+                        <tr key={row.h.id}
+                            className="border-b border-slate-700/40 last:border-0
+                                       hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-3.5">
+                                <button onClick={() => onStockClick(row.h.stock)}
+                                        className="text-left group flex items-center gap-2.5">
+                                    <StockLogo symbol={row.h.stock.symbol} name={row.h.stock.name} size={32} />
+                                    <div>
+                                        <p className="font-bold text-white group-hover:text-blue-400
+                                                      transition-colors text-sm leading-tight">
+                                            {row.h.stock.symbol}
+                                        </p>
+                                        <p className="text-xs text-slate-500 truncate max-w-[120px] leading-tight">
+                                            {row.h.stock.name}
+                                        </p>
                                     </div>
+                                </button>
+                            </td>
+                            {visibleColumns.map(c => (
+                                <td key={c.id} className={columnAlign(c.id) + " px-4 py-3.5 whitespace-nowrap"}>
+                                    {columnCell(c.id, row)}
                                 </td>
-                            </tr>
-                        );
-                    })}
+                            ))}
+                            <td className="px-4 py-3.5">
+                                <div className="flex gap-1.5 justify-end">
+                                    {["BUY", "SELL"].map(t => (
+                                        <button key={t} onClick={() => onTransact(row.h.stock)}
+                                                className={"text-xs px-2.5 py-1 rounded-lg " +
+                                                    "transition-colors font-medium " +
+                                                    (t === "BUY"
+                                                        ? "bg-green-800/50 text-green-400 hover:bg-green-700/50"
+                                                        : "bg-red-800/50 text-red-400 hover:bg-red-700/50")}>
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
                     </tbody>
                 </table></div>
             </div>
+
+            {showCustomize && (
+                <CustomizeColumnsModal
+                    columns={columns}
+                    fixedLabel="Stock"
+                    onClose={() => setShowCustomize(false)}
+                    onSave={(order, visible) => {
+                        setStocksHoldingsColumnPrefs(order, visible);
+                        setColumns(getStocksHoldingsColumnPrefs());
+                        setShowCustomize(false);
+                    }}
+                />
+            )}
         </div>
     );
 }

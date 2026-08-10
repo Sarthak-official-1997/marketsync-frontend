@@ -8,6 +8,12 @@ import StockLogo from "../components/StockLogo";
 import {useToast} from "../context/ToastContext";
 import AiTradeImportModal from "../components/AiTradeImportModal";
 import ExcelImportModal from "../components/ExcelImportModal";
+import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import {
+    getColumnPrefs as getTransactionsColumnPrefs,
+    setColumnPrefs as setTransactionsColumnPrefs,
+    TRANSACTIONS_COLUMNS_EVENT,
+} from "../utils/transactionsColumnPrefs";
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -80,6 +86,14 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
     const totalSold   = sells.reduce((s,t) => s + parseFloat(t.totalAmount || 0), 0);
     const latest = group.transactions[0];
     const selectedInGroup = group.transactions.filter(t => selectedIds?.has(t.id));
+    const [columns, setColumns] = useState(() => getTransactionsColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getTransactionsColumnPrefs());
+        window.addEventListener(TRANSACTIONS_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(TRANSACTIONS_COLUMNS_EVENT, onChange);
+    }, []);
 
     return (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden
@@ -124,7 +138,7 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                     </div>
                 </div>
                 <div className={"text-slate-500 transition-transform duration-200 flex-shrink-0 " +
-                (expanded ? "rotate-180" : "")}>▼</div>
+                    (expanded ? "rotate-180" : "")}>▼</div>
             </button>
 
             {expanded && (
@@ -132,11 +146,20 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                     <table className="w-full text-sm">
                         <thead>
                         <tr className="bg-slate-900/40 text-slate-500 text-xs uppercase">
-                            <th className="text-left px-5 py-2.5">Type</th>
-                            <th className="text-right px-5 py-2.5">Qty</th>
-                            <th className="text-right px-5 py-2.5">Price</th>
-                            <th className="text-right px-5 py-2.5">Total</th>
-                            <th className="text-right px-5 py-2.5">Date</th>
+                            <th className="w-8 px-2 py-2.5"></th>
+                            <th className="text-left px-5 py-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span>Type</span>
+                                    <button onClick={() => setShowCustomize(true)}
+                                            title="Customize columns"
+                                            className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                        ⚙
+                                    </button>
+                                </div>
+                            </th>
+                            {columns.filter(c => c.visible).map(c => (
+                                <th key={c.id} className="text-right px-5 py-2.5 whitespace-nowrap">{c.label}</th>
+                            ))}
                             <th className="px-5 py-2.5"></th>
                         </tr>
                         </thead>
@@ -155,29 +178,47 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                                     </td>
                                     <td className="px-5 py-3">
                                         <span className={"text-xs font-bold px-2.5 py-1 rounded-lg " +
-                                        (isBuy ? "bg-green-900/40 text-green-400"
-                                            : "bg-red-900/40 text-red-400")}>
+                                            (isBuy ? "bg-green-900/40 text-green-400"
+                                                : "bg-red-900/40 text-red-400")}>
                                             {tx.type}
                                         </span>
                                     </td>
-                                    <td className="text-right px-5 py-3 text-white">
-                                        {parseFloat(tx.quantity || 0).toLocaleString("en-IN")}
-                                    </td>
-                                    <td className="text-right px-5 py-3 text-slate-300">
-                                        {fmt(tx.pricePerShare)}
-                                    </td>
-                                    <td className={"text-right px-5 py-3 font-semibold " +
-                                    (isBuy ? "text-white" : "text-orange-300")}>
-                                        {fmt(tx.totalAmount)}
-                                    </td>
-                                    <td className="text-right px-5 py-3 text-slate-400 text-xs">
-                                        <p>{fmtDate(tx.transactionDate)}</p>
-                                        {tx.notes && (
-                                            <p className="text-slate-600 italic mt-0.5 max-w-[140px] truncate">
-                                                {tx.notes}
-                                            </p>
-                                        )}
-                                    </td>
+                                    {columns.filter(c => c.visible).map(c => {
+                                        switch (c.id) {
+                                            case "qty":
+                                                return (
+                                                    <td key={c.id} className="text-right px-5 py-3 text-white">
+                                                        {parseFloat(tx.quantity || 0).toLocaleString("en-IN")}
+                                                    </td>
+                                                );
+                                            case "price":
+                                                return (
+                                                    <td key={c.id} className="text-right px-5 py-3 text-slate-300">
+                                                        {fmt(tx.pricePerShare)}
+                                                    </td>
+                                                );
+                                            case "total":
+                                                return (
+                                                    <td key={c.id} className={"text-right px-5 py-3 font-semibold " +
+                                                        (isBuy ? "text-white" : "text-orange-300")}>
+                                                        {fmt(tx.totalAmount)}
+                                                    </td>
+                                                );
+                                            case "date":
+                                                return (
+                                                    <td key={c.id} className="text-right px-5 py-3 text-slate-400 text-xs">
+                                                        <p>{fmtDate(tx.transactionDate)}</p>
+                                                        {tx.notes && (
+                                                            <p className="text-slate-600 italic mt-0.5 max-w-[140px] truncate">
+                                                                {tx.notes}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                );
+                                            default:
+                                                return null;
+                                        }
+                                    })}
                                     <td className="px-5 py-3 text-right">
                                         <div className="flex items-center gap-2 justify-end">
                                             <button onClick={() => onOpenPanel(tx)}
@@ -197,6 +238,18 @@ function StockGroupCard({group, expanded, onToggle, onOpenPanel, onAskDelete, se
                         })}
                         </tbody>
                     </table>
+                    {showCustomize && (
+                        <CustomizeColumnsModal
+                            columns={columns}
+                            fixedLabel="Type"
+                            onClose={() => setShowCustomize(false)}
+                            onSave={(order, visible) => {
+                                setTransactionsColumnPrefs(order, visible);
+                                setColumns(getTransactionsColumnPrefs());
+                                setShowCustomize(false);
+                            }}
+                        />
+                    )}
                     <div className="px-5 py-3 border-t border-slate-700/30 bg-slate-900/20
                                     flex items-center justify-between gap-3 flex-wrap">
                         <button
@@ -311,9 +364,9 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
                                         <button key={i}
                                                 onClick={() => { onNavigate(year, i); setShowMonthPick(false); }}
                                                 className={"py-1.5 rounded-lg text-xs font-medium transition-colors " +
-                                                (i === month
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-slate-300 hover:bg-slate-700")}>
+                                                    (i === month
+                                                        ? "bg-blue-600 text-white"
+                                                        : "text-slate-300 hover:bg-slate-700")}>
                                             {m.slice(0, 3)}
                                         </button>
                                     ))}
@@ -339,9 +392,9 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
                                         <button key={y}
                                                 onClick={() => { onNavigate(y, month); setShowYearPick(false); }}
                                                 className={"w-full py-2 text-sm font-medium transition-colors " +
-                                                (y === year
-                                                    ? "bg-blue-600 text-white"
-                                                    : "text-slate-300 hover:bg-slate-700")}>
+                                                    (y === year
+                                                        ? "bg-blue-600 text-white"
+                                                        : "text-slate-300 hover:bg-slate-700")}>
                                             {y}
                                         </button>
                                     ))}
@@ -441,9 +494,9 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
                                         </span>
                                         {txs.length >= 3 && (
                                             <span className={"text-[9px] font-bold mt-0.5 px-1.5 rounded-full " +
-                                            (hasBuy && !hasSell ? "text-green-500 bg-green-500/10"
-                                                : hasSell && !hasBuy ? "text-red-500 bg-red-500/10"
-                                                    : "text-amber-500 bg-amber-500/10")}>
+                                                (hasBuy && !hasSell ? "text-green-500 bg-green-500/10"
+                                                    : hasSell && !hasBuy ? "text-red-500 bg-red-500/10"
+                                                        : "text-amber-500 bg-amber-500/10")}>
                                                 {txs.length}
                                             </span>
                                         )}
@@ -503,9 +556,9 @@ function CalendarView({transactions, year, month, onNavigate, onAddOnDate}) {
                              className="flex items-center gap-3 py-2.5
                                         border-b border-slate-700/40 last:border-0">
                             <span className={"text-xs font-bold px-2 py-0.5 rounded-full " +
-                            (tx.type === "BUY"
-                                ? "bg-green-900/40 text-green-400"
-                                : "bg-red-900/40 text-red-400")}>
+                                (tx.type === "BUY"
+                                    ? "bg-green-900/40 text-green-400"
+                                    : "bg-red-900/40 text-red-400")}>
                                 {tx.type}
                             </span>
                             <p className="text-white text-sm font-medium flex-1">
@@ -757,10 +810,10 @@ export default function TransactionsPage() {
                     ].map(m => (
                         <button key={m.id} onClick={() => setViewMode(m.id)}
                                 className={"flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs " +
-                                "font-semibold transition-all " +
-                                (viewMode === m.id
-                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
-                                    : "text-slate-400 hover:text-white")}>
+                                    "font-semibold transition-all " +
+                                    (viewMode === m.id
+                                        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                                        : "text-slate-400 hover:text-white")}>
                             <span>{m.icon}</span>{m.label}
                         </button>
                     ))}
@@ -770,11 +823,11 @@ export default function TransactionsPage() {
                         {["ALL","BUY","SELL"].map(t => (
                             <button key={t} onClick={() => setFilterType(t)}
                                     className={"px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors " +
-                                    (filterType === t
-                                        ? t === "BUY" ? "bg-green-600 text-white"
-                                            : t === "SELL" ? "bg-red-600 text-white"
-                                                : "bg-blue-600 text-white"
-                                        : "text-slate-400 hover:text-white")}>
+                                        (filterType === t
+                                            ? t === "BUY" ? "bg-green-600 text-white"
+                                                : t === "SELL" ? "bg-red-600 text-white"
+                                                    : "bg-blue-600 text-white"
+                                            : "text-slate-400 hover:text-white")}>
                                 {t}
                             </button>
                         ))}
@@ -1028,9 +1081,9 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                                    placeholder="Search symbol or company..."
                                    readOnly={!!lockedStock}
                                    className={"w-full bg-slate-800 border border-slate-700 rounded-xl " +
-                                   "px-4 py-2.5 text-white text-sm focus:outline-none " +
-                                   "focus:border-blue-500 " +
-                                   (lockedStock ? "opacity-70 cursor-not-allowed" : "")}/>
+                                       "px-4 py-2.5 text-white text-sm focus:outline-none " +
+                                       "focus:border-blue-500 " +
+                                       (lockedStock ? "opacity-70 cursor-not-allowed" : "")}/>
                             {results.length > 0 && !stock && (
                                 <div className="absolute z-10 w-full mt-1 bg-slate-800
                                                 border border-slate-700 rounded-xl shadow-xl
@@ -1078,10 +1131,10 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                         {["BUY","SELL"].map(t => (
                             <button key={t} onClick={() => setForm(f => ({...f, type: t}))}
                                     className={"px-6 py-2 rounded-lg text-sm font-bold transition-colors " +
-                                    (form.type === t
-                                        ? t === "BUY" ? "bg-green-600 text-white"
-                                            : "bg-red-600 text-white"
-                                        : "text-slate-400 hover:text-white")}>
+                                        (form.type === t
+                                            ? t === "BUY" ? "bg-green-600 text-white"
+                                                : "bg-red-600 text-white"
+                                            : "text-slate-400 hover:text-white")}>
                                 {t}
                             </button>
                         ))}
@@ -1142,10 +1195,10 @@ function AddTransactionModal({onClose, onSaved, onSavedAndMore, toast, lockedSto
                     <div className="flex gap-2 pt-1">
                         <button onClick={() => handleSubmit(false)} disabled={saving}
                                 className={"flex-1 py-3 rounded-xl text-white font-bold text-sm " +
-                                "transition-colors disabled:opacity-50 " +
-                                (form.type === "BUY"
-                                    ? "bg-green-600 hover:bg-green-700"
-                                    : "bg-red-600 hover:bg-red-700")}>
+                                    "transition-colors disabled:opacity-50 " +
+                                    (form.type === "BUY"
+                                        ? "bg-green-600 hover:bg-green-700"
+                                        : "bg-red-600 hover:bg-red-700")}>
                             {saving ? "Saving…" : `Save ${form.type}`}
                         </button>
                         <button onClick={() => handleSubmit(true)} disabled={saving}
