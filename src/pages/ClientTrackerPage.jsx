@@ -292,25 +292,26 @@ export default function ClientTrackerPage() {
 
             {clients.length > 0 && (
                 <div className="flex items-center gap-2">
-                    <div className="flex-1 flex items-center gap-2 bg-slate-800/60 border border-slate-700/60
+                    <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-800/60 border border-slate-700/60
                                      rounded-xl px-3 py-2">
-                        <span className="text-slate-500 text-sm">🔍</span>
+                        <span className="text-slate-500 text-sm flex-shrink-0">🔍</span>
                         <input
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            placeholder="Search clients by name or handle…"
-                            className="flex-1 bg-transparent text-white text-sm placeholder-slate-600 focus:outline-none"
+                            placeholder="Search clients…"
+                            className="w-full min-w-0 bg-transparent text-white text-sm placeholder-slate-600 focus:outline-none"
                         />
                     </div>
                     <select
                         value={sortBy}
                         onChange={e => setSortBy(e.target.value)}
-                        className="bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2
-                                   text-white text-xs font-medium focus:outline-none focus:border-blue-500">
-                        <option value="value">Sort: Value (high → low)</option>
-                        <option value="today">Sort: Today's change</option>
-                        <option value="pl">Sort: P&amp;L %</option>
-                        <option value="name">Sort: Name (A–Z)</option>
+                        className="flex-shrink-0 max-w-[120px] bg-slate-800/60 border border-slate-700/60 rounded-xl
+                                   px-2.5 py-2 text-white text-xs font-medium focus:outline-none focus:border-blue-500
+                                   truncate">
+                        <option value="value">Value ↓</option>
+                        <option value="today">Today</option>
+                        <option value="pl">P&amp;L %</option>
+                        <option value="name">Name A–Z</option>
                     </select>
                 </div>
             )}
