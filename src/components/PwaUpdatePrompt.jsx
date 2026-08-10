@@ -46,6 +46,13 @@ export default function PwaUpdatePrompt() {
     const handleRefresh = () => {
         if (updating) return;
         setUpdating(true);
+        // Stashed here, read back by a mount-once effect in App.jsx — see
+        // that effect's comment for why this exists: a plain reload was
+        // sometimes landing on Home instead of staying on the current page.
+        sessionStorage.setItem(
+            "ms_pwa_return_path",
+            window.location.pathname + window.location.search + window.location.hash
+        );
         const fallback = setTimeout(() => window.location.reload(), UPDATE_TIMEOUT_MS);
         updateServiceWorker(true).catch(() => {
             clearTimeout(fallback);

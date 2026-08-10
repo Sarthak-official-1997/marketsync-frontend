@@ -113,6 +113,23 @@ function AppShell() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Restore the exact page after a PwaUpdatePrompt-triggered reload.
+    // PwaUpdatePrompt stashes the full path (pathname+search+hash) right
+    // before forcing the reload, specifically because a plain reload was
+    // sometimes landing on Home instead of staying put — some route guard
+    // or redirect elsewhere apparently fires during that reload in a way
+    // that doesn't preserve location, and chasing the exact mechanism
+    // wasn't worth it when this fixes the actual symptom unconditionally:
+    // whatever happened, land back exactly where the user was.
+    useEffect(() => {
+        const returnPath = sessionStorage.getItem("ms_pwa_return_path");
+        if (!returnPath) return;
+        sessionStorage.removeItem("ms_pwa_return_path");
+        const current = location.pathname + location.search + location.hash;
+        if (returnPath !== current) navigate(returnPath, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // CREATOR never sees onboarding nudges (Welcome modal, setup checklist,
     // or the stock-modal coachmark) on any device — Sarthak already knows
     // the app; these exist for genuinely new client accounts.
