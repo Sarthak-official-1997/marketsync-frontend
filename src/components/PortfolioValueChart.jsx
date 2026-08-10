@@ -47,6 +47,12 @@ function Sparkline({ dates, values }) {
     const line = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
     const area = line + ` L${coords[coords.length - 1][0]},${h} L${coords[0][0]},${h} Z`;
     const last = coords[coords.length - 1];
+    // Reference line at the period's starting value — same idea as Google
+    // Finance's "Prev. close" dotted line. Anything above this = up for
+    // the selected range, anything below = down. Distinct from the three
+    // generic gridlines above (those just mark visual thirds, not a real
+    // reference point).
+    const refY = pad + (1 - (nums[0] - min) / range) * (h - pad * 2);
 
     return (
         <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
@@ -60,6 +66,7 @@ function Sparkline({ dates, values }) {
             <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="rgba(71,85,105,0.5)" strokeDasharray="3,4" />
             <line x1="0" y1={h - pad} x2={w} y2={h - pad} stroke="rgba(71,85,105,0.5)" strokeDasharray="3,4" />
             <path d={area} fill="url(#pvc-grad)" />
+            <line x1="0" y1={refY} x2={w} y2={refY} stroke="rgba(148,163,184,0.8)" strokeDasharray="2,3" strokeWidth="1" />
             <path d={line} fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
             <circle cx={last[0]} cy={last[1]} r="5" fill="#7c3aed" />
         </svg>
