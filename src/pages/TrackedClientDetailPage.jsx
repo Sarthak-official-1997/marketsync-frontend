@@ -15,6 +15,7 @@ import StockConfirmPreview from "../components/StockConfirmPreview";
 import TransactionsStagingModal from "../components/TransactionsStagingModal";
 import PushReviewModal from "../components/PushReviewModal";
 import PortfolioValueChart from "../components/PortfolioValueChart";
+import StockDetailModal from "../components/StockDetailModal";
 import { getClientPortfolioHistory } from "../api/admin";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
@@ -107,7 +108,7 @@ function MapUserPicker({ onPick, onClose }) {
 // total gain-loss — one job only, no sync/reference data mixed in. Prices
 // are fetched client-side per symbol via the same getStockPrice() endpoint
 // StocksMarketPage already uses, so this needed no backend change. ────────
-function PerformanceTable({ holdings }) {
+function PerformanceTable({ holdings, onOpenStock }) {
     const [prices, setPrices] = useState({});
     const [loadingPrices, setLoadingPrices] = useState(true);
 
@@ -165,8 +166,15 @@ function PerformanceTable({ holdings }) {
                         return (
                             <tr key={h.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
                                 <td className="px-3 py-2.5">
-                                    <p className="text-white font-bold">{h.symbol}</p>
-                                    <p className="text-slate-500 text-[10px] truncate max-w-[140px]">{h.name}</p>
+                                    <button onClick={() => onOpenStock(h)}
+                                            className="text-left group">
+                                        <p className="text-white font-bold group-hover:text-blue-400 transition-colors">
+                                            {h.symbol}
+                                        </p>
+                                        <p className="text-slate-500 text-[10px] truncate max-w-[140px] group-hover:text-slate-400">
+                                            {h.name}
+                                        </p>
+                                    </button>
                                 </td>
                                 <td className="text-right px-3 py-2.5 text-slate-300">{fmt(qty)}</td>
                                 <td className="text-right px-3 py-2.5 text-slate-300">₹{fmt(avg)}</td>
@@ -205,7 +213,7 @@ function PerformanceTable({ holdings }) {
 // Transactions / Edit / Pull / Remove) collapse into a kebab menu per row
 // instead of sitting as 4-5 always-visible links. Push stays visible since
 // it's the daily-use action. ───────────────────────────────────────────────
-function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions }) {
+function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions, onOpenStock }) {
     const [openMenuId, setOpenMenuId] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [confirmingSyncId, setConfirmingSyncId] = useState(null);
@@ -257,8 +265,15 @@ function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEd
                         <Fragment key={h.id}>
                             <tr className="border-t border-slate-700/40 hover:bg-slate-800/40">
                                 <td className="px-3 py-2.5">
-                                    <p className="text-white font-bold">{h.symbol}</p>
-                                    <p className="text-slate-500 text-[10px] truncate max-w-[140px]">{h.name}</p>
+                                    <button onClick={() => onOpenStock(h)}
+                                            className="text-left group">
+                                        <p className="text-white font-bold group-hover:text-blue-400 transition-colors">
+                                            {h.symbol}
+                                        </p>
+                                        <p className="text-slate-500 text-[10px] truncate max-w-[140px] group-hover:text-slate-400">
+                                            {h.name}
+                                        </p>
+                                    </button>
                                 </td>
                                 <td className="text-right px-3 py-2.5 text-slate-300">
                                     {fmt(h.quantity)} sh @ ₹{fmt(h.avgBuyPrice)}
@@ -474,6 +489,7 @@ export default function TrackedClientDetailPage() {
     const fileRef = useRef(null);
 
     const [viewingTransactionsFor, setViewingTransactionsFor] = useState(null); // holding, or null
+    const [viewingStockDetail, setViewingStockDetail] = useState(null); // holding-shaped stock, or null — opens StockDetailModal
     const [showPushReview, setShowPushReview] = useState(false);
     const [pushStockId, setPushStockId] = useState(null); // null = Push All, set = one stock
     const [stagedCount, setStagedCount] = useState(0);
@@ -531,6 +547,18 @@ export default function TrackedClientDetailPage() {
     // "Push All" (everything staged for this client); a specific stockId
     // scopes it to just that one stock's staged changes.
     const openPush = (stockId) => { setPushStockId(stockId); setShowPushReview(true); };
+
+    // Opens the same StockDetailModal used everywhere else in the app —
+    // holding already carries everything the modal needs (stockId, symbol,
+    // name, exchange), so this is just a reshape, no extra fetch.
+    const openStockDetail = (holding) => {
+        setViewingStockDetail({
+            id: holding.stockId || holding.id,
+            symbol: holding.symbol,
+            name: holding.name,
+            exchange: holding.exchange,
+        });
+    };
 
     const onExcelFile = (e) => {
         const file = e.target.files?.[0];
@@ -737,7 +765,7 @@ export default function TrackedClientDetailPage() {
             </div>
 
             {activeTab === "performance" ? (
-                <PerformanceTable holdings={client.holdings || []} />
+                <PerformanceTable holdings={client.holdings || []} onOpenStock={openStockDetail} />
             ) : (
                 <SyncActionsTable
                     holdings={client.holdings || []}
@@ -747,6 +775,7 @@ export default function TrackedClientDetailPage() {
                     onOpenPush={(h) => openPush(h.stockId || h.id)}
                     onEdit={onEditHolding}
                     onViewTransactions={setViewingTransactionsFor}
+                    onOpenStock={openStockDetail}
                 />
             )}
 
@@ -867,6 +896,10 @@ export default function TrackedClientDetailPage() {
             </div>
 
             {showMapPicker && <MapUserPicker onPick={onMap} onClose={() => setShowMapPicker(false)} />}
+
+            {viewingStockDetail && (
+                <StockDetailModal stock={viewingStockDetail} onClose={() => setViewingStockDetail(null)} />
+            )}
 
             {viewingTransactionsFor && (
                 <TransactionsStagingModal
