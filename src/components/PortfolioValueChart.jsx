@@ -72,7 +72,7 @@ function Sparkline({ dates, values }) {
  * backend endpoint is used — the admin per-client one, or eventually a
  * "my own portfolio" one.
  */
-export default function PortfolioValueChart({ fetchHistory, currentValue }) {
+export default function PortfolioValueChart({ fetchHistory, currentValue, showChangeBadge = true, scopeNote }) {
     const { hidden: valuesHidden } = usePrivacy();
     const [range, setRange] = useState("1m");
     const [history, setHistory] = useState(null);
@@ -88,7 +88,15 @@ export default function PortfolioValueChart({ fetchHistory, currentValue }) {
 
     const values = history?.values || [];
     const firstVal = values.length > 0 ? parseFloat(values[0]) : null;
-    const lastVal = values.length > 0 ? parseFloat(values[values.length - 1]) : parseFloat(currentValue || 0);
+    // BUG FIXED HERE: this used to be values[values.length-1] (the history
+    // endpoint's own last data point) whenever history had loaded — but
+    // that endpoint has no scope awareness at all (it's always stock-price
+    // history, full stop), so the headline number silently ignored
+    // whichever scope pill was selected the moment history finished
+    // loading, ALWAYS overriding the correct scope-aware value. currentValue
+    // (client.realPortfolioValue from the backend) is scope-correct and
+    // always fresh — trust it unconditionally, never let history override it.
+    const lastVal = parseFloat(currentValue || 0);
     const changeAmt = firstVal != null ? lastVal - firstVal : 0;
     const changePct = firstVal ? (changeAmt / firstVal) * 100 : 0;
     const isPos = changeAmt >= 0;
@@ -101,7 +109,12 @@ export default function PortfolioValueChart({ fetchHistory, currentValue }) {
                     {valuesHidden ? "••••••" : fmt(lastVal)}
                 </p>
             </div>
-            {!loading && values.length > 0 && (
+            {/* showChangeBadge=false when the caller knows the underlying
+                history is scope-mismatched (e.g. MF-only scope against a
+                stock-only history endpoint) — showing a % badge computed
+                from the wrong asset class isn't "approximate", it's just
+                wrong, so it's better hidden than shown with a caveat. */}
+            {!loading && showChangeBadge && values.length > 0 && (
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className={"inline-flex items-center gap-1 text-sm font-bold px-2 py-0.5 rounded-full " +
                         (isPos ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400")}>
@@ -112,11 +125,27 @@ export default function PortfolioValueChart({ fetchHistory, currentValue }) {
                     </span>
                 </div>
             )}
+            {!loading && !showChangeBadge && scopeNote && (
+                <p className="text-[11px] text-slate-600 mt-1">{scopeNote}</p>
+            )}
 
             <div className="mt-4">
                 {loading ? (
                     <div className="flex items-center justify-center" style={{ height: 190 }}>
                         <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                ) : !showChangeBadge ? (
+                    // Same reasoning as the badge above: this range's line
+                    // data would be stock price history under an MF-only
+                    // scope — not approximate, just the wrong asset class.
+                    // An empty state is more honest than a plausible-looking
+                    // wrong line.
+                    <div className="flex flex-col items-center justify-center text-center gap-1"
+                         style={{ height: 190 }}>
+                        <span className="text-2xl">📈</span>
+                        <p className="text-slate-500 text-xs max-w-[220px]">
+                            No price-history chart for mutual funds yet — the total above is still accurate.
+                        </p>
                     </div>
                 ) : (
                     <Sparkline dates={history?.dates} values={values} />

@@ -945,20 +945,9 @@ export default function TrackedClientDetailPage() {
                     <PortfolioValueChart
                         currentValue={client.realPortfolioValue}
                         fetchHistory={(range) => getClientPortfolioHistory(client.mappedUserId, range)}
+                        showChangeBadge={(client.portfolioScope || "COMBINED") === "STOCKS"}
+                        scopeNote="ⓘ No price-history chart under MF or Combined scope yet — only stock price history exists. The total above is still correct for whichever scope is selected."
                     />
-                    {/* Honest limitation, not a bug: the history endpoint this
-                        chart's LINE is drawn from only has stock price data —
-                        it has no MF equivalent yet. The Value/P&L/Today
-                        numbers above DO correctly reflect the scope chosen,
-                        but the shape of the line itself is stock-only
-                        regardless of scope until MF gets its own history
-                        endpoint — silently mismatching those would be worse
-                        than saying so plainly. */}
-                    {client.portfolioScope !== "STOCKS" && (
-                        <p className="text-[11px] text-slate-600 mt-2">
-                            ⓘ Chart line reflects stock price history only — mutual fund history isn't available yet.
-                        </p>
-                    )}
                 </div>
             )}
 
@@ -991,7 +980,34 @@ export default function TrackedClientDetailPage() {
                 </button>
             </div>
 
-            {activeTab === "performance" ? (
+            {(client.portfolioScope || "COMBINED") === "COMBINED" && (
+                <p className="text-[11px] text-slate-600 -mt-1">
+                    ⓘ Combined total includes MF value — rows below are stock holdings only, MF isn't broken out per-scheme yet.
+                </p>
+            )}
+
+            {(client.portfolioScope || "COMBINED") === "MF" ? (
+                // BUG FIXED HERE: these tables render client.holdings, which
+                // is ALWAYS the tracked stock holdings — TrackedHolding only
+                // ever modeled stocks, there's no per-MF-holding tracked
+                // reference at all. Before this fix, switching to MF scope
+                // silently kept showing the same stock rows underneath,
+                // which is actively misleading (looks like "here are the MF
+                // holdings" when it's really just unfiltered stock data).
+                // Showing nothing, with an honest explanation, is correct
+                // until per-holding MF tracking is actually built —
+                // the scope-aware total above the tabs is still accurate,
+                // this gap is specifically about row-level detail.
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 text-center">
+                    <p className="text-2xl mb-2">📄</p>
+                    <p className="text-white font-semibold text-sm mb-1">Individual MF holdings aren't tracked yet</p>
+                    <p className="text-slate-500 text-xs max-w-sm mx-auto">
+                        The total value and day change above are correct for this client's MF portfolio —
+                        but per-scheme detail (Performance, Sync &amp; Actions, Analytics) only exists for
+                        tracked stock holdings right now. Switch to Stocks or Combined to see holding-level detail.
+                    </p>
+                </div>
+            ) : activeTab === "performance" ? (
                 <PerformanceTable holdings={client.holdings || []} onOpenStock={openStockDetail} />
             ) : activeTab === "sync" ? (
                 <SyncActionsTable
