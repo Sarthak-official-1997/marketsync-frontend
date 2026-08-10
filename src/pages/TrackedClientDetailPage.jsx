@@ -9,6 +9,9 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { searchStocks, getStockPrice } from "../api/portfolio";
+import {
+    getColumnPrefs, setColumnPrefs, COLUMN_CANDIDATES, PERFORMANCE_COLUMNS_EVENT,
+} from "../utils/performanceColumnPrefs";
 import { getAllUsers } from "../api/admin";
 import SearchPickerModal from "../components/SearchPickerModal";
 import StockConfirmPreview from "../components/StockConfirmPreview";
@@ -111,6 +114,14 @@ function MapUserPicker({ onPick, onClose }) {
 function PerformanceTable({ holdings, onOpenStock }) {
     const [prices, setPrices] = useState({});
     const [loadingPrices, setLoadingPrices] = useState(true);
+    const [columns, setColumns] = useState(() => getColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getColumnPrefs());
+        window.addEventListener(PERFORMANCE_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(PERFORMANCE_COLUMNS_EVENT, onChange);
+    }, []);
 
     useEffect(() => {
         if (!holdings || holdings.length === 0) { setLoadingPrices(false); return; }
@@ -136,73 +147,219 @@ function PerformanceTable({ holdings, onOpenStock }) {
         return <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>;
     }
 
+    const visibleColumns = columns.filter(c => c.visible);
+
+    // One place that knows how to render each column's header + cell, so
+    // the table body below is just "loop over visibleColumns" instead of
+    // repeating six near-identical <td> blocks conditionally.
+    const columnHeader = (colId) => {
+        switch (colId) {
+            case "qty": return "Qty";
+            case "avgPrice": return "Avg. price";
+            case "ltp": return "LTP";
+            case "dayChange": return "Day change";
+            case "value": return "Value";
+            case "gainLoss": return "Total gain/loss";
+            default: return "";
+        }
+    };
+
+    const columnCell = (colId, row) => {
+        switch (colId) {
+            case "qty":
+                return <span className="text-slate-300">{fmt(row.qty)}</span>;
+            case "avgPrice":
+                return <span className="text-slate-300">₹{fmt(row.avg)}</span>;
+            case "ltp":
+                return (
+                    <span className="text-white font-semibold">
+                        {loadingPrices ? "…" : (row.ltp != null ? "₹" + fmt(row.ltp) : "—")}
+                    </span>
+                );
+            case "dayChange":
+                return (
+                    <span className={"font-semibold " +
+                        (row.dayChg == null ? "text-slate-600" : row.dayUp ? "text-green-400" : "text-red-400")}>
+                        {loadingPrices ? "…" : (row.dayChg != null ? (row.dayUp ? "+" : "") + row.dayChg.toFixed(2) + "%" : "—")}
+                    </span>
+                );
+            case "value":
+                return <span className="text-white">{loadingPrices ? "…" : fmtMoney(row.value)}</span>;
+            case "gainLoss":
+                return (
+                    <span className={"font-semibold " +
+                        (row.gainLoss == null ? "text-slate-600" : row.glUp ? "text-green-400" : "text-red-400")}>
+                        {loadingPrices ? "…" : row.gainLoss != null
+                            ? (row.glUp ? "+" : "") + fmtMoney(Math.abs(row.gainLoss)) + " (" + (row.glUp ? "+" : "") + row.gainLossPct.toFixed(2) + "%)"
+                            : "—"}
+                    </span>
+                );
+            default:
+                return null;
+        }
+    };
+
+    const rows = holdings.map(h => {
+        const p = prices[h.symbol];
+        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const dayChg = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
+        const qty = parseFloat(h.quantity || 0);
+        const avg = parseFloat(h.avgBuyPrice || 0);
+        const value = ltp != null ? qty * ltp : null;
+        const gainLoss = ltp != null ? (ltp - avg) * qty : null;
+        const gainLossPct = avg > 0 && ltp != null ? ((ltp - avg) / avg) * 100 : null;
+        return {
+            holding: h, qty, avg, ltp, dayChg, value, gainLoss, gainLossPct,
+            dayUp: dayChg != null && dayChg >= 0,
+            glUp: gainLoss != null && gainLoss >= 0,
+        };
+    });
+
     return (
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                     <thead>
                     <tr className="bg-slate-900/60 text-slate-500 text-[10px] uppercase tracking-wide">
-                        <th className="text-left font-semibold px-3 py-2.5">Stock</th>
-                        <th className="text-right font-semibold px-3 py-2.5">Qty</th>
-                        <th className="text-right font-semibold px-3 py-2.5">Avg. price</th>
-                        <th className="text-right font-semibold px-3 py-2.5">LTP</th>
-                        <th className="text-right font-semibold px-3 py-2.5">Day change</th>
-                        <th className="text-right font-semibold px-3 py-2.5">Value</th>
-                        <th className="text-right font-semibold px-3 py-2.5">Total gain/loss</th>
+                        <th className="text-left font-semibold px-3 py-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <span>Stock</span>
+                                {/* Matches Google Finance's column-settings icon in the
+                                        same header corner — opens the customize modal. */}
+                                <button onClick={() => setShowCustomize(true)}
+                                        title="Customize columns"
+                                        className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                    ⚙
+                                </button>
+                            </div>
+                        </th>
+                        {visibleColumns.map(c => (
+                            <th key={c.id} className="text-right font-semibold px-3 py-2.5 whitespace-nowrap">
+                                {columnHeader(c.id)}
+                            </th>
+                        ))}
                     </tr>
                     </thead>
                     <tbody>
-                    {holdings.map(h => {
-                        const p = prices[h.symbol];
-                        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
-                        const dayChg = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
-                        const qty = parseFloat(h.quantity || 0);
-                        const avg = parseFloat(h.avgBuyPrice || 0);
-                        const value = ltp != null ? qty * ltp : null;
-                        const gainLoss = ltp != null ? (ltp - avg) * qty : null;
-                        const gainLossPct = avg > 0 && ltp != null ? ((ltp - avg) / avg) * 100 : null;
-                        const dayUp = dayChg != null && dayChg >= 0;
-                        const glUp = gainLoss != null && gainLoss >= 0;
-                        return (
-                            <tr key={h.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
-                                <td className="px-3 py-2.5">
-                                    <button onClick={() => onOpenStock(h)}
-                                            className="text-left group">
-                                        <p className="text-white font-bold group-hover:text-blue-400 transition-colors">
-                                            {h.symbol}
-                                        </p>
-                                        <p className="text-slate-500 text-[10px] truncate max-w-[140px] group-hover:text-slate-400">
-                                            {h.name}
-                                        </p>
-                                    </button>
+                    {rows.map(row => (
+                        <tr key={row.holding.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
+                            <td className="px-3 py-2.5">
+                                <button onClick={() => onOpenStock(row.holding)}
+                                        className="text-left group">
+                                    <p className="text-white font-bold group-hover:text-blue-400 transition-colors">
+                                        {row.holding.symbol}
+                                    </p>
+                                    <p className="text-slate-500 text-[10px] truncate max-w-[140px] group-hover:text-slate-400">
+                                        {row.holding.name}
+                                    </p>
+                                </button>
+                            </td>
+                            {visibleColumns.map(c => (
+                                <td key={c.id} className="text-right px-3 py-2.5 whitespace-nowrap">
+                                    {columnCell(c.id, row)}
                                 </td>
-                                <td className="text-right px-3 py-2.5 text-slate-300">{fmt(qty)}</td>
-                                <td className="text-right px-3 py-2.5 text-slate-300">₹{fmt(avg)}</td>
-                                <td className="text-right px-3 py-2.5 text-white font-semibold">
-                                    {loadingPrices ? "…" : (ltp != null ? "₹" + fmt(ltp) : "—")}
-                                </td>
-                                <td className={"text-right px-3 py-2.5 font-semibold " +
-                                    (dayChg == null ? "text-slate-600" : dayUp ? "text-green-400" : "text-red-400")}>
-                                    {loadingPrices ? "…" : (dayChg != null ? (dayUp ? "+" : "") + dayChg.toFixed(2) + "%" : "—")}
-                                </td>
-                                <td className="text-right px-3 py-2.5 text-white">
-                                    {loadingPrices ? "…" : fmtMoney(value)}
-                                </td>
-                                <td className={"text-right px-3 py-2.5 font-semibold " +
-                                    (gainLoss == null ? "text-slate-600" : glUp ? "text-green-400" : "text-red-400")}>
-                                    {loadingPrices ? "…" : gainLoss != null
-                                        ? (glUp ? "+" : "") + fmtMoney(Math.abs(gainLoss)) + " (" + (glUp ? "+" : "") + gainLossPct.toFixed(2) + "%)"
-                                        : "—"}
-                                </td>
-                            </tr>
-                        );
-                    })}
+                            ))}
+                        </tr>
+                    ))}
                     </tbody>
                 </table>
             </div>
             <p className="text-[10px] text-slate-600 px-3 py-2 border-t border-slate-700/40">
                 LTP refreshes on tab open — reopen the Performance tab for the latest price.
             </p>
+
+            {showCustomize && (
+                <CustomizeColumnsModal
+                    columns={columns}
+                    onClose={() => setShowCustomize(false)}
+                    onSave={(order, visible) => {
+                        setColumnPrefs(order, visible);
+                        setColumns(getColumnPrefs());
+                        setShowCustomize(false);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// ── Customize-columns modal: checkbox per column + up/down reorder. Up/down
+// buttons rather than drag-and-drop deliberately — HTML5 drag never fires
+// on touch devices (same reason the board-layout reorder feature uses
+// mobile-only ▲▼ buttons instead of drag), so this needed to work on
+// mobile from the start rather than needing a second touch-specific path
+// bolted on later. ──────────────────────────────────────────────────────
+function CustomizeColumnsModal({ columns, onClose, onSave }) {
+    const [localOrder, setLocalOrder] = useState(columns.map(c => c.id));
+    const [localVisible, setLocalVisible] = useState(new Set(columns.filter(c => c.visible).map(c => c.id)));
+
+    const byId = Object.fromEntries(COLUMN_CANDIDATES.map(c => [c.id, c]));
+    const orderedItems = localOrder.map(id => byId[id]).filter(Boolean);
+
+    const toggle = (id) => {
+        setLocalVisible(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const move = (index, direction) => {
+        const target = index + direction;
+        if (target < 0 || target >= localOrder.length) return;
+        setLocalOrder(prev => {
+            const next = [...prev];
+            [next[index], next[target]] = [next[target], next[index]];
+            return next;
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9700] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+             onClick={onClose}>
+            <div onClick={e => e.stopPropagation()}
+                 className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5">
+                <p className="text-white font-bold text-base mb-1">Customize columns</p>
+                <p className="text-slate-500 text-xs mb-4">Stock is always shown. Reorder or hide the rest.</p>
+
+                <div className="space-y-1.5 mb-5">
+                    {orderedItems.map((col, i) => (
+                        <div key={col.id}
+                             className="flex items-center gap-2.5 bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5">
+                            <input
+                                type="checkbox"
+                                checked={localVisible.has(col.id)}
+                                onChange={() => toggle(col.id)}
+                                className="w-4 h-4 rounded accent-blue-600 flex-shrink-0"
+                            />
+                            <span className={"flex-1 text-sm " + (localVisible.has(col.id) ? "text-white" : "text-slate-500")}>
+                                {col.label}
+                            </span>
+                            <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                <button onClick={() => move(i, -1)} disabled={i === 0}
+                                        className="w-6 h-5 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-25 disabled:hover:text-slate-400 text-[10px] leading-none">
+                                    ▲
+                                </button>
+                                <button onClick={() => move(i, 1)} disabled={i === orderedItems.length - 1}
+                                        className="w-6 h-5 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-25 disabled:hover:text-slate-400 text-[10px] leading-none">
+                                    ▼
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex gap-2">
+                    <button onClick={onClose}
+                            className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                        Cancel
+                    </button>
+                    <button onClick={() => onSave(localOrder, [...localVisible])}
+                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                        Save
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
