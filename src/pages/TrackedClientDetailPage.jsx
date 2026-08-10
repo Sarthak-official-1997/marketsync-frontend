@@ -474,6 +474,155 @@ function ManualAddForm({ onAdd }) {
     );
 }
 
+// ── Analytics tab: concentration risk and today's top movers, computed
+// client-side from the same holdings + live prices Performance already
+// fetches. Sector allocation was dropped — too little of the stock
+// catalog has sector data populated to make it trustworthy, and it
+// wasn't worth the time to backfill it just for this. No new backend
+// endpoint needed for what's here. ────────────────────────────────────
+function AnalyticsTab({ holdings }) {
+    const [prices, setPrices] = useState({});
+    const [loadingPrices, setLoadingPrices] = useState(true);
+
+    useEffect(() => {
+        if (!holdings || holdings.length === 0) { setLoadingPrices(false); return; }
+        let cancelled = false;
+        setLoadingPrices(true);
+        Promise.allSettled(holdings.map(h => getStockPrice(h.symbol)))
+            .then(results => {
+                if (cancelled) return;
+                const map = {};
+                results.forEach((r, i) => {
+                    if (r.status === "fulfilled") map[holdings[i].symbol] = r.value.data;
+                });
+                setPrices(map);
+            })
+            .finally(() => { if (!cancelled) setLoadingPrices(false); });
+        return () => { cancelled = true; };
+    }, [holdings]);
+
+    const fmtMoney = (n) => n == null || isNaN(n) ? "—" : "₹" + parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+    if (!holdings || holdings.length === 0) {
+        return <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>;
+    }
+    if (loadingPrices) {
+        return (
+            <div className="flex justify-center py-10">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    // Current value per holding — falls back to reference cost basis
+    // (qty × avg price) if a live price failed to load for that symbol,
+    // so one bad quote doesn't zero out the whole picture.
+    const rows = holdings.map(h => {
+        const p = prices[h.symbol];
+        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const dayChg = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
+        const qty = parseFloat(h.quantity || 0);
+        const avg = parseFloat(h.avgBuyPrice || 0);
+        const value = ltp != null && ltp > 0 ? qty * ltp : qty * avg;
+        return { ...h, value, dayChg };
+    });
+
+    const totalValue = rows.reduce((s, r) => s + r.value, 0) || 1;
+
+    // Concentration — top 5 individual holdings by weight
+    const topHoldings = rows.slice().sort((a, b) => b.value - a.value).slice(0, 5)
+        .map(r => ({ ...r, pct: (r.value / totalValue) * 100 }));
+    const top2Pct = topHoldings.slice(0, 2).reduce((s, r) => s + r.pct, 0);
+
+    // Today's movers, sorted by |day change|
+    const movers = rows.filter(r => r.dayChg != null)
+        .slice().sort((a, b) => Math.abs(b.dayChg) - Math.abs(a.dayChg)).slice(0, 5);
+
+    // Diversification score — pure position-concentration measure (inverse
+    // HHI over portfolio weights), no sector component. Sector-based
+    // scoring was dropped: too little of the stock catalog has sector data
+    // populated for it to be trustworthy, and querying/backfilling it
+    // wasn't worth the time for what it would've added here.
+    const weights = rows.map(r => r.value / totalValue);
+    const hhi = weights.reduce((s, w) => s + w * w, 0); // 1/n (spread) .. 1 (single stock)
+    const diversificationScore = Math.max(0, Math.min(100, Math.round((1 - hhi) * 100)));
+    const scoreLabel = diversificationScore < 40 ? "Concentrated" : diversificationScore < 70 ? "Moderate" : "Well spread";
+
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Concentration */}
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                    <p className="text-white font-bold text-sm mb-0.5">Concentration</p>
+                    <p className="text-slate-500 text-[11px] mb-3">% of portfolio value in top holdings</p>
+                    <div className="space-y-2">
+                        {topHoldings.map(h => (
+                            <div key={h.id}>
+                                <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-white font-semibold">{h.symbol}</span>
+                                    <span className="text-slate-500">{h.pct.toFixed(1)}%</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                                    <div className={"h-full rounded-full " + (h.pct >= 15 ? "bg-amber-500" : "bg-blue-500")}
+                                         style={{ width: `${Math.min(100, h.pct)}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {top2Pct >= 30 && (
+                        <p className="text-amber-400 text-[10.5px] mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-2">
+                            ⚠ Top 2 holdings are {top2Pct.toFixed(0)}% of this portfolio — a concentrated bet, not necessarily a mistake, but worth knowing.
+                        </p>
+                    )}
+                </div>
+
+                {/* Diversification score */}
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                    <p className="text-white font-bold text-sm mb-0.5">Diversification score</p>
+                    <p className="text-slate-500 text-[11px] mb-3">Based on position sizing only</p>
+                    <div className="flex items-end gap-2 mb-2">
+                        <span className="text-3xl font-extrabold text-white leading-none">{diversificationScore}</span>
+                        <span className="text-slate-500 text-xs mb-0.5">/100 · {scoreLabel}</span>
+                    </div>
+                    <div className="h-2 bg-slate-900 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full"
+                             style={{
+                                 width: `${diversificationScore}%`,
+                                 background: "linear-gradient(90deg, #f0596a, #ffb547, #3ecf8e)",
+                             }} />
+                    </div>
+                    <p className="text-slate-600 text-[10px] mt-2 leading-relaxed">
+                        Measures how evenly value is spread across holdings — a few big positions score lower, many similar-sized ones score higher. Doesn't account for sector overlap between holdings.
+                    </p>
+                </div>
+            </div>
+
+            {/* Top movers — full width, since sector card is gone */}
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                <p className="text-white font-bold text-sm mb-0.5">Today's movers</p>
+                <p className="text-slate-500 text-[11px] mb-3">Biggest moves, up or down</p>
+                {movers.length === 0 ? (
+                    <p className="text-slate-600 text-xs">No live price data available right now.</p>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+                        {movers.map(m => (
+                            <div key={m.id} className="flex justify-between items-center py-1.5 border-t border-slate-700/40 first:border-t-0">
+                                <div>
+                                    <p className="text-white text-xs font-bold">{m.symbol}</p>
+                                    <p className="text-slate-600 text-[10px] truncate max-w-[160px]">{m.name}</p>
+                                </div>
+                                <span className={"text-xs font-bold " + (m.dayChg >= 0 ? "text-green-400" : "text-red-400")}>
+                                    {(m.dayChg >= 0 ? "+" : "") + m.dayChg.toFixed(2)}%
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function TrackedClientDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -751,7 +900,7 @@ export default function TrackedClientDetailPage() {
                     Performance
                 </button>
                 <button onClick={() => setActiveTab("sync")}
-                        className={"px-1 pb-2.5 text-sm font-semibold border-b-2 transition-colors " +
+                        className={"px-1 pb-2.5 mr-5 text-sm font-semibold border-b-2 transition-colors " +
                             (activeTab === "sync"
                                 ? "text-white border-blue-500"
                                 : "text-slate-500 border-transparent hover:text-slate-300")}>
@@ -762,11 +911,18 @@ export default function TrackedClientDetailPage() {
                         </span>
                     )}
                 </button>
+                <button onClick={() => setActiveTab("analytics")}
+                        className={"px-1 pb-2.5 text-sm font-semibold border-b-2 transition-colors " +
+                            (activeTab === "analytics"
+                                ? "text-white border-blue-500"
+                                : "text-slate-500 border-transparent hover:text-slate-300")}>
+                    Analytics
+                </button>
             </div>
 
             {activeTab === "performance" ? (
                 <PerformanceTable holdings={client.holdings || []} onOpenStock={openStockDetail} />
-            ) : (
+            ) : activeTab === "sync" ? (
                 <SyncActionsTable
                     holdings={client.holdings || []}
                     mapped={!!client.mappedUserId}
@@ -777,6 +933,8 @@ export default function TrackedClientDetailPage() {
                     onViewTransactions={setViewingTransactionsFor}
                     onOpenStock={openStockDetail}
                 />
+            ) : (
+                <AnalyticsTab holdings={client.holdings || []} />
             )}
 
             <div className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-3">

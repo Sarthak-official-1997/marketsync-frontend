@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
-import { listTrackedClients, createTrackedClient } from "../api/clientTracker";
+import { listTrackedClients, createTrackedClient, getCrossClientExposure } from "../api/clientTracker";
 import { getPortfolioSummary, getMfPortfolioSummary } from "../api/portfolio";
 import { useAuth } from "../context/AuthContext";
 import { getOwnPortfolioScope, setOwnPortfolioScope, OWN_SCOPE_EVENT } from "../utils/ownPortfolioScopePrefs";
@@ -92,6 +92,20 @@ export default function ClientTrackerPage() {
     };
 
     useEffect(() => { load(); }, []);
+
+    // Cross-client exposure — which single stock you're most exposed to
+    // across every mapped client's real account, combined. Separate fetch,
+    // separate loading state, since it's a genuinely different question
+    // than the per-client list above and shouldn't block that list from
+    // rendering if it's slow or fails.
+    const [exposure, setExposure] = useState([]);
+    const [exposureLoading, setExposureLoading] = useState(true);
+    useEffect(() => {
+        getCrossClientExposure()
+            .then(res => setExposure(res.data || []))
+            .catch(() => setExposure([]))
+            .finally(() => setExposureLoading(false));
+    }, []);
 
     const create = () => {
         if (!newName.trim()) { toast.error("Enter a name"); return; }
@@ -208,6 +222,56 @@ export default function ClientTrackerPage() {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Cross-client exposure — which single stock you're most
+                exposed to across every mapped client's REAL account,
+                combined. Only shows once there's more than one mapped
+                client, since "cross-client" is meaningless with just one. */}
+            {mapped.length > 1 && !exposureLoading && exposure.length > 0 && (
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                    <p className="text-white font-bold text-sm mb-0.5">Cross-client exposure</p>
+                    <p className="text-slate-500 text-[11px] mb-3">
+                        Same stock held across multiple clients — your real concentration risk, invisible from any single client's page
+                    </p>
+                    <div className="space-y-2">
+                        {exposure.slice(0, 5).map(e => {
+                            const pct = parseFloat(e.percentOfTotalAum || 0);
+                            const level = pct >= 15 ? "high" : pct >= 8 ? "med" : "low";
+                            const levelClasses = level === "high"
+                                ? "bg-red-900/20 text-red-400 border-red-700/40"
+                                : level === "med"
+                                    ? "bg-amber-900/20 text-amber-400 border-amber-700/40"
+                                    : "bg-green-900/20 text-green-400 border-green-700/40";
+                            return (
+                                <div key={e.symbol} className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-white text-xs font-bold">{e.symbol}</p>
+                                            <span className="text-slate-600 text-[10px]">
+                                                {e.clientCount} client{e.clientCount === 1 ? "" : "s"}
+                                            </span>
+                                        </div>
+                                        <p className="text-slate-500 text-[10px] truncate max-w-[220px]">{e.name}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <span className="text-slate-300 text-xs font-semibold">
+                                            {valuesHidden ? "••••" : fmtCrore(e.combinedValue)}
+                                        </span>
+                                        <span className={"text-[10px] font-bold px-2 py-1 rounded-full border " + levelClasses}>
+                                            {valuesHidden ? "••" : pct.toFixed(1) + "%"}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {exposure[0] && parseFloat(exposure[0].percentOfTotalAum || 0) >= 15 && (
+                        <p className="text-red-400 text-[10.5px] mt-3 bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-2">
+                            ⚠ {exposure[0].symbol} alone is {parseFloat(exposure[0].percentOfTotalAum).toFixed(0)}% of everything you manage, across {exposure[0].clientCount} client{exposure[0].clientCount === 1 ? "" : "s"}.
+                        </p>
+                    )}
                 </div>
             )}
 
