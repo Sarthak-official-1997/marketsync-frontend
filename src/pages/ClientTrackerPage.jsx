@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
-import { listTrackedClients, createTrackedClient, getCrossClientExposure } from "../api/clientTracker";
+import { listTrackedClients, createTrackedClient, getCrossClientExposure, getAllPortfoliosSummary } from "../api/clientTracker";
 import { getPortfolioSummary, getMfPortfolioSummary } from "../api/portfolio";
 import { useAuth } from "../context/AuthContext";
 import { getOwnPortfolioScope, setOwnPortfolioScope, OWN_SCOPE_EVENT } from "../utils/ownPortfolioScopePrefs";
@@ -105,6 +105,16 @@ export default function ClientTrackerPage() {
             .then(res => setExposure(res.data || []))
             .catch(() => setExposure([]))
             .finally(() => setExposureLoading(false));
+    }, []);
+
+    // Stocks-vs-MF split + best/worst-today — same fetch-independently
+    // pattern as exposure above, so a slow/failed call here can't block
+    // the client list from rendering.
+    const [allSummary, setAllSummary] = useState(null);
+    useEffect(() => {
+        getAllPortfoliosSummary()
+            .then(res => setAllSummary(res.data))
+            .catch(() => setAllSummary(null));
     }, []);
 
     const create = () => {
@@ -271,6 +281,63 @@ export default function ClientTrackerPage() {
                         <p className="text-red-400 text-[10.5px] mt-3 bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-2">
                             ⚠ {exposure[0].symbol} alone is {parseFloat(exposure[0].percentOfTotalAum).toFixed(0)}% of everything you manage, across {exposure[0].clientCount} client{exposure[0].clientCount === 1 ? "" : "s"}.
                         </p>
+                    )}
+                </div>
+            )}
+
+            {/* Stocks vs MF split + Best/worst today — the two remaining
+                all-portfolios cards. Sector-based "AUM by sector" was cut. */}
+            {mapped.length > 0 && allSummary && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {allSummary.stocksVsMf?.length > 0 && (
+                        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                            <p className="text-white font-bold text-sm mb-0.5">Stocks vs MF split</p>
+                            <p className="text-slate-500 text-[11px] mb-3">Across every mapped client, combined</p>
+                            <div className="flex h-2.5 rounded-full overflow-hidden mb-3">
+                                {allSummary.stocksVsMf.map((s, i) => (
+                                    <div key={s.label}
+                                         className={i === 0 ? "bg-blue-500" : "bg-teal-400"}
+                                         style={{ width: `${s.percentage}%` }} />
+                                ))}
+                            </div>
+                            <div className="space-y-1.5">
+                                {allSummary.stocksVsMf.map((s, i) => (
+                                    <div key={s.label} className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className={"w-2 h-2 rounded-sm " + (i === 0 ? "bg-blue-500" : "bg-teal-400")} />
+                                            <span className="text-slate-300">{s.label}</span>
+                                        </div>
+                                        <span className="text-slate-500 font-semibold">
+                                            {parseFloat(s.percentage).toFixed(1)}%
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {allSummary.rankedByToday?.length > 0 && (
+                        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                            <p className="text-white font-bold text-sm mb-0.5">Best / worst today</p>
+                            <p className="text-slate-500 text-[11px] mb-3">Ranked by today's % change</p>
+                            <div className="space-y-1">
+                                {allSummary.rankedByToday.map(c => (
+                                    <div key={c.trackedClientId} className="flex justify-between items-center py-1">
+                                        <span className="text-white text-xs font-semibold truncate max-w-[140px]">
+                                            {c.displayName}
+                                        </span>
+                                        <span className={"text-xs font-bold " +
+                                            (c.dayChangePercent == null ? "text-slate-600" :
+                                                parseFloat(c.dayChangePercent) >= 0 ? "text-green-400" : "text-red-400")}>
+                                            {c.dayChangePercent == null
+                                                ? "—"
+                                                : (parseFloat(c.dayChangePercent) >= 0 ? "+" : "") +
+                                                parseFloat(c.dayChangePercent).toFixed(2) + "%"}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
