@@ -399,10 +399,19 @@ export default function StockDetailModal({ stock, onClose }) {
         : ["auto", "auto"];
 
     // ── RENDER ─────────────────────────────────────────────────────────────────
+    // z-[300] was drastically too low compared to the app's persistent
+    // chrome — the FloatingBubble sits at z-9500 globally, always mounted.
+    // At z-300, this modal (including the Remind Me button) was rendering
+    // UNDERNEATH the bubble's hit-testable area the whole time, which is
+    // why clicks landed on nothing: the invisible-looking bubble was
+    // silently eating the tap before it ever reached the button beneath
+    // it. Matching the app's established highest tier (SearchPickerModal,
+    // PushReviewModal, PasskeySetupModal — all fixed for this exact issue
+    // before) so this genuinely wins every stacking conflict now.
     return createPortal(
         <>
             <div
-                className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center"
+                className="fixed inset-0 z-[9700] flex items-end sm:items-center justify-center"
                 onClick={onClose}
             >
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
@@ -1091,9 +1100,9 @@ export default function StockDetailModal({ stock, onClose }) {
                 </div>{/* end modal card */}
             </div>{/* end backdrop */}
 
-            {/* Add-to-watchlists sheet — own portal so it sits above StockDetailModal (z-[300]) */}
+            {/* Add-to-watchlists sheet — own portal so it sits above StockDetailModal (z-[9700]) */}
             {watchSheetOpen && createPortal(
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4"
+                <div className="fixed inset-0 z-[9701] flex items-center justify-center p-4"
                      onClick={() => setWatchSheetOpen(false)}>
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
                     <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-[360px] flex flex-col"
@@ -1184,7 +1193,11 @@ export default function StockDetailModal({ stock, onClose }) {
                 document.body
             )}
 
-            {/* Transaction panel — own portal so it renders above StockDetailModal (z-[300]) */}
+            {/* Transaction panel — own portal so it renders above StockDetailModal
+                (now z-[9700], was z-[300]) — StockTransactionPanel.jsx manages
+                its OWN z-index internally, not visible/verified from this file.
+                Worth confirming it's also in the 9700+ range now that this
+                modal moved up, or it could end up UNDER it instead of above. */}
             {txPanel && createPortal(
                 <StockTransactionPanel
                     stock={stock }

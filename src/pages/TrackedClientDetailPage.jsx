@@ -21,7 +21,7 @@ import {
     addTrackedHolding, deleteTrackedHolding,
     previewExcelHoldings, confirmExcelHoldings,
     previewScreenshotHoldings, confirmScreenshotHoldings,
-    syncTrackedHolding, getStagedEdits,
+    syncTrackedHolding, getStagedEdits, updateTrackedClientScope,
 } from "../api/clientTracker";
 
 // ── Map-to-user picker ────────────────────────────────────────────────────
@@ -532,10 +532,44 @@ export default function TrackedClientDetailPage() {
                 an untracked one yet. */}
             {client.mappedUserId && (
                 <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+                    {/* Which holdings this client's numbers below are actually
+                        computed from — Stocks only, MF only, or both. Changing
+                        this re-fetches, since the value/P&L/day-change figures
+                        genuinely change with it. */}
+                    <div className="flex items-center gap-1.5 mb-4">
+                        {[["STOCKS", "Stocks"], ["MF", "MF"], ["COMBINED", "Combined"]].map(([val, label]) => (
+                            <button key={val}
+                                    onClick={() => {
+                                        if (client.portfolioScope === val) return;
+                                        updateTrackedClientScope(client.id, val)
+                                            .then(res => setClient(res.data))
+                                            .catch(() => toast.error("Couldn't change portfolio scope"));
+                                    }}
+                                    className={"text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors " +
+                                        ((client.portfolioScope || "COMBINED") === val
+                                            ? "bg-purple-600/20 border-purple-500 text-purple-300"
+                                            : "bg-slate-900 border-slate-700 text-slate-400")}>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
                     <PortfolioValueChart
                         currentValue={client.realPortfolioValue}
                         fetchHistory={(range) => getClientPortfolioHistory(client.mappedUserId, range)}
                     />
+                    {/* Honest limitation, not a bug: the history endpoint this
+                        chart's LINE is drawn from only has stock price data —
+                        it has no MF equivalent yet. The Value/P&L/Today
+                        numbers above DO correctly reflect the scope chosen,
+                        but the shape of the line itself is stock-only
+                        regardless of scope until MF gets its own history
+                        endpoint — silently mismatching those would be worse
+                        than saying so plainly. */}
+                    {client.portfolioScope !== "STOCKS" && (
+                        <p className="text-[11px] text-slate-600 mt-2">
+                            ⓘ Chart line reflects stock price history only — mutual fund history isn't available yet.
+                        </p>
+                    )}
                 </div>
             )}
 

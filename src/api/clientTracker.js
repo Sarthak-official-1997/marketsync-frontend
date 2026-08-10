@@ -5,6 +5,7 @@
 import { api } from "./portfolio";
 
 export const listTrackedClients   = ()               => api.get("/client-tracker");
+export const updateTrackedClientScope = (id, scope)  => api.patch(`/client-tracker/${id}/scope`, { scope });
 export const createTrackedClient  = (displayName)     => api.post("/client-tracker", { displayName });
 export const getTrackedClient     = (id)              => api.get(`/client-tracker/${id}`);
 export const deleteTrackedClient  = (id)              => api.delete(`/client-tracker/${id}`);

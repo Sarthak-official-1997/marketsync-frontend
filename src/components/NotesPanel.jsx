@@ -18,6 +18,7 @@ import { useMobile } from "../hooks/useMobile";
 import { useToast } from "../context/ToastContext";
 import { searchStocks } from "../api/portfolio";
 import { getNotes, createNote, updateNote, deleteNote } from "../api/notes";
+import SearchPickerModal from "./SearchPickerModal";
 
 // Relative "time ago".
 function timeAgo(iso) {
@@ -116,13 +117,23 @@ function NoteComposerModal({ initial, onSave, onClose, saving }) {
 
     const pickMention = (s) => {
         setBody(prev => prev.replace(/\$([A-Za-z]+)$/, "").replace(/\s+$/, "") + " ");
-        setStocks(prev => prev.some(x => x.symbol === s.symbol)
-            ? prev
-            : [...prev, { symbol: s.symbol, name: s.name || s.symbol, exchange: s.exchange || "NSE" }]);
+        addLinkedStock(s);
         setMentionOpen(false);
         setMentionResults([]);
         textareaRef.current?.focus();
     };
+
+    // Shared by both ways of linking a stock — typing $SYMBOL inline, or
+    // tapping "🔗 Link Stock" to search explicitly via SearchPickerModal.
+    // Typing $ is fast once you know the symbol; the button is for when you
+    // don't, or just don't want to type it into the note text itself.
+    const addLinkedStock = (s) => {
+        setStocks(prev => prev.some(x => x.symbol === s.symbol)
+            ? prev
+            : [...prev, { symbol: s.symbol, name: s.name || s.symbol, exchange: s.exchange || "NSE" }]);
+    };
+
+    const [showLinkModal, setShowLinkModal] = useState(false);
 
     const applyPreset = (days) => {
         const d = new Date();
@@ -146,34 +157,35 @@ function NoteComposerModal({ initial, onSave, onClose, saving }) {
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[9660] flex items-end sm:items-center justify-center"
-             onClick={onClose}>
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+        <>
+            <div className="fixed inset-0 z-[9660] flex items-end sm:items-center justify-center"
+                 onClick={onClose}>
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
-            <div className="relative z-[9661] bg-slate-900 flex flex-col"
-                 style={isMobile ? {
-                     width: "100vw", height: "100dvh", maxWidth: "100vw", maxHeight: "100dvh",
-                     borderRadius: 0, border: "none",
-                     paddingTop: "env(safe-area-inset-top, 0px)",
-                     paddingBottom: "env(safe-area-inset-bottom, 0px)",
-                     overflowX: "hidden",
-                 } : {
-                     width: "calc(100vw - 32px)", maxWidth: "520px",
-                     minHeight: "480px", maxHeight: "88vh",
-                     borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
-                     boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
-                 }}
-                 onClick={e => e.stopPropagation()}>
+                <div className="relative z-[9661] bg-slate-900 flex flex-col"
+                     style={isMobile ? {
+                         width: "100vw", height: "100dvh", maxWidth: "100vw", maxHeight: "100dvh",
+                         borderRadius: 0, border: "none",
+                         paddingTop: "env(safe-area-inset-top, 0px)",
+                         paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                         overflowX: "hidden",
+                     } : {
+                         width: "calc(100vw - 32px)", maxWidth: "520px",
+                         minHeight: "480px", maxHeight: "88vh",
+                         borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
+                         boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
+                     }}
+                     onClick={e => e.stopPropagation()}>
 
-                <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
-                    <p className="text-white font-bold text-sm">{initial ? "Edit note" : "New note"}</p>
-                    <button onClick={onClose}
-                            className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
+                    <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
+                        <p className="text-white font-bold text-sm">{initial ? "Edit note" : "New note"}</p>
+                        <button onClick={onClose}
+                                className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center
                                        text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">✕</button>
-                </div>
+                    </div>
 
-                <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }} className="px-4 py-4 space-y-3">
-                    <div className="relative">
+                    <div style={{ flex: "1 1 0", overflowY: "auto", minHeight: 0 }} className="px-4 py-4 space-y-3">
+                        <div className="relative">
                         <textarea
                             ref={textareaRef}
                             value={body}
@@ -184,99 +196,134 @@ function NoteComposerModal({ initial, onSave, onClose, saving }) {
                                        text-white text-sm placeholder-slate-500 resize-none
                                        focus:outline-none focus:border-blue-500"
                         />
-                        {mentionOpen && mentionResults.length > 0 && (
-                            <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-slate-800 border border-slate-600
+                            {mentionOpen && mentionResults.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-slate-800 border border-slate-600
                                             rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto">
-                                {mentionResults.slice(0, 8).map(s => (
-                                    <button key={s.id || s.symbol} onClick={() => pickMention(s)}
-                                            className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-700/60
+                                    {mentionResults.slice(0, 8).map(s => (
+                                        <button key={s.id || s.symbol} onClick={() => pickMention(s)}
+                                                className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-700/60
                                                        transition-colors text-left border-b border-slate-700/40 last:border-0">
-                                        <div className="min-w-0">
-                                            <p className="text-white text-xs font-bold">{s.symbol}</p>
-                                            <p className="text-slate-500 text-[10px] truncate">{s.name}</p>
-                                        </div>
-                                        {s.exchange && (
-                                            <span className="text-[9px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">
+                                            <div className="min-w-0">
+                                                <p className="text-white text-xs font-bold">{s.symbol}</p>
+                                                <p className="text-slate-500 text-[10px] truncate">{s.name}</p>
+                                            </div>
+                                            {s.exchange && (
+                                                <span className="text-[9px] bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">
                                                 {s.exchange}
                                             </span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
-                    {stocks.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
+                        {/* Explicit search-and-pick, alongside typing $SYMBOL
+                        inline — reuses the same SearchPickerModal every
+                        other stock-search flow in the app uses, rather
+                        than a note-specific one-off. */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button type="button" onClick={() => setShowLinkModal(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-900/30 text-blue-300
+                                           border border-blue-700/40 text-xs font-semibold rounded-lg
+                                           hover:bg-blue-900/50 transition-colors">
+                                🔗 Link Stock
+                            </button>
                             {stocks.map(s => (
                                 <StockChip key={s.symbol} symbol={s.symbol}
                                            onRemove={() => setStocks(prev => prev.filter(x => x.symbol !== s.symbol))} />
                             ))}
                         </div>
-                    )}
 
-                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 space-y-2.5">
-                        <p className="text-xs text-slate-400 font-semibold">⏰ Reminders</p>
+                        <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 space-y-2.5">
+                            <p className="text-xs text-slate-400 font-semibold">⏰ Reminders</p>
 
-                        {/* Quick-pick presets — fills the raw input below rather than
+                            {/* Quick-pick presets — fills the raw input below rather than
                             hiding it, so the exact time is still adjustable. */}
-                        <div className="flex flex-wrap gap-1.5">
-                            {REMINDER_PRESETS.map(p => (
-                                <button key={p.label} onClick={() => applyPreset(p.days)}
-                                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
-                                                   bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors">
-                                    {p.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {reminders.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
-                                {reminders.map(iso => (
-                                    <span key={iso} className="inline-flex items-center gap-1 bg-amber-900/30 text-amber-300
-                                                               text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                                        ⏰ {fmtRemind(iso)}
-                                        <button onClick={() => setReminders(prev => prev.filter(x => x !== iso))}
-                                                className="text-amber-400 hover:text-white leading-none">✕</button>
-                                    </span>
+                                {REMINDER_PRESETS.map(p => (
+                                    <button key={p.label} onClick={() => applyPreset(p.days)}
+                                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
+                                                   bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors">
+                                        {p.label}
+                                    </button>
                                 ))}
                             </div>
-                        )}
 
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="datetime-local"
-                                value={remindDraft}
-                                onChange={e => setRemindDraft(e.target.value)}
-                                className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5
+                            {reminders.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {reminders.map(iso => (
+                                        <span key={iso} className="inline-flex items-center gap-1 bg-amber-900/30 text-amber-300
+                                                               text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                                        ⏰ {fmtRemind(iso)}
+                                            <button onClick={() => setReminders(prev => prev.filter(x => x !== iso))}
+                                                    className="text-amber-400 hover:text-white leading-none">✕</button>
+                                    </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="datetime-local"
+                                    value={remindDraft}
+                                    onChange={e => setRemindDraft(e.target.value)}
+                                    // Native datetime-local inputs render their own
+                                    // internal date/time text using the browser's
+                                    // default (usually light) form-control theme —
+                                    // Tailwind's text-* classes don't reach it at
+                                    // all, since it isn't regular DOM text. That's
+                                    // what made this look blank: dark-on-dark from
+                                    // the browser's own light-scheme rendering,
+                                    // not actually empty. color-scheme: dark tells
+                                    // the browser to use its dark native theme for
+                                    // this control instead.
+                                    style={{ colorScheme: "dark" }}
+                                    className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5
                                            text-slate-200 text-xs focus:outline-none focus:border-amber-500"
-                            />
-                            <button onClick={addReminder}
-                                    className="px-3 py-1.5 bg-amber-600/20 text-amber-300 border border-amber-500/40
+                                />
+                                <button onClick={addReminder}
+                                        className="px-3 py-1.5 bg-amber-600/20 text-amber-300 border border-amber-500/40
                                                text-xs font-semibold rounded-lg hover:bg-amber-600/30 transition-colors flex-shrink-0">
-                                + Add
-                            </button>
+                                    + Add
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-600">
+                                Each reminder fires once. Add several times if you want repeated nudges.
+                            </p>
                         </div>
-                        <p className="text-[10px] text-slate-600">
-                            Each reminder fires once. Add several times if you want repeated nudges.
-                        </p>
+                    </div>
+
+                    <div className="flex-shrink-0 px-4 py-3 border-t border-slate-700/60 flex gap-2">
+                        <button onClick={onClose}
+                                className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={handleSave} disabled={saving || !body.trim()}
+                                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                                       text-white text-sm font-semibold rounded-xl transition-colors">
+                            {saving ? "Saving…" : initial ? "Update note" : "Save note"}
+                        </button>
                     </div>
                 </div>
-
-                <div className="flex-shrink-0 px-4 py-3 border-t border-slate-700/60 flex gap-2">
-                    <button onClick={onClose}
-                            className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white
-                                       text-sm font-semibold rounded-xl transition-colors">
-                        Cancel
-                    </button>
-                    <button onClick={handleSave} disabled={saving || !body.trim()}
-                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40
-                                       text-white text-sm font-semibold rounded-xl transition-colors">
-                        {saving ? "Saving…" : initial ? "Update note" : "Save note"}
-                    </button>
-                </div>
             </div>
-        </div>,
+            {showLinkModal && (
+                <SearchPickerModal
+                    title="Link a stock"
+                    placeholder="Search symbol or company…"
+                    searchFn={(q) => searchStocks(q).then(r => r.data?.content || r.data || [])}
+                    renderResult={(s) => (
+                        <div className="min-w-0">
+                            <p className="text-white text-xs font-bold">{s.symbol}</p>
+                            <p className="text-slate-500 text-[10px] truncate">{s.name}</p>
+                        </div>
+                    )}
+                    onPick={(s) => { addLinkedStock(s); setShowLinkModal(false); }}
+                    onClose={() => setShowLinkModal(false)}
+                />
+            )}
+        </>,
         document.body
     );
 }

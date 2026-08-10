@@ -13,6 +13,7 @@ import { usePrivacy } from "../context/PrivacyContext";
 import { listTrackedClients, createTrackedClient } from "../api/clientTracker";
 import { getPortfolioSummary, getMfPortfolioSummary } from "../api/portfolio";
 import { useAuth } from "../context/AuthContext";
+import { getOwnPortfolioScope, setOwnPortfolioScope, OWN_SCOPE_EVENT } from "../utils/ownPortfolioScopePrefs";
 
 const fmtCrore = (v) => {
     if (v == null) return "—";
@@ -44,13 +45,17 @@ export default function ClientTrackerPage() {
     // multi-holdings API ends up being, nothing else on this page needs to
     // know the difference.
     const [ownSummary, setOwnSummary] = useState(null);
-    useEffect(() => {
+    const [ownScope, setOwnScopeState] = useState(() => getOwnPortfolioScope());
+
+    const loadOwnSummary = (scope) => {
         Promise.allSettled([getPortfolioSummary(), getMfPortfolioSummary()])
             .then(([s, m]) => {
-                const stockVal = s.status === "fulfilled" ? parseFloat(s.value.data?.currentValue || 0) : 0;
-                const stockDayPL = s.status === "fulfilled" ? parseFloat(s.value.data?.dayPL || 0) : 0;
-                const mfVal = m.status === "fulfilled" ? parseFloat(m.value.data?.currentValue || 0) : 0;
-                const mfDayChange = m.status === "fulfilled" && m.value.data?.dayChangeAmount != null
+                const includeStocks = scope !== "MF";
+                const includeMf     = scope !== "STOCKS";
+                const stockVal = includeStocks && s.status === "fulfilled" ? parseFloat(s.value.data?.currentValue || 0) : 0;
+                const stockDayPL = includeStocks && s.status === "fulfilled" ? parseFloat(s.value.data?.dayPL || 0) : 0;
+                const mfVal = includeMf && m.status === "fulfilled" ? parseFloat(m.value.data?.currentValue || 0) : 0;
+                const mfDayChange = includeMf && m.status === "fulfilled" && m.value.data?.dayChangeAmount != null
                     ? parseFloat(m.value.data.dayChangeAmount) : 0;
                 const totalVal = stockVal + mfVal;
                 const totalDayChange = stockDayPL + mfDayChange;
@@ -62,6 +67,14 @@ export default function ClientTrackerPage() {
                 });
             })
             .catch(() => setOwnSummary(null));
+    };
+
+    useEffect(() => {
+        loadOwnSummary(ownScope);
+        const onChange = (e) => { setOwnScopeState(e.detail); loadOwnSummary(e.detail); };
+        window.addEventListener(OWN_SCOPE_EVENT, onChange);
+        return () => window.removeEventListener(OWN_SCOPE_EVENT, onChange);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const load = () => {
@@ -195,6 +208,20 @@ export default function ClientTrackerPage() {
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-purple-900/40 text-purple-300">
                                 Your Portfolio
                             </span>
+                        </div>
+                        {/* stopPropagation — the whole card navigates to
+                            /portfolio on tap, these buttons shouldn't. */}
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            {[["STOCKS", "Stocks"], ["MF", "MF"], ["COMBINED", "Both"]].map(([val, label]) => (
+                                <button key={val}
+                                        onClick={() => setOwnPortfolioScope(val)} // the event listener above handles state + reload
+                                        className={"text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors " +
+                                            (ownScope === val
+                                                ? "bg-purple-600/20 border-purple-500 text-purple-300"
+                                                : "bg-slate-900 border-slate-700 text-slate-500")}>
+                                    {label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                     <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-slate-700/40">

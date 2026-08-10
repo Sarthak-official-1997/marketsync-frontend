@@ -19,7 +19,7 @@ import CommandPalette from "./CommandPalette";
 import { getBoardApi, addToBoardApi, removeFromBoardApi } from "../api/board";
 import InboxPanel from "./InboxPanel";
 import { InboxContext } from "../context/InboxContext";
-import { useSwipeNav, indexForPath } from "../hooks/useSwipeNav";
+import { useSwipeNav, indexForPath, getSwipeOrder } from "../hooks/useSwipeNav";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import haptics from "../utils/haptics";
 import InstallAppButton from "./InstallAppButton";
@@ -390,11 +390,22 @@ function MobileBottomNav({ currentPath, onShowMore, showMore, onHideMore, isCrea
     // Root-level destinations need exact matching — /stocks would otherwise
     // startsWith-match its own children like /stocks/holdings too.
     const EXACT_ROOTS = new Set(["home", "market", "mf-market"]);
+    // "Home" isn't a fixed destination — it's a live proxy for whatever the
+    // user picked in Settings (Home dashboard / Stocks / Mutual Funds /
+    // Client Tracker). Resolved once here rather than baked into the
+    // candidate list, since it depends on isCreator and the preference,
+    // neither of which the plain-data candidate list can know about.
+    const resolvedHomePath = getHomePath(isCreator);
 
     const tabs = [
-        ...navOrder.slice(0, 4).map(c => ({
-            id: c.id, label: c.label, to: c.path, exact: EXACT_ROOTS.has(c.id), icon: ICONS[c.id],
-        })),
+        ...navOrder.slice(0, 4).map(c => {
+            const to = c.dynamicHome ? resolvedHomePath : c.path;
+            return {
+                id: c.id, label: c.label, to,
+                exact: EXACT_ROOTS.has(c.id) || to === "/stocks" || to === "/mf",
+                icon: ICONS[c.id],
+            };
+        }),
         { id: "more", label: "More", to: null, icon: moreIcon },
     ];
     const isActive = (tab) => {
@@ -456,7 +467,7 @@ function MobileMoreDrawer({ onClose, isAdmin, isCreator }) {
         "client-tracker": "📋",
     };
     const overflowNav = getNavOrder(isCreator).slice(4)
-        .map(c => ({ label: c.label, to: c.path, icon: EMOJI[c.id] || "•" }));
+        .map(c => ({ label: c.label, to: c.dynamicHome ? getHomePath(isCreator) : c.path, icon: EMOJI[c.id] || "•" }));
 
     // Creator / Admin links intentionally NOT here — they live in Settings now.
     const mainTiles = [
@@ -617,21 +628,21 @@ function SectionHeader({ icon, label, expanded, onToggle }) {
 // Slides the incoming page in from the right when moving to a later tab, from
 // the left when moving back, and plain-fades for everything else. Direction is
 // derived from tab order, so swipes AND bottom-nav taps animate consistently.
-function PageTransition({ children }) {
+function PageTransition({ children, isCreator }) {
     const location = useLocation();
-    const prevIdx  = useRef(indexForPath(location.pathname));
+    const prevIdx  = useRef(indexForPath(location.pathname, getSwipeOrder(isCreator)));
     const [dir,     setDir]     = useState("fade");
     const [animKey, setAnimKey] = useState(location.key || location.pathname);
 
     useEffect(() => {
-        const cur  = indexForPath(location.pathname);
+        const cur  = indexForPath(location.pathname, getSwipeOrder(isCreator));
         const prev = prevIdx.current;
         let d = "fade";
         if (cur >= 0 && prev >= 0 && cur !== prev) d = cur > prev ? "next" : "prev";
         setDir(d);
         setAnimKey(location.key || location.pathname);
         prevIdx.current = cur;
-    }, [location.pathname, location.key]);
+    }, [location.pathname, location.key, isCreator]);
 
     return (
         <div key={animKey} className={"page-anim page-anim-" + dir}>
@@ -653,7 +664,7 @@ export default function Layout({ children, portfolioSummary }) {
     // Swipe left/right between the main tabs (mobile only). The hook guards
     // against horizontal scrollers so it won't hijack pill rows / tables / charts.
     const mainRef = useRef(null);
-    useSwipeNav(mainRef, isMobile);
+    useSwipeNav(mainRef, isMobile, isCreator);
 
     // Pull-to-refresh: dispatching visibilitychange makes every page's existing
     // "refetch when visible" handler fire — so one gesture refreshes all data with
@@ -1203,7 +1214,7 @@ export default function Layout({ children, portfolioSummary }) {
                             openInbox:  () => setShowInbox(true),
                             closeInbox: () => setShowInbox(false),
                         }}>
-                            <PageTransition>{children}</PageTransition>
+                            <PageTransition isCreator={isCreator}>{children}</PageTransition>
                         </InboxContext.Provider>
                     </div>
                 </main>

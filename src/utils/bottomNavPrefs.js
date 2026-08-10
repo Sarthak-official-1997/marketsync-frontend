@@ -15,7 +15,15 @@ export const BOTTOM_NAV_EVENT = "folyo:bottom-nav-order-changed";
 // resolved at render time in Layout.jsx so this file stays a plain data
 // module with no JSX or icon dependencies.
 export const NAV_CANDIDATES = [
-    { id: "home",       label: "Home",         path: "/home" },
+    // "home" has no fixed path — it's a live proxy for whatever the user
+    // picked as their Default Primary View in Settings (Home dashboard /
+    // Stocks / Mutual Funds / Client Tracker), resolved via getHomePath()
+    // at render time, not a separate destination in its own right. path
+    // here is only a fallback for contexts that can't call getHomePath
+    // (e.g. before isCreator is known) — Layout.jsx's MobileBottomNav and
+    // MobileMoreDrawer both resolve the real path dynamically instead of
+    // using this directly.
+    { id: "home",       label: "Home",         path: "/home", dynamicHome: true },
     { id: "market",     label: "Market",       path: "/stocks" },
     { id: "holdings",   label: "Holdings",     path: "/stocks/holdings" },
     { id: "trades",     label: "Trades",       path: "/stocks/transactions" },
