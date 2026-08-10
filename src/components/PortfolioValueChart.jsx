@@ -8,7 +8,7 @@
 // ranges, so rather than show tabs that silently fall back to something
 // else, only the genuinely-supported ranges are offered.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePrivacy } from "../context/PrivacyContext";
 
 const RANGES = [
@@ -74,7 +74,7 @@ function Sparkline({ dates, values }) {
  */
 export default function PortfolioValueChart({ fetchHistory, currentValue, showChangeBadge = true, scopeNote }) {
     const { hidden: valuesHidden } = usePrivacy();
-    const [range, setRange] = useState("1m");
+    const [range, setRange] = useState("1d");
     const [history, setHistory] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -84,6 +84,40 @@ export default function PortfolioValueChart({ fetchHistory, currentValue, showCh
             .then(setHistory)
             .catch(() => setHistory(null))
             .finally(() => setLoading(false));
+    }, [range]);
+
+    // Live-during-market-hours refresh: only on the 1D range, only while
+    // NSE/BSE would plausibly be open (Mon-Fri, 9:15-15:30 IST) — a simple
+    // weekday+time-window check, not holiday-aware, since a real trading
+    // calendar is a separate concern from this. Silent background refetch
+    // (no loading spinner) every 30s so the line visibly grows without the
+    // whole card flickering into a loading state on every poll.
+    // fetchHistory is a fresh function reference on every parent render
+    // (it's typically passed as an inline arrow), so depending on it
+    // directly would reset the poll interval before it ever fires. A ref
+    // sidesteps that — always calls the LATEST fetchHistory, but doesn't
+    // retrigger the effect when only the parent re-renders.
+    const fetchHistoryRef = useRef(fetchHistory);
+    useEffect(() => { fetchHistoryRef.current = fetchHistory; }, [fetchHistory]);
+
+    useEffect(() => {
+        if (range !== "1d") return;
+
+        const isLikelyMarketOpen = () => {
+            const now = new Date();
+            const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+            const day = ist.getDay(); // 0=Sun..6=Sat
+            if (day === 0 || day === 6) return false;
+            const minutesNow = ist.getHours() * 60 + ist.getMinutes();
+            return minutesNow >= (9 * 60 + 15) && minutesNow <= (15 * 60 + 30);
+        };
+
+        const interval = setInterval(() => {
+            if (!isLikelyMarketOpen()) return;
+            fetchHistoryRef.current("1d").then(setHistory).catch(() => {});
+        }, 30000);
+
+        return () => clearInterval(interval);
     }, [range]);
 
     const values = history?.values || [];
