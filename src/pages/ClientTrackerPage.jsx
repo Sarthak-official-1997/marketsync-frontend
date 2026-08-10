@@ -35,6 +35,12 @@ export default function ClientTrackerPage() {
     const [newName, setNewName] = useState("");
     const [creating, setCreating] = useState(false);
 
+    // Search + sort — not needed at 4 clients, but this list grows past one
+    // screen fast once reference-only (unmapped) entries pile up, so it's
+    // cheap to add now rather than retrofit later.
+    const [search, setSearch] = useState("");
+    const [sortBy, setSortBy] = useState("value"); // "value" | "today" | "name" | "pl"
+
     // Your OWN portfolio, shown as the first row in this same list — not a
     // tracked client, your real holdings. For now "my portfolio" simply
     // means every stock+MF holding you have, since there's only ever one
@@ -101,14 +107,26 @@ export default function ClientTrackerPage() {
             .finally(() => setCreating(false));
     };
 
-    // Summarize a client's sync status across all their holdings.
+    // Summarize a client's sync status across all their holdings — pill
+    // styling matches the status badge used on the detail page's Sync &
+    // Actions tab, so the two screens read as the same visual language.
     const syncSummary = (client) => {
-        if (!client.mappedUserId) return { label: "Untracked — no account", color: "text-slate-500" };
+        if (!client.mappedUserId) {
+            return { label: "Untracked", dot: "bg-slate-500", classes: "bg-slate-800 text-slate-400 border-slate-700" };
+        }
         const holdings = client.holdings || [];
-        if (holdings.length === 0) return { label: "No holdings yet", color: "text-slate-500" };
+        if (holdings.length === 0) {
+            return { label: "No holdings", dot: "bg-slate-500", classes: "bg-slate-800 text-slate-400 border-slate-700" };
+        }
         const outOfSync = holdings.filter(h => h.inSync === false).length;
-        if (outOfSync === 0) return { label: "In sync", color: "text-green-400" };
-        return { label: `${outOfSync} out of sync`, color: "text-amber-400" };
+        if (outOfSync === 0) {
+            return { label: "In sync", dot: "bg-green-400", classes: "bg-green-900/20 text-green-400 border-green-700/40" };
+        }
+        return {
+            label: `${outOfSync} pending`,
+            dot: "bg-amber-400",
+            classes: "bg-amber-900/20 text-amber-400 border-amber-700/40",
+        };
     };
 
     const mapped = clients.filter(c => c.mappedUserId);
@@ -117,6 +135,37 @@ export default function ClientTrackerPage() {
         .filter(c => c.realDayChangeAmount != null)
         .reduce((s, c) => s + parseFloat(c.realDayChangeAmount || 0), 0);
     const anyDayChangeData = mapped.some(c => c.realDayChangeAmount != null);
+
+    // Filter by name/handle, then sort — client-side, since the full list is
+    // already fetched in one call and won't be large enough yet to need
+    // server-side paging.
+    const visibleClients = clients
+        .filter(c => {
+            if (!search.trim()) return true;
+            const q = search.trim().toLowerCase();
+            return (c.displayName || "").toLowerCase().includes(q) ||
+                (c.mappedUsername || "").toLowerCase().includes(q);
+        })
+        .slice()
+        .sort((a, b) => {
+            if (sortBy === "name") {
+                return (a.displayName || "").localeCompare(b.displayName || "");
+            }
+            if (sortBy === "today") {
+                const ta = a.realDayChangePercent != null ? parseFloat(a.realDayChangePercent) : -Infinity;
+                const tb = b.realDayChangePercent != null ? parseFloat(b.realDayChangePercent) : -Infinity;
+                return tb - ta;
+            }
+            if (sortBy === "pl") {
+                const pa = a.realUnrealizedPLPercent != null ? parseFloat(a.realUnrealizedPLPercent) : -Infinity;
+                const pb = b.realUnrealizedPLPercent != null ? parseFloat(b.realUnrealizedPLPercent) : -Infinity;
+                return pb - pa;
+            }
+            // default: value, high to low
+            const va = a.realPortfolioValue != null ? parseFloat(a.realPortfolioValue) : -Infinity;
+            const vb = b.realPortfolioValue != null ? parseFloat(b.realPortfolioValue) : -Infinity;
+            return vb - va;
+        });
 
     return (
         <div className="max-w-2xl mx-auto space-y-4">
@@ -241,6 +290,31 @@ export default function ClientTrackerPage() {
                 </div>
             )}
 
+            {clients.length > 0 && (
+                <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 bg-slate-800/60 border border-slate-700/60
+                                     rounded-xl px-3 py-2">
+                        <span className="text-slate-500 text-sm">🔍</span>
+                        <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search clients by name or handle…"
+                            className="flex-1 bg-transparent text-white text-sm placeholder-slate-600 focus:outline-none"
+                        />
+                    </div>
+                    <select
+                        value={sortBy}
+                        onChange={e => setSortBy(e.target.value)}
+                        className="bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2
+                                   text-white text-xs font-medium focus:outline-none focus:border-blue-500">
+                        <option value="value">Sort: Value (high → low)</option>
+                        <option value="today">Sort: Today's change</option>
+                        <option value="pl">Sort: P&amp;L %</option>
+                        <option value="name">Sort: Name (A–Z)</option>
+                    </select>
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex justify-center py-12">
                     <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -250,9 +324,13 @@ export default function ClientTrackerPage() {
                     <p className="text-3xl mb-2">📋</p>
                     <p className="text-slate-400 text-sm">No tracked clients yet.</p>
                 </div>
+            ) : visibleClients.length === 0 ? (
+                <div className="text-center py-12">
+                    <p className="text-slate-500 text-sm">No clients match "{search}"</p>
+                </div>
             ) : (
                 <div className="space-y-2">
-                    {clients.map(c => {
+                    {visibleClients.map(c => {
                         const sync = syncSummary(c);
                         const isMapped = !!c.mappedUserId;
                         const pl = parseFloat(c.realUnrealizedPL || 0);
@@ -283,7 +361,11 @@ export default function ClientTrackerPage() {
                                                 ` · ${c.realMfHoldingCount} MF`}
                                         </p>
                                     </div>
-                                    <span className={"text-xs font-semibold flex-shrink-0 " + sync.color}>{sync.label}</span>
+                                    <span className={"inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 " +
+                                        "rounded-full border flex-shrink-0 whitespace-nowrap " + sync.classes}>
+                                        <span className={"w-1.5 h-1.5 rounded-full " + sync.dot} />
+                                        {sync.label}
+                                    </span>
                                 </div>
 
                                 {/* Real performance — only for mapped clients with

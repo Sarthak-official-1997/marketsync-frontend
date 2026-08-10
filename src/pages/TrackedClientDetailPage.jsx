@@ -5,10 +5,10 @@
 // AI-read screenshot. The Sync button always shows a confirmation prompt
 // first; nothing overwrites the reference copy without it.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
-import { searchStocks } from "../api/portfolio";
+import { searchStocks, getStockPrice } from "../api/portfolio";
 import { getAllUsers } from "../api/admin";
 import SearchPickerModal from "../components/SearchPickerModal";
 import StockConfirmPreview from "../components/StockConfirmPreview";
@@ -103,150 +103,284 @@ function MapUserPicker({ onPick, onClose }) {
     );
 }
 
-// ── One holding row, with live comparison + sync + direct push + edit ────
-function HoldingRow({ holding, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions }) {
-    const [confirming, setConfirming] = useState(null); // "sync" | null
-    const [busy, setBusy] = useState(false);
-    const [editing, setEditing] = useState(false);
-    const [editQty, setEditQty] = useState(holding.quantity ?? "");
-    const [editPrice, setEditPrice] = useState(holding.avgBuyPrice ?? "");
-    const [editDate, setEditDate] = useState(holding.estimatedBuyDate ?? "");
+// ── Performance tab: qty / avg price (yours) / LTP / day change / value /
+// total gain-loss — one job only, no sync/reference data mixed in. Prices
+// are fetched client-side per symbol via the same getStockPrice() endpoint
+// StocksMarketPage already uses, so this needed no backend change. ────────
+function PerformanceTable({ holdings }) {
+    const [prices, setPrices] = useState({});
+    const [loadingPrices, setLoadingPrices] = useState(true);
+
+    useEffect(() => {
+        if (!holdings || holdings.length === 0) { setLoadingPrices(false); return; }
+        let cancelled = false;
+        setLoadingPrices(true);
+        Promise.allSettled(holdings.map(h => getStockPrice(h.symbol)))
+            .then(results => {
+                if (cancelled) return;
+                const map = {};
+                results.forEach((r, i) => {
+                    if (r.status === "fulfilled") map[holdings[i].symbol] = r.value.data;
+                });
+                setPrices(map);
+            })
+            .finally(() => { if (!cancelled) setLoadingPrices(false); });
+        return () => { cancelled = true; };
+    }, [holdings]);
+
+    const fmt = (n) => n == null || isNaN(n) ? "—" : parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    const fmtMoney = (n) => n == null || isNaN(n) ? "—" : "₹" + parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+    if (!holdings || holdings.length === 0) {
+        return <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>;
+    }
+
+    return (
+        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                    <thead>
+                    <tr className="bg-slate-900/60 text-slate-500 text-[10px] uppercase tracking-wide">
+                        <th className="text-left font-semibold px-3 py-2.5">Stock</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Qty</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Avg. price</th>
+                        <th className="text-right font-semibold px-3 py-2.5">LTP</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Day change</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Value</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Total gain/loss</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {holdings.map(h => {
+                        const p = prices[h.symbol];
+                        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+                        const dayChg = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
+                        const qty = parseFloat(h.quantity || 0);
+                        const avg = parseFloat(h.avgBuyPrice || 0);
+                        const value = ltp != null ? qty * ltp : null;
+                        const gainLoss = ltp != null ? (ltp - avg) * qty : null;
+                        const gainLossPct = avg > 0 && ltp != null ? ((ltp - avg) / avg) * 100 : null;
+                        const dayUp = dayChg != null && dayChg >= 0;
+                        const glUp = gainLoss != null && gainLoss >= 0;
+                        return (
+                            <tr key={h.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
+                                <td className="px-3 py-2.5">
+                                    <p className="text-white font-bold">{h.symbol}</p>
+                                    <p className="text-slate-500 text-[10px] truncate max-w-[140px]">{h.name}</p>
+                                </td>
+                                <td className="text-right px-3 py-2.5 text-slate-300">{fmt(qty)}</td>
+                                <td className="text-right px-3 py-2.5 text-slate-300">₹{fmt(avg)}</td>
+                                <td className="text-right px-3 py-2.5 text-white font-semibold">
+                                    {loadingPrices ? "…" : (ltp != null ? "₹" + fmt(ltp) : "—")}
+                                </td>
+                                <td className={"text-right px-3 py-2.5 font-semibold " +
+                                    (dayChg == null ? "text-slate-600" : dayUp ? "text-green-400" : "text-red-400")}>
+                                    {loadingPrices ? "…" : (dayChg != null ? (dayUp ? "+" : "") + dayChg.toFixed(2) + "%" : "—")}
+                                </td>
+                                <td className="text-right px-3 py-2.5 text-white">
+                                    {loadingPrices ? "…" : fmtMoney(value)}
+                                </td>
+                                <td className={"text-right px-3 py-2.5 font-semibold " +
+                                    (gainLoss == null ? "text-slate-600" : glUp ? "text-green-400" : "text-red-400")}>
+                                    {loadingPrices ? "…" : gainLoss != null
+                                        ? (glUp ? "+" : "") + fmtMoney(Math.abs(gainLoss)) + " (" + (glUp ? "+" : "") + gainLossPct.toFixed(2) + "%)"
+                                        : "—"}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                    </tbody>
+                </table>
+            </div>
+            <p className="text-[10px] text-slate-600 px-3 py-2 border-t border-slate-700/40">
+                LTP refreshes on tab open — reopen the Performance tab for the latest price.
+            </p>
+        </div>
+    );
+}
+
+// ── Sync & Actions tab: your reference vs their real holding, status,
+// Push/Pull/Edit/Remove. Same job the old card grid did — reshaped as a
+// table so P&L-adjacent columns line up, and secondary actions (View
+// Transactions / Edit / Pull / Remove) collapse into a kebab menu per row
+// instead of sitting as 4-5 always-visible links. Push stays visible since
+// it's the daily-use action. ───────────────────────────────────────────────
+function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions }) {
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [confirmingSyncId, setConfirmingSyncId] = useState(null);
+    const [busyId, setBusyId] = useState(null);
+    const [editQty, setEditQty] = useState("");
+    const [editPrice, setEditPrice] = useState("");
+    const [editDate, setEditDate] = useState("");
+
+    useEffect(() => {
+        const closeMenus = () => setOpenMenuId(null);
+        document.addEventListener("click", closeMenus);
+        return () => document.removeEventListener("click", closeMenus);
+    }, []);
 
     const fmt = (n) => n == null ? "—" : parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
-    const saveEdit = async () => {
+    const startEdit = (h) => {
+        setEditingId(h.id); setOpenMenuId(null); setConfirmingSyncId(null);
+        setEditQty(h.quantity ?? ""); setEditPrice(h.avgBuyPrice ?? ""); setEditDate(h.estimatedBuyDate ?? "");
+    };
+    const saveEdit = async (h) => {
         if (!editQty || !editPrice) return;
-        setBusy(true);
-        await onEdit(holding, { quantity: parseFloat(editQty), avgBuyPrice: parseFloat(editPrice), estimatedBuyDate: editDate || null });
-        setBusy(false);
-        setEditing(false);
+        setBusyId(h.id);
+        await onEdit(h, { quantity: parseFloat(editQty), avgBuyPrice: parseFloat(editPrice), estimatedBuyDate: editDate || null });
+        setBusyId(null); setEditingId(null);
     };
 
+    if (!holdings || holdings.length === 0) {
+        return <p className="text-slate-500 text-sm text-center py-6">No holdings yet — add one below.</p>;
+    }
+
+    const colSpan = mapped ? 5 : 3;
+
     return (
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3">
-            {/* Name and action buttons are on SEPARATE rows, always — the
-                previous single-row "flex justify-between" packed the stock
-                name and three action links (View Transactions / Edit /
-                Remove) side by side, and in a narrower grid card the button
-                row wrapped to two lines and visually collided with the name/
-                description underneath it. Stacking removes the competition
-                for horizontal space entirely, at any card width. */}
-            <div className="mb-1.5">
-                <p className="text-white font-bold text-sm">{holding.symbol}</p>
-                <p className="text-slate-500 text-[11px] truncate">{holding.name}</p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-                {mapped && (
-                    <button onClick={() => onViewTransactions(holding)}
-                            className="text-xs text-blue-400 hover:text-blue-300 font-semibold">
-                        View Transactions
-                    </button>
-                )}
-                <button onClick={() => { setEditing(v => !v); setConfirming(null); }}
-                        className="text-xs text-slate-400 hover:text-white font-semibold">
-                    Edit
-                </button>
-                <button onClick={() => onDelete(holding)} className="text-xs text-slate-500 hover:text-red-400">
-                    Remove
-                </button>
-            </div>
+        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                    <thead>
+                    <tr className="bg-slate-900/60 text-slate-500 text-[10px] uppercase tracking-wide">
+                        <th className="text-left font-semibold px-3 py-2.5">Stock</th>
+                        <th className="text-right font-semibold px-3 py-2.5">Your ref.</th>
+                        {mapped && <th className="text-right font-semibold px-3 py-2.5">Real holding</th>}
+                        {mapped && <th className="text-center font-semibold px-3 py-2.5">Status</th>}
+                        <th className="text-right font-semibold px-3 py-2.5">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {holdings.map(h => (
+                        <Fragment key={h.id}>
+                            <tr className="border-t border-slate-700/40 hover:bg-slate-800/40">
+                                <td className="px-3 py-2.5">
+                                    <p className="text-white font-bold">{h.symbol}</p>
+                                    <p className="text-slate-500 text-[10px] truncate max-w-[140px]">{h.name}</p>
+                                </td>
+                                <td className="text-right px-3 py-2.5 text-slate-300">
+                                    {fmt(h.quantity)} sh @ ₹{fmt(h.avgBuyPrice)}
+                                    {h.estimatedBuyDate && (
+                                        <span className="block text-slate-600 text-[10px]">~{h.estimatedBuyDate}</span>
+                                    )}
+                                </td>
+                                {mapped && (
+                                    <td className="text-right px-3 py-2.5 text-slate-300">
+                                        {h.realQuantity != null
+                                            ? `${fmt(h.realQuantity)} sh @ ₹${fmt(h.realAvgBuyPrice)}`
+                                            : <span className="text-slate-600">Not held</span>}
+                                    </td>
+                                )}
+                                {mapped && (
+                                    <td className="text-center px-3 py-2.5">
+                                            <span className={"inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap " +
+                                                (h.inSync
+                                                    ? "bg-green-900/20 text-green-400 border-green-700/40"
+                                                    : "bg-amber-900/20 text-amber-400 border-amber-700/40")}>
+                                                <span className={"w-1.5 h-1.5 rounded-full " + (h.inSync ? "bg-green-400" : "bg-amber-400")} />
+                                                {h.inSync ? "In sync" : "Out of sync"}
+                                            </span>
+                                    </td>
+                                )}
+                                <td className="px-3 py-2.5">
+                                    <div className="flex items-center justify-end gap-2 relative">
+                                        {mapped && (
+                                            <button onClick={() => onOpenPush(h)}
+                                                    className="text-[11px] font-semibold text-green-400 hover:text-green-300 whitespace-nowrap">
+                                                Push
+                                            </button>
+                                        )}
+                                        <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === h.id ? null : h.id); }}
+                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700/60 flex-shrink-0">
+                                            ⋮
+                                        </button>
+                                        {openMenuId === h.id && (
+                                            <div onClick={e => e.stopPropagation()}
+                                                 className="absolute top-7 right-0 z-20 w-40 bg-slate-900 border border-slate-700 rounded-xl p-1.5 shadow-xl">
+                                                {mapped && (
+                                                    <button onClick={() => { onViewTransactions(h); setOpenMenuId(null); }}
+                                                            className="w-full text-left px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 rounded-lg">
+                                                        View transactions
+                                                    </button>
+                                                )}
+                                                <button onClick={() => startEdit(h)}
+                                                        className="w-full text-left px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 rounded-lg">
+                                                    Edit
+                                                </button>
+                                                {mapped && (
+                                                    // Pull is a "check for fresh changes" action, not just a fix
+                                                    // for an already-detected mismatch — always available here,
+                                                    // same as Push, regardless of current sync state.
+                                                    <button onClick={() => { setConfirmingSyncId(h.id); setOpenMenuId(null); }}
+                                                            className="w-full text-left px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 rounded-lg">
+                                                        Pull from real
+                                                    </button>
+                                                )}
+                                                <button onClick={() => { onDelete(h); setOpenMenuId(null); }}
+                                                        className="w-full text-left px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-900/20 rounded-lg">
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
 
-            {editing ? (
-                <div className="mt-2 bg-slate-900 rounded-xl p-2.5 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                        <input type="number" value={editQty} onChange={e => setEditQty(e.target.value)} placeholder="Qty"
-                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                        <input type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)} placeholder="Avg price"
-                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                               className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => setEditing(false)}
-                                className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg">
-                            Cancel
-                        </button>
-                        <button onClick={saveEdit} disabled={busy}
-                                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg">
-                            {busy ? "Saving…" : "Set"}
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
-                    <div>
-                        <p className="text-slate-500 mb-0.5">Your reference</p>
-                        <p className="text-white font-semibold">{fmt(holding.quantity)} sh @ ₹{fmt(holding.avgBuyPrice)}</p>
-                        {holding.estimatedBuyDate && (
-                            <p className="text-slate-600 text-[10px]">~{holding.estimatedBuyDate}</p>
-                        )}
-                    </div>
-                    {mapped && (
-                        <div>
-                            <p className="text-slate-500 mb-0.5">Their real holding</p>
-                            {holding.realQuantity != null ? (
-                                <p className="text-white font-semibold">
-                                    {fmt(holding.realQuantity)} sh @ ₹{fmt(holding.realAvgBuyPrice)}
-                                </p>
-                            ) : (
-                                <p className="text-slate-600">Not held</p>
+                            {editingId === h.id && (
+                                <tr className="bg-slate-900/60 border-t border-slate-700/40">
+                                    <td colSpan={colSpan} className="px-3 py-3">
+                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                            <input type="number" value={editQty} onChange={e => setEditQty(e.target.value)} placeholder="Qty"
+                                                   className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                                            <input type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)} placeholder="Avg price"
+                                                   className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                                            <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                                                   className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs" />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setEditingId(null)}
+                                                    className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg">
+                                                Cancel
+                                            </button>
+                                            <button onClick={() => saveEdit(h)} disabled={busyId === h.id}
+                                                    className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg">
+                                                {busyId === h.id ? "Saving…" : "Set"}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
                             )}
-                        </div>
-                    )}
-                </div>
-            )}
 
-            {mapped && !editing && (
-                <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
-                    <span className={"text-[11px] font-semibold " +
-                        (holding.inSync ? "text-green-400" : "text-amber-400")}>
-                        {holding.inSync ? "✓ In sync" : "⚠ Out of sync"}
-                    </span>
-                    <div className="flex items-center gap-3">
-                        {/* Pull is a "check for fresh changes" action, not just
-                            a fix for an already-detected mismatch — it was
-                            previously hidden the moment inSync became true
-                            (e.g. right after a successful Push), which meant
-                            there was no way to re-check later if the real
-                            account changed again afterward. Always available
-                            now, same as Push, regardless of last-known sync
-                            state. */}
-                        {confirming !== "sync" && (
-                            <button onClick={() => setConfirming("sync")}
-                                    className="text-[11px] font-semibold text-blue-400 hover:text-blue-300">
-                                Pull from real →
-                            </button>
-                        )}
-                        <button onClick={() => onOpenPush(holding)}
-                                className="text-[11px] font-semibold text-green-400 hover:text-green-300">
-                            ⬆ Push →
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {confirming === "sync" && (
-                <div className="mt-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5">
-                    <p className="text-amber-300 text-[11px] mb-2">
-                        Have you acknowledged the changes? This will overwrite your reference
-                        copy to match their real holding — cannot be undone.
-                    </p>
-                    <div className="flex gap-2">
-                        <button onClick={() => setConfirming(null)}
-                                className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white
-                                           text-xs font-semibold rounded-lg transition-colors">
-                            Cancel
-                        </button>
-                        <button onClick={async () => { setBusy(true); await onSync(holding); setBusy(false); setConfirming(null); }}
-                                disabled={busy}
-                                className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40
-                                           text-white text-xs font-semibold rounded-lg transition-colors">
-                            {busy ? "Syncing…" : "Confirm sync"}
-                        </button>
-                    </div>
-                </div>
-            )}
-
+                            {confirmingSyncId === h.id && (
+                                <tr className="border-t border-amber-700/30">
+                                    <td colSpan={colSpan} className="px-3 py-3 bg-amber-500/5">
+                                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5">
+                                            <p className="text-amber-300 text-[11px] mb-2">
+                                                Have you acknowledged the changes? This will overwrite your reference
+                                                copy to match their real holding — cannot be undone.
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setConfirmingSyncId(null)}
+                                                        className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                                                    Cancel
+                                                </button>
+                                                <button onClick={async () => { setBusyId(h.id); await onSync(h); setBusyId(null); setConfirmingSyncId(null); }}
+                                                        disabled={busyId === h.id}
+                                                        className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors">
+                                                    {busyId === h.id ? "Syncing…" : "Confirm sync"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </Fragment>
+                    ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
@@ -343,6 +477,13 @@ export default function TrackedClientDetailPage() {
     const [showPushReview, setShowPushReview] = useState(false);
     const [pushStockId, setPushStockId] = useState(null); // null = Push All, set = one stock
     const [stagedCount, setStagedCount] = useState(0);
+
+    // Performance = "how is this stock doing" (qty/avg/LTP/day change/value/
+    // gain-loss). Sync & Actions = "does my record match theirs" (reference
+    // vs real holding, status, Push/Pull/Edit/Remove). One card grid used to
+    // try to answer both at once — split so each table stays to 5-7 columns
+    // and one clear job.
+    const [activeTab, setActiveTab] = useState("performance"); // "performance" | "sync"
 
     const load = () => {
         setLoading(true);
@@ -573,16 +714,41 @@ export default function TrackedClientDetailPage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-                {(client.holdings || []).length === 0 ? (
-                    <p className="text-slate-500 text-sm text-center py-6 col-span-full">No holdings yet — add one below.</p>
-                ) : client.holdings.map(h => (
-                    <HoldingRow key={h.id} holding={h} mapped={!!client.mappedUserId}
-                                onDelete={onDeleteHolding} onSync={onSync}
-                                onOpenPush={(h) => openPush(h.stockId || h.id)} onEdit={onEditHolding}
-                                onViewTransactions={setViewingTransactionsFor} />
-                ))}
+            <div className="flex items-center gap-1 border-b border-slate-700/60">
+                <button onClick={() => setActiveTab("performance")}
+                        className={"px-1 pb-2.5 mr-5 text-sm font-semibold border-b-2 transition-colors " +
+                            (activeTab === "performance"
+                                ? "text-white border-blue-500"
+                                : "text-slate-500 border-transparent hover:text-slate-300")}>
+                    Performance
+                </button>
+                <button onClick={() => setActiveTab("sync")}
+                        className={"px-1 pb-2.5 text-sm font-semibold border-b-2 transition-colors " +
+                            (activeTab === "sync"
+                                ? "text-white border-blue-500"
+                                : "text-slate-500 border-transparent hover:text-slate-300")}>
+                    Sync &amp; Actions
+                    {client.mappedUserId && stagedCount > 0 && (
+                        <span className="ml-1.5 bg-green-900/40 text-green-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full align-middle">
+                            {stagedCount}
+                        </span>
+                    )}
+                </button>
             </div>
+
+            {activeTab === "performance" ? (
+                <PerformanceTable holdings={client.holdings || []} />
+            ) : (
+                <SyncActionsTable
+                    holdings={client.holdings || []}
+                    mapped={!!client.mappedUserId}
+                    onDelete={onDeleteHolding}
+                    onSync={onSync}
+                    onOpenPush={(h) => openPush(h.stockId || h.id)}
+                    onEdit={onEditHolding}
+                    onViewTransactions={setViewingTransactionsFor}
+                />
+            )}
 
             <div className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-3">
                 <div className="flex gap-2 mb-3">
