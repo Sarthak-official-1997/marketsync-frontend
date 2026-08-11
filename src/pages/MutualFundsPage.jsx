@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "../context/ToastContext";
 import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import AiMfImportModal from "../components/AiMfImportModal";
+import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import MfSparkline from "../components/MfSparkline";
+import {
+    getColumnPrefs as getMfHoldingsColumnPrefs,
+    setColumnPrefs as setMfHoldingsColumnPrefs,
+    MF_HOLDINGS_COLUMNS_EVENT,
+} from "../utils/mfHoldingsColumnPrefs";
 
 import {
     getMfHoldings, getMfPortfolioSummary, getMfTransactions,
@@ -245,6 +252,14 @@ function MfHoldingsTab({ toast, onTransact }) {
     // exists and already works from the Search tab below. Same modal,
     // just never triggered from here.
     const [detailScheme, setDetailScheme] = useState(null);
+    const [columns, setColumns] = useState(() => getMfHoldingsColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getMfHoldingsColumnPrefs());
+        window.addEventListener(MF_HOLDINGS_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(MF_HOLDINGS_COLUMNS_EVENT, onChange);
+    }, []);
 
     const load = () => {
         getMfHoldings()
@@ -281,76 +296,127 @@ function MfHoldingsTab({ toast, onTransact }) {
         </div>
     );
 
+    const visibleColumns = columns.filter(c => c.visible);
+    const totalValue = holdings.reduce((s, h) =>
+        s + (h.currentValue != null ? parseFloat(h.currentValue) : 0), 0);
+
+    const columnAlign = (colId) => colId === "chart" ? "text-center" : "text-right";
+
+    const columnHeader = (colId) => {
+        switch (colId) {
+            case "chart": return "Chart";
+            case "units": return "Units";
+            case "avgNav": return "Avg NAV";
+            case "currentNav": return "Current NAV";
+            case "dayChange": return "Day Change";
+            case "invested": return "Invested";
+            case "value": return "Value";
+            case "pl": return "P&L";
+            case "xirr": return "XIRR";
+            case "weightage": return "% of Portfolio";
+            default: return "";
+        }
+    };
+
+    const columnCell = (colId, h) => {
+        const pl    = parseFloat(h.unrealizedPnl || 0);
+        const plPct = parseFloat(h.unrealizedPnlPercent || 0);
+        const color = pl >= 0 ? "text-green-400" : "text-red-400";
+        const weightagePct = h.currentValue != null && totalValue > 0
+            ? (parseFloat(h.currentValue) / totalValue) * 100 : null;
+
+        switch (colId) {
+            case "chart":
+                return <MfSparkline schemeCode={h.schemeCode} />;
+            case "units":
+                return <span className="text-white">{fmtUnits(h.units)}</span>;
+            case "avgNav":
+                return <span className="text-slate-300">{fmt(h.avgCostNav)}</span>;
+            case "currentNav":
+                return <span className="text-slate-300">{fmt(h.currentNav)}</span>;
+            case "dayChange":
+                return h.dayChangeAmount == null ? (
+                    <span className="text-slate-600">—</span>
+                ) : (
+                    <span className={parseFloat(h.dayChangeAmount) >= 0 ? "text-green-400" : "text-red-400"}>
+                        {fmt(h.dayChangeAmount)}
+                        <span className="block text-[11px]">{fmtPct(parseFloat(h.dayChangePercent))}</span>
+                    </span>
+                );
+            case "invested":
+                return <span className="text-slate-300">{fmt(h.totalInvested)}</span>;
+            case "value":
+                return <span className="text-white font-medium">{fmt(h.currentValue)}</span>;
+            case "pl":
+                return (
+                    <span className={"font-medium " + color}>
+                        {fmt(h.unrealizedPnl)}
+                        <span className="block text-[11px]">{fmtPct(plPct)}</span>
+                    </span>
+                );
+            case "xirr":
+                return h.xirr != null ? <span className="text-slate-300">{fmtPct(parseFloat(h.xirr))}</span> : <span className="text-slate-600">—</span>;
+            case "weightage":
+                return weightagePct != null ? <span className="text-slate-300">{weightagePct.toFixed(1)}%</span> : <span className="text-slate-600">—</span>;
+            default:
+                return null;
+        }
+    };
+
     return (
         <>
             <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                 <table className="w-full text-sm">
                     <thead>
                     <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                        <th className="text-left px-4 py-3">Scheme</th>
-                        <th className="text-right px-4 py-3">Units</th>
-                        <th className="text-right px-4 py-3">Avg NAV</th>
-                        <th className="text-right px-4 py-3">Current NAV</th>
-                        <th className="text-right px-4 py-3">Day Change</th>
-                        <th className="text-right px-4 py-3">Invested</th>
-                        <th className="text-right px-4 py-3">Value</th>
-                        <th className="text-right px-4 py-3">P&amp;L</th>
-                        <th className="text-right px-4 py-3">XIRR</th>
+                        <th className="text-left px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <span>Scheme</span>
+                                <button onClick={() => setShowCustomize(true)}
+                                        title="Customize columns"
+                                        className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                    ⚙
+                                </button>
+                            </div>
+                        </th>
+                        {visibleColumns.map(c => (
+                            <th key={c.id} className={columnAlign(c.id) + " px-4 py-3 whitespace-nowrap"}>
+                                {columnHeader(c.id)}
+                            </th>
+                        ))}
                     </tr>
                     </thead>
                     <tbody>
-                    {holdings.map((h) => {
-                        const pl    = parseFloat(h.unrealizedPnl || 0);
-                        const plPct = parseFloat(h.unrealizedPnlPercent || 0);
-                        const color = pl >= 0 ? "text-green-400" : "text-red-400";
-                        return (
-                            <tr key={h.id}
-                                className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                <td className="px-4 py-3 max-w-xs">
-                                    <button onClick={() => setDetailScheme(h)} className="text-left group w-full">
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="font-semibold text-white truncate group-hover:text-blue-400 transition-colors" title={h.schemeName}>
-                                                {h.schemeName}
-                                            </p>
-                                            {h.planType && (
-                                                <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0">
-                                                {h.planType}
-                                            </span>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-slate-400 truncate group-hover:text-slate-300">
-                                            {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
+                    {holdings.map((h) => (
+                        <tr key={h.id}
+                            className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-3 max-w-xs">
+                                <button onClick={() => setDetailScheme(h)} className="text-left group w-full">
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="font-semibold text-white truncate group-hover:text-blue-400 transition-colors" title={h.schemeName}>
+                                            {h.schemeName}
                                         </p>
-                                        <p className="text-xs text-slate-600 mt-0.5">
-                                            NAV as of {h.navDate || "—"}
-                                        </p>
-                                    </button>
+                                        {h.planType && (
+                                            <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded flex-shrink-0">
+                                            {h.planType}
+                                        </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-400 truncate group-hover:text-slate-300">
+                                        {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
+                                    </p>
+                                    <p className="text-xs text-slate-600 mt-0.5">
+                                        NAV as of {h.navDate || "—"}
+                                    </p>
+                                </button>
+                            </td>
+                            {visibleColumns.map(c => (
+                                <td key={c.id} className={columnAlign(c.id) + " px-4 py-3 whitespace-nowrap"}>
+                                    {columnCell(c.id, h)}
                                 </td>
-                                <td className="text-right px-4 py-3 text-white">{fmtUnits(h.units)}</td>
-                                <td className="text-right px-4 py-3 text-slate-300">{fmt(h.avgCostNav)}</td>
-                                <td className="text-right px-4 py-3 text-slate-300">{fmt(h.currentNav)}</td>
-                                <td className="text-right px-4 py-3">
-                                    {h.dayChangeAmount == null ? (
-                                        <span className="text-slate-600">—</span>
-                                    ) : (
-                                        <span className={parseFloat(h.dayChangeAmount) >= 0 ? "text-green-400" : "text-red-400"}>
-                                        {fmt(h.dayChangeAmount)}
-                                            <span className="block text-[11px]">{fmtPct(parseFloat(h.dayChangePercent))}</span>
-                                    </span>
-                                    )}
-                                </td>
-                                <td className="text-right px-4 py-3 text-slate-300">{fmt(h.totalInvested)}</td>
-                                <td className="text-right px-4 py-3 text-white font-medium">{fmt(h.currentValue)}</td>
-                                <td className={"text-right px-4 py-3 font-medium " + color}>
-                                    {fmt(h.unrealizedPnl)}
-                                    <span className="block text-[11px]">{fmtPct(plPct)}</span>
-                                </td>
-                                <td className="text-right px-4 py-3 text-slate-300">
-                                    {h.xirr != null ? fmtPct(parseFloat(h.xirr)) : <span className="text-slate-600">—</span>}
-                                </td>
-                            </tr>
-                        );
-                    })}
+                            ))}
+                        </tr>
+                    ))}
                     </tbody>
                 </table>
             </div>
@@ -360,6 +426,19 @@ function MfHoldingsTab({ toast, onTransact }) {
                     scheme={detailScheme}
                     onClose={() => setDetailScheme(null)}
                     onTransact={s => { setDetailScheme(null); onTransact(s); }}
+                />
+            )}
+
+            {showCustomize && (
+                <CustomizeColumnsModal
+                    columns={columns}
+                    fixedLabel="Scheme"
+                    onClose={() => setShowCustomize(false)}
+                    onSave={(order, visible) => {
+                        setMfHoldingsColumnPrefs(order, visible);
+                        setColumns(getMfHoldingsColumnPrefs());
+                        setShowCustomize(false);
+                    }}
                 />
             )}
         </>

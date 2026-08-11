@@ -20,6 +20,7 @@ import PushReviewModal from "../components/PushReviewModal";
 import PortfolioValueChart from "../components/PortfolioValueChart";
 import StockDetailModal from "../components/StockDetailModal";
 import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import HoldingSparkline from "../components/HoldingSparkline";
 import { getClientPortfolioHistory } from "../api/admin";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
@@ -155,18 +156,22 @@ function PerformanceTable({ holdings, onOpenStock }) {
     // repeating six near-identical <td> blocks conditionally.
     const columnHeader = (colId) => {
         switch (colId) {
+            case "chart": return "Chart";
             case "qty": return "Qty";
             case "avgPrice": return "Avg. price";
             case "ltp": return "LTP";
             case "dayChange": return "Day change";
             case "value": return "Value";
             case "gainLoss": return "Total gain/loss";
+            case "weightage": return "% of Portfolio";
             default: return "";
         }
     };
 
     const columnCell = (colId, row) => {
         switch (colId) {
+            case "chart":
+                return <HoldingSparkline symbol={row.holding.symbol} exchange={row.holding.exchange} />;
             case "qty":
                 return <span className="text-slate-300">{fmt(row.qty)}</span>;
             case "avgPrice":
@@ -195,6 +200,10 @@ function PerformanceTable({ holdings, onOpenStock }) {
                             : "—"}
                     </span>
                 );
+            case "weightage":
+                return row.weightagePct != null
+                    ? <span className="text-slate-300">{row.weightagePct.toFixed(1)}%</span>
+                    : <span className="text-slate-600">—</span>;
             default:
                 return null;
         }
@@ -216,6 +225,9 @@ function PerformanceTable({ holdings, onOpenStock }) {
         };
     });
 
+    const totalValue = rows.reduce((s, r) => s + (r.value || 0), 0);
+    rows.forEach(r => { r.weightagePct = r.value != null && totalValue > 0 ? (r.value / totalValue) * 100 : null; });
+
     return (
         <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
@@ -235,7 +247,9 @@ function PerformanceTable({ holdings, onOpenStock }) {
                             </div>
                         </th>
                         {visibleColumns.map(c => (
-                            <th key={c.id} className="text-right font-semibold px-3 py-2.5 whitespace-nowrap">
+                            <th key={c.id}
+                                className={(c.id === "chart" ? "text-center" : "text-right") +
+                                    " font-semibold px-3 py-2.5 whitespace-nowrap"}>
                                 {columnHeader(c.id)}
                             </th>
                         ))}
@@ -256,7 +270,9 @@ function PerformanceTable({ holdings, onOpenStock }) {
                                 </button>
                             </td>
                             {visibleColumns.map(c => (
-                                <td key={c.id} className="text-right px-3 py-2.5 whitespace-nowrap">
+                                <td key={c.id}
+                                    className={(c.id === "chart" ? "text-center" : "text-right") +
+                                        " px-3 py-2.5 whitespace-nowrap"}>
                                     {columnCell(c.id, row)}
                                 </td>
                             ))}

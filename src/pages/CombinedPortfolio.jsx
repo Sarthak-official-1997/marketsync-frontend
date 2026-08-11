@@ -3,6 +3,7 @@ import { getHoldings, getMfHoldings } from "../api/portfolio";
 import { useToast } from "../context/ToastContext";
 import { usePrivacy } from "../context/PrivacyContext";
 import StockDetailModal from "../components/StockDetailModal";
+import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 
 const fmt = (val) =>
     new Intl.NumberFormat("en-IN", {
@@ -22,8 +23,14 @@ export default function CombinedPortfolio() {
     const [stocks,      setStocks]      = useState([]);
     const [mfHoldings,  setMfHoldings]  = useState([]);
     const [loading,     setLoading]     = useState(true);
-    const [combined,    setCombined]    = useState(true); // true = merged view
+    const [combined,    setCombined]    = useState(false); // false = separate view by default
     const [chartStock,  setChartStock]  = useState(null);
+    // BUG FIXED HERE: the MF name in this table was a plain paragraph, no
+    // onClick at all — the stock name right next to it in the same row
+    // was a <button> opening StockDetailModal, but MF got no equivalent.
+    // MfSchemeDetailModal already exists and works elsewhere in the app
+    // (Holdings, MF Holdings tab) — just never wired here.
+    const [detailScheme, setDetailScheme] = useState(null);
     const toast = useToast();
     const { hidden: valuesHidden } = usePrivacy();
     const fmtV = (v) => valuesHidden ? "••••••" : fmt(v);
@@ -227,24 +234,31 @@ export default function CombinedPortfolio() {
                 // Combined table
                 <div className="bg-slate-800 rounded-2xl border border-slate-700
                                 overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                        <tr className="border-b border-slate-700 text-slate-400
+                    {/* BUG FIXED HERE: this used to wrap <table> directly with
+                        overflow-hidden on the outer card — on a narrow screen
+                        that CLIPS content that doesn't fit instead of letting
+                        it scroll, matching the "cutting off, doesn't slide"
+                        report. The inner scroll wrapper below is the fix —
+                        same pattern already used in HoldingsPage's tables. */}
+                    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                        <table className="w-full text-sm" style={{ minWidth: "560px" }}>
+                            <thead>
+                            <tr className="border-b border-slate-700 text-slate-400
                                            text-xs uppercase">
-                            <th className="text-left px-5 py-3">Type</th>
-                            <th className="text-left px-5 py-3">Name</th>
-                            <th className="text-right px-5 py-3">Invested</th>
-                            <th className="text-right px-5 py-3">Value</th>
-                            <th className="text-right px-5 py-3">P&amp;L</th>
-                            <th className="text-right px-5 py-3">Return</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {allRows.map((row, idx) => (
-                            <tr key={idx}
-                                className="border-b border-slate-700/50
+                                <th className="text-left px-5 py-3">Type</th>
+                                <th className="text-left px-5 py-3">Name</th>
+                                <th className="text-right px-5 py-3">Invested</th>
+                                <th className="text-right px-5 py-3">Value</th>
+                                <th className="text-right px-5 py-3">P&amp;L</th>
+                                <th className="text-right px-5 py-3">Return</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {allRows.map((row, idx) => (
+                                <tr key={idx}
+                                    className="border-b border-slate-700/50
                                                hover:bg-slate-700/30 transition-colors">
-                                <td className="px-5 py-3">
+                                    <td className="px-5 py-3">
                                         <span className={
                                             "text-xs px-2.5 py-1 rounded-lg " +
                                             "font-semibold " +
@@ -255,53 +269,57 @@ export default function CombinedPortfolio() {
                                             {row.type === "STOCK" ? "📈" : "📊"}{" "}
                                             {row.type === "STOCK" ? "Stock" : "MF"}
                                         </span>
-                                </td>
-                                <td className="px-5 py-3">
-                                    {row.type === "STOCK" ? (
-                                        <button
-                                            onClick={() => setChartStock(row.raw.stock)}
-                                            className="text-left group"
-                                        >
-                                            <p className="font-semibold text-white
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        {row.type === "STOCK" ? (
+                                            <button
+                                                onClick={() => setChartStock(row.raw.stock)}
+                                                className="text-left group"
+                                            >
+                                                <p className="font-semibold text-white
                                                               group-hover:text-blue-400">
-                                                {row.name}
-                                            </p>
-                                            <p className="text-xs text-slate-400">
-                                                {row.subName}
-                                            </p>
-                                        </button>
-                                    ) : (
-                                        <div>
-                                            <p className="font-semibold text-white
-                                                              text-xs truncate max-w-xs"
-                                               title={row.name}>
-                                                {row.name}
-                                            </p>
-                                            <p className="text-xs text-slate-400">
-                                                {row.subName}
-                                            </p>
-                                        </div>
-                                    )}
-                                </td>
-                                <td className="text-right px-5 py-3 text-slate-300">
-                                    {fmt(row.invested)}
-                                </td>
-                                <td className="text-right px-5 py-3 text-white
+                                                    {row.name}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    {row.subName}
+                                                </p>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setDetailScheme(row.raw)}
+                                                className="text-left group"
+                                            >
+                                                <p className="font-semibold text-white
+                                                              text-xs truncate max-w-xs group-hover:text-blue-400"
+                                                   title={row.name}>
+                                                    {row.name}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    {row.subName}
+                                                </p>
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td className="text-right px-5 py-3 text-slate-300">
+                                        {fmt(row.invested)}
+                                    </td>
+                                    <td className="text-right px-5 py-3 text-white
                                                    font-semibold">
-                                    {fmt(row.value)}
-                                </td>
-                                <td className={"text-right px-5 py-3 font-semibold " +
-                                pctColor(row.pl)}>
-                                    {fmt(row.pl)}
-                                </td>
-                                <td className={"text-right px-5 py-3 font-medium " +
-                                pctColor(row.plPct)}>
-                                    {fmtPct(row.plPct)}
-                                </td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
+                                        {fmt(row.value)}
+                                    </td>
+                                    <td className={"text-right px-5 py-3 font-semibold " +
+                                        pctColor(row.pl)}>
+                                        {fmt(row.pl)}
+                                    </td>
+                                    <td className={"text-right px-5 py-3 font-medium " +
+                                        pctColor(row.plPct)}>
+                                        {fmtPct(row.plPct)}
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             ) : (
                 // Separate tables side by side
@@ -313,47 +331,49 @@ export default function CombinedPortfolio() {
                                       border-b border-slate-700">
                             📈 Stock Holdings ({stockRows.length})
                         </p>
-                        <table className="w-full text-sm">
-                            <thead>
-                            <tr className="text-slate-500 text-xs uppercase
+                        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                            <table className="w-full text-sm" style={{ minWidth: "340px" }}>
+                                <thead>
+                                <tr className="text-slate-500 text-xs uppercase
                                                border-b border-slate-700">
-                                <th className="text-left px-5 py-2">Stock</th>
-                                <th className="text-right px-5 py-2">Value</th>
-                                <th className="text-right px-5 py-2">Return</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {stockRows.map((r, i) => (
-                                <tr key={i}
-                                    className="border-b border-slate-700/40
-                                                   hover:bg-slate-700/20">
-                                    <td className="px-5 py-2.5">
-                                        <button
-                                            onClick={() => setChartStock(r.raw.stock)}
-                                            className="text-left group"
-                                        >
-                                            <p className="font-semibold text-white text-sm
-                                                              group-hover:text-blue-400">
-                                                {r.name}
-                                            </p>
-                                            <p className="text-xs text-slate-400">
-                                                {r.subName}
-                                            </p>
-                                        </button>
-                                    </td>
-                                    <td className="text-right px-5 py-2.5
-                                                       text-white font-semibold text-sm">
-                                        {fmt(r.value)}
-                                    </td>
-                                    <td className={"text-right px-5 py-2.5 " +
-                                    "font-semibold text-sm " +
-                                    pctColor(r.plPct)}>
-                                        {fmtPct(r.plPct)}
-                                    </td>
+                                    <th className="text-left px-5 py-2">Stock</th>
+                                    <th className="text-right px-5 py-2">Value</th>
+                                    <th className="text-right px-5 py-2">Return</th>
                                 </tr>
-                            ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                {stockRows.map((r, i) => (
+                                    <tr key={i}
+                                        className="border-b border-slate-700/40
+                                                   hover:bg-slate-700/20">
+                                        <td className="px-5 py-2.5">
+                                            <button
+                                                onClick={() => setChartStock(r.raw.stock)}
+                                                className="text-left group"
+                                            >
+                                                <p className="font-semibold text-white text-sm
+                                                              group-hover:text-blue-400">
+                                                    {r.name}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    {r.subName}
+                                                </p>
+                                            </button>
+                                        </td>
+                                        <td className="text-right px-5 py-2.5
+                                                       text-white font-semibold text-sm">
+                                            {fmt(r.value)}
+                                        </td>
+                                        <td className={"text-right px-5 py-2.5 " +
+                                            "font-semibold text-sm " +
+                                            pctColor(r.plPct)}>
+                                            {fmtPct(r.plPct)}
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* MF table */}
@@ -363,43 +383,50 @@ export default function CombinedPortfolio() {
                                       border-b border-slate-700">
                             📊 MF Holdings ({mfRows.length})
                         </p>
-                        <table className="w-full text-sm">
-                            <thead>
-                            <tr className="text-slate-500 text-xs uppercase
+                        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                            <table className="w-full text-sm" style={{ minWidth: "340px" }}>
+                                <thead>
+                                <tr className="text-slate-500 text-xs uppercase
                                                border-b border-slate-700">
-                                <th className="text-left px-5 py-2">Scheme</th>
-                                <th className="text-right px-5 py-2">Value</th>
-                                <th className="text-right px-5 py-2">Return</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {mfRows.map((r, i) => (
-                                <tr key={i}
-                                    className="border-b border-slate-700/40
-                                                   hover:bg-slate-700/20">
-                                    <td className="px-5 py-2.5">
-                                        <p className="font-medium text-white text-xs
-                                                          truncate max-w-xs"
-                                           title={r.name}>
-                                            {r.name}
-                                        </p>
-                                        <p className="text-xs text-slate-400">
-                                            {r.subName}
-                                        </p>
-                                    </td>
-                                    <td className="text-right px-5 py-2.5
-                                                       text-white font-semibold text-sm">
-                                        {fmt(r.value)}
-                                    </td>
-                                    <td className={"text-right px-5 py-2.5 " +
-                                    "font-semibold text-sm " +
-                                    pctColor(r.plPct)}>
-                                        {fmtPct(r.plPct)}
-                                    </td>
+                                    <th className="text-left px-5 py-2">Scheme</th>
+                                    <th className="text-right px-5 py-2">Value</th>
+                                    <th className="text-right px-5 py-2">Return</th>
                                 </tr>
-                            ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                {mfRows.map((r, i) => (
+                                    <tr key={i}
+                                        className="border-b border-slate-700/40
+                                                   hover:bg-slate-700/20">
+                                        <td className="px-5 py-2.5">
+                                            <button
+                                                onClick={() => setDetailScheme(r.raw)}
+                                                className="text-left group"
+                                            >
+                                                <p className="font-medium text-white text-xs
+                                                              truncate max-w-xs group-hover:text-blue-400"
+                                                   title={r.name}>
+                                                    {r.name}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    {r.subName}
+                                                </p>
+                                            </button>
+                                        </td>
+                                        <td className="text-right px-5 py-2.5
+                                                       text-white font-semibold text-sm">
+                                            {fmt(r.value)}
+                                        </td>
+                                        <td className={"text-right px-5 py-2.5 " +
+                                            "font-semibold text-sm " +
+                                            pctColor(r.plPct)}>
+                                            {fmtPct(r.plPct)}
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -408,6 +435,13 @@ export default function CombinedPortfolio() {
                 stock={chartStock}
                 onClose={() => setChartStock(null)}
             />
+
+            {detailScheme && (
+                <MfSchemeDetailModal
+                    scheme={detailScheme}
+                    onClose={() => setDetailScheme(null)}
+                />
+            )}
         </div>
     );
 }

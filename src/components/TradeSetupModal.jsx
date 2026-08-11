@@ -98,13 +98,13 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
     const tabBtn = (id, label) => (
         <button onClick={() => setTab(id)}
                 className={"flex-1 text-sm font-semibold py-2 rounded-xl transition-colors " +
-                (tab === id ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white")}>
+                    (tab === id ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:text-white")}>
             {label}
         </button>
     );
 
     return createPortal(
-        <div className="fixed inset-0 z-[9650] flex items-end sm:items-center justify-center"
+        <div className="fixed inset-0 z-[9702] flex items-end sm:items-center justify-center"
              onClick={onClose}>
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
@@ -151,9 +151,9 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
                                     {[["above", "≥ Above"], ["below", "≤ Below"], ["equals", "= Equals"]].map(([id, label]) => (
                                         <button key={id} onClick={() => setCondition(id)}
                                                 className={"flex-1 text-xs font-semibold py-2 rounded-lg border transition-colors " +
-                                                (condition === id
-                                                    ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                                                    : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                                    (condition === id
+                                                        ? "bg-blue-600/20 border-blue-500 text-blue-300"
+                                                        : "bg-slate-800 border-slate-700 text-slate-400")}>
                                             {label}
                                         </button>
                                     ))}
@@ -181,9 +181,9 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
                             {/* Category tag */}
                             <button onClick={() => setCategory(prev => prev === "EXPRESS_TRADE" ? null : "EXPRESS_TRADE")}
                                     className={"w-full text-xs font-semibold py-2 rounded-lg border transition-colors " +
-                                    (category === "EXPRESS_TRADE"
-                                        ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
-                                        : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                        (category === "EXPRESS_TRADE"
+                                            ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
+                                            : "bg-slate-800 border-slate-700 text-slate-400")}>
                                 ⚡ {category === "EXPRESS_TRADE" ? "Tagged: Express Trade ✓" : "Tag as Express Trade"}
                             </button>
 

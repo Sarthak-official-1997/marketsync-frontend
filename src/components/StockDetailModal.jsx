@@ -102,6 +102,19 @@ export default function StockDetailModal({ stock, onClose }) {
     // per stock, marked with REMIND_MARKER so repeated taps add reminders
     // to that ONE note instead of creating a new note every time.
     const [remindOpen,   setRemindOpen]   = useState(false);
+    // BUG FIXED HERE: the mobile secondary-actions row is deliberately
+    // overflow-x-auto ("Row 2: secondary actions — scrollable horizontally"
+    // per its own comment) — but per the CSS overflow spec, setting
+    // overflow-x to anything but visible also computes overflow-y to auto,
+    // so ANY child trying to render outside that row's height (like this
+    // dropdown, positioned top-full/below the row) was being silently
+    // clipped invisible. State was toggling correctly the whole time —
+    // nothing was visually broken to look at, just invisible. Fixed by
+    // computing the button's screen position on open and rendering the
+    // dropdown with position:fixed instead of absolute — fixed positioning
+    // isn't subject to an ancestor's overflow clipping (only to transform/
+    // filter/perspective on an ancestor, none of which exist here).
+    const [remindPos, setRemindPos] = useState(null);
     const [remindNote,   setRemindNote]   = useState(null); // the auto-note, if one exists
     const [remindBusy,   setRemindBusy]   = useState(false);
     const remindRef = useRef(null);
@@ -221,23 +234,32 @@ export default function StockDetailModal({ stock, onClose }) {
 
         setRemindBusy(true);
         try {
+            // BUG FIXED HERE: same shape mismatch as NotesPanel.jsx's
+            // composer — backend expects reminders as {remindAt, repeatDays}
+            // objects (ReminderInput), not raw ISO strings. This was
+            // failing the save silently on every preset, which is the
+            // deeper reason Remind Me "did nothing" — fixing the dropdown's
+            // visibility (the overflow-clip bug) alone wasn't enough, the
+            // actual save underneath was broken too.
             if (remindNote) {
                 const existing = (remindNote.reminders || []).filter(r => !r.fired).map(r => r.remindAt);
+                const nextDates = existing.includes(iso) ? existing : [...existing, iso];
                 const res = await updateNote(remindNote.id, {
-                    reminders: existing.includes(iso) ? existing : [...existing, iso],
+                    reminders: nextDates.map(d => ({ remindAt: d, repeatDays: null })),
                 });
                 setRemindNote(res.data);
             } else {
                 const res = await createNote({
                     body: `${REMIND_MARKER} Check on ${stock.symbol} (${stock.name || stock.symbol})`,
                     stocks: [{ symbol: stock.symbol, name: stock.name || stock.symbol, exchange: stock.exchange || "NSE" }],
-                    reminders: [iso],
+                    reminders: [{ remindAt: iso, repeatDays: null }],
                 });
                 setRemindNote(res.data);
             }
             toast.success(`Reminder set for ${stock.symbol}`);
             setRemindOpen(false);
-        } catch {
+        } catch (err) {
+            console.error("Set reminder failed:", err?.response?.data || err);
             toast.error("Couldn't set reminder");
         } finally {
             setRemindBusy(false);
@@ -521,14 +543,22 @@ export default function StockDetailModal({ stock, onClose }) {
                                 </button>
                                 <div ref={remindRef} className="relative flex-shrink-0">
                                     <button
-                                        onClick={e => { e.stopPropagation(); setRemindOpen(v => !v); }}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            if (!remindOpen && remindRef.current) {
+                                                const r = remindRef.current.getBoundingClientRect();
+                                                setRemindPos({ top: r.bottom + 4, left: r.left });
+                                            }
+                                            setRemindOpen(v => !v);
+                                        }}
                                         className={"text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all " +
                                             (hasActiveReminder ? "bg-amber-700 text-white" : "bg-slate-700/80 text-slate-300")}>
                                         {hasActiveReminder ? "🔔 Reminder set" : "🔔 Remind Me"}
                                     </button>
-                                    {remindOpen && (
+                                    {remindOpen && remindPos && (
                                         <div onClick={e => e.stopPropagation()}
-                                             className="absolute top-full left-0 mt-1 z-20 bg-slate-800 border border-slate-600
+                                             style={{ position: "fixed", top: remindPos.top, left: remindPos.left }}
+                                             className="z-[9702] bg-slate-800 border border-slate-600
                                                         rounded-xl shadow-2xl overflow-hidden w-40">
                                             {[["Tomorrow", 1], ["In 2 days", 2], ["Next week", 7], ["Next month", 30]].map(([label, days]) => (
                                                 <button key={label} disabled={remindBusy} onClick={() => applyReminder(days)}

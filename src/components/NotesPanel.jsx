@@ -153,7 +153,22 @@ function NoteComposerModal({ initial, onSave, onClose, saving }) {
     const handleSave = () => {
         const text = body.trim();
         if (!text) { toast.error("Write something first"); return; }
-        onSave({ body: text, stocks, reminders });
+        // BUG FIXED HERE: backend's CreateNoteRequest/UpdateNoteRequest both
+        // expect reminders as List<ReminderInput> — objects shaped
+        // {remindAt, repeatDays} — but this was sending a flat array of raw
+        // ISO date strings. Jackson can't deserialize a JSON string into a
+        // ReminderInput object, so this failed with a 400 on every single
+        // save that had any reminder attached, regardless of preset or
+        // custom time — matching "same result on any timeframe." The
+        // composer's own internal state stays a plain string array (used
+        // that way everywhere else in this component); the conversion to
+        // the shape the backend actually wants happens right here, at the
+        // one point it crosses the API boundary.
+        onSave({
+            body: text,
+            stocks,
+            reminders: reminders.map(iso => ({ remindAt: iso, repeatDays: null })),
+        });
     };
 
     return createPortal(
@@ -457,7 +472,14 @@ export default function NotesPanel({ onClose }) {
         const req = editingId != null ? updateNote(editingId, payload) : createNote(payload);
         req
             .then(() => { setComposerFor(undefined); load(); toast.success(editingId != null ? "Note updated" : "Note saved"); })
-            .catch(() => toast.error("Couldn't save note"))
+            .catch(err => {
+                // Swallowing this with no logging is exactly why the
+                // reminders payload-shape bug took a full backend DTO trace
+                // to find instead of a 5-second console check — keep the
+                // toast generic for the user, but always log the real cause.
+                console.error("Note save failed:", err?.response?.data || err);
+                toast.error("Couldn't save note");
+            })
             .finally(() => setSaving(false));
     };
 

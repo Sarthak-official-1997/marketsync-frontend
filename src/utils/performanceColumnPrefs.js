@@ -7,12 +7,14 @@
 import { createColumnPrefs } from "./columnPrefsFactory";
 
 export const COLUMN_CANDIDATES = [
+    { id: "chart",     label: "Chart" },
     { id: "qty",       label: "Qty" },
     { id: "avgPrice",  label: "Avg. price" },
     { id: "ltp",       label: "LTP" },
     { id: "dayChange", label: "Day change" },
     { id: "value",     label: "Value" },
     { id: "gainLoss",  label: "Total gain/loss" },
+    { id: "weightage", label: "% of Portfolio" },
 ];
 
 const prefs = createColumnPrefs("folyo_performance_columns_v1", COLUMN_CANDIDATES);

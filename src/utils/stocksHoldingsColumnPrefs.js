@@ -14,6 +14,7 @@ export const COLUMN_CANDIDATES = [
     { id: "value",   label: "Value" },
     { id: "pl",      label: "P&L" },
     { id: "plPct",   label: "P&L %" },
+    { id: "weightage", label: "% of Portfolio" },
 ];
 
 const prefs = createColumnPrefs("folyo_stocks_holdings_columns_v1", COLUMN_CANDIDATES);

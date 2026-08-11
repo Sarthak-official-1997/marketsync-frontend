@@ -11,6 +11,13 @@ import MfTransactionPanel from "../components/MfTransactionPanel";
 import MfSchemeDetailModal from "../components/MfSchemeDetailModal";
 import StockQuickMenu from "../components/StockQuickMenu";
 import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
+import HoldingSparkline from "../components/HoldingSparkline";
+import MfSparkline from "../components/MfSparkline";
+import {
+    getColumnPrefs as getMfHoldingsColumnPrefs,
+    setColumnPrefs as setMfHoldingsColumnPrefs,
+    MF_HOLDINGS_COLUMNS_EVENT,
+} from "../utils/mfHoldingsColumnPrefs";
 import {
     getColumnPrefs as getStocksHoldingsColumnPrefs,
     setColumnPrefs as setStocksHoldingsColumnPrefs,
@@ -1080,74 +1087,6 @@ export default function HoldingsPage(props) {
     );
 }
 
-// --─ Holding sparkline --------------------------------------------------------─
-
-function HoldingSparkline({ symbol, exchange }) {
-    const [points, setPoints] = useState([]);
-    const [up,     setUp]     = useState(true);
-
-    useEffect(() => {
-        const parse = (res) =>
-            (res?.dataPoints || [])
-                .filter(p => p.close != null)
-                .map(p => parseFloat(p.close))
-                .filter(v => v > 0);
-
-        getStockChart(symbol, exchange || "NSE", "5m", "1d")
-            .then(res => {
-                const pts = parse(res.data);
-                if (pts.length > 3) {
-                    setPoints(pts);
-                    setUp(pts[pts.length - 1] >= pts[0]);
-                } else {
-                    return getStockChart(symbol, exchange || "NSE", "1d", "5d")
-                        .then(r => {
-                            const p2 = parse(r.data);
-                            setPoints(p2);
-                            if (p2.length > 1) setUp(p2[p2.length - 1] >= p2[0]);
-                        });
-                }
-            })
-            .catch(() => {});
-    }, [symbol]);
-
-    if (points.length < 2) {
-        return <div className="w-24 h-10 bg-slate-700/30 rounded animate-pulse" />;
-    }
-
-    const W = 96, H = 40;
-    const color  = up ? "#22c55e" : "#ef4444";
-    const fillId = `hs_${symbol.replace(/[^a-z0-9]/gi, "_")}`;
-    const min = Math.min(...points), max = Math.max(...points);
-    const range = max - min || 1;
-    const pad = H * 0.1;
-    const toX = i  => (i  / (points.length - 1)) * W;
-    const toY = v  => pad + ((max - v) / range) * (H - pad * 2);
-
-    const linePts = points.map((v, i) =>
-        `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
-    const areaPath =
-        `M ${toX(0).toFixed(1)},${toY(points[0]).toFixed(1)} ` +
-        points.slice(1).map((v, i) =>
-            `L ${toX(i + 1).toFixed(1)},${toY(v).toFixed(1)}`).join(" ") +
-        ` L ${W},${H} L 0,${H} Z`;
-
-    return (
-        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}
-             preserveAspectRatio="none" style={{ display: "block" }}>
-            <defs>
-                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor={color} stopOpacity="0.25" />
-                    <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-                </linearGradient>
-            </defs>
-            <path d={areaPath} fill={`url(#${fillId})`} />
-            <polyline points={linePts} fill="none" stroke={color}
-                      strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-    );
-}
-
 // --─ Stocks table ------------------------------------------------------------─
 
 function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
@@ -1181,6 +1120,7 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
             case "value": return "Value";
             case "pl": return "P&L";
             case "plPct": return "P&L %";
+            case "weightage": return "% of Portfolio";
             default: return "";
         }
     };
@@ -1218,10 +1158,17 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
                 return hasPrice ? <span className={"font-medium " + plColor}>{fmt(h.unrealizedPL)}</span> : <Dash/>;
             case "plPct":
                 return hasPrice ? <span className={"font-medium " + plColor}>{`${isPos ? "+" : ""}${plPct.toFixed(2)}%`}</span> : <Dash/>;
+            case "weightage":
+                return row.weightagePct != null
+                    ? <span className="text-slate-300">{row.weightagePct.toFixed(1)}%</span>
+                    : <Dash/>;
             default:
                 return null;
         }
     };
+
+    const totalValue = holdings.reduce((s, h) =>
+        s + (h.currentValue != null ? parseFloat(h.currentValue) : 0), 0);
 
     const rows = holdings.map(h => {
         const hasPrice = h.currentPrice != null;
@@ -1229,7 +1176,10 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
         const plPct    = parseFloat(h.unrealizedPLPercent || 0);
         const isPos    = pl >= 0;
         const plColor  = hasPrice ? (isPos ? "text-green-400" : "text-red-400") : "text-slate-600";
-        return { h, hasPrice, pl, plPct, isPos, plColor };
+        const weightagePct = hasPrice && totalValue > 0
+            ? (parseFloat(h.currentValue) / totalValue) * 100
+            : null;
+        return { h, hasPrice, pl, plPct, isPos, plColor, weightagePct };
     });
 
     return (
@@ -1334,6 +1284,15 @@ function StockHoldingsTable({holdings, onStockClick, onTransact, onNavigate}) {
 // --─ MF Holdings table --------------------------------------------------------
 
 function MfHoldingsTable({mfHoldings, onOpenPanel}) {
+    const [columns, setColumns] = useState(() => getMfHoldingsColumnPrefs());
+    const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        const onChange = () => setColumns(getMfHoldingsColumnPrefs());
+        window.addEventListener(MF_HOLDINGS_COLUMNS_EVENT, onChange);
+        return () => window.removeEventListener(MF_HOLDINGS_COLUMNS_EVENT, onChange);
+    }, []);
+
     if (mfHoldings.length === 0) {
         return (
             <div className="bg-slate-800 rounded-2xl border border-slate-700/60 p-12 text-center">
@@ -1342,61 +1301,138 @@ function MfHoldingsTable({mfHoldings, onOpenPanel}) {
             </div>
         );
     }
+
+    const visibleColumns = columns.filter(c => c.visible);
+    const totalValue = mfHoldings.reduce((s, h) =>
+        s + (h.currentValue != null ? parseFloat(h.currentValue) : 0), 0);
+    const columnAlign = (colId) => colId === "chart" ? "text-center" : "text-right";
+
+    const columnHeader = (colId) => {
+        switch (colId) {
+            case "chart": return "Chart";
+            case "units": return "Units";
+            case "avgNav": return "Avg NAV";
+            case "currentNav": return "Current NAV";
+            case "dayChange": return "Day Change";
+            case "invested": return "Invested";
+            case "value": return "Value";
+            case "pl": return "P&L";
+            case "xirr": return "XIRR";
+            case "weightage": return "% of Portfolio";
+            default: return "";
+        }
+    };
+
+    const columnCell = (colId, h) => {
+        const pl    = parseFloat(h.unrealizedPnl || 0);
+        const plPct = parseFloat(h.unrealizedPnlPercent || 0);
+        const isPos = pl >= 0;
+        const color = isPos ? "text-green-400" : "text-red-400";
+        const weightagePct = h.currentValue != null && totalValue > 0
+            ? (parseFloat(h.currentValue) / totalValue) * 100 : null;
+
+        switch (colId) {
+            case "chart":
+                return <MfSparkline schemeCode={h.schemeCode} />;
+            case "units":
+                return <span className="text-white">{fmtUnits(h.units)}</span>;
+            case "avgNav":
+                return <span className="text-slate-300">{fmt(h.avgCostNav)}</span>;
+            case "currentNav":
+                return <span className="text-slate-300">{fmt(h.currentNav)}</span>;
+            case "dayChange":
+                return h.dayChangeAmount == null ? (
+                    <span className="text-slate-600">—</span>
+                ) : (
+                    <span className={parseFloat(h.dayChangeAmount) >= 0 ? "text-green-400" : "text-red-400"}>
+                        {fmt(h.dayChangeAmount)}
+                    </span>
+                );
+            case "invested":
+                return <span className="text-slate-300">{fmt(h.totalInvested)}</span>;
+            case "value":
+                return <span className="text-white font-medium">{fmt(h.currentValue)}</span>;
+            case "pl":
+                return (
+                    <span className={"font-medium " + color}>
+                        {fmt(h.unrealizedPnl)}
+                        <span className="block text-[11px]">{isPos ? "+" : ""}{plPct.toFixed(2)}%</span>
+                    </span>
+                );
+            case "xirr":
+                return h.xirr != null ? <span className="text-slate-300">{parseFloat(h.xirr).toFixed(2)}%</span> : <span className="text-slate-600">—</span>;
+            case "weightage":
+                return weightagePct != null ? <span className="text-slate-300">{weightagePct.toFixed(1)}%</span> : <span className="text-slate-600">—</span>;
+            default:
+                return null;
+        }
+    };
+
     return (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/60 overflow-hidden">
             <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="w-full text-sm" style={{minWidth:"600px"}}>
                 <thead>
                 <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                    <th className="text-left px-4 py-3">Scheme</th>
-                    <th className="text-right px-4 py-3">Units</th>
-                    <th className="text-right px-4 py-3">Avg NAV</th>
-                    <th className="text-right px-4 py-3">Current NAV</th>
-                    <th className="text-right px-4 py-3">Invested</th>
-                    <th className="text-right px-4 py-3">Value</th>
-                    <th className="text-right px-4 py-3">P&amp;L</th>
-                    <th className="text-right px-4 py-3">P&amp;L %</th>
+                    <th className="text-left px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span>Scheme</span>
+                            <button onClick={() => setShowCustomize(true)}
+                                    title="Customize columns"
+                                    className="text-slate-500 hover:text-white p-0.5 rounded normal-case">
+                                ⚙
+                            </button>
+                        </div>
+                    </th>
+                    {visibleColumns.map(c => (
+                        <th key={c.id} className={columnAlign(c.id) + " px-4 py-3 whitespace-nowrap"}>
+                            {columnHeader(c.id)}
+                        </th>
+                    ))}
                 </tr>
                 </thead>
                 <tbody>
-                {mfHoldings.map(h => {
-                    const pl    = parseFloat(h.unrealizedPnl || 0);
-                    const plPct = parseFloat(h.unrealizedPnlPercent || 0);
-                    const isPos = pl >= 0;
-                    const color = isPos ? "text-green-400" : "text-red-400";
-                    return (
-                        <tr key={h.id}
-                            className="border-b border-slate-700/40 last:border-0
-                                       hover:bg-slate-700/30 transition-colors">
-                            <td className="px-4 py-3.5 max-w-xs">
-                                <button
-                                    onClick={() => onOpenPanel({
-                                        schemeCode: h.schemeCode, schemeName: h.schemeName,
-                                        fundHouse: h.fundHouse, nav: h.currentNav,
-                                    })}
-                                    className="text-left group">
-                                    <p className="font-semibold text-white group-hover:text-blue-400
-                                                  transition-colors truncate" title={h.schemeName}>
-                                        {h.schemeName}
-                                    </p>
-                                    <p className="text-xs text-slate-400">
-                                        {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
-                                    </p>
-                                </button>
+                {mfHoldings.map(h => (
+                    <tr key={h.id}
+                        className="border-b border-slate-700/40 last:border-0
+                                   hover:bg-slate-700/30 transition-colors">
+                        <td className="px-4 py-3.5 max-w-xs">
+                            <button
+                                onClick={() => onOpenPanel({
+                                    schemeCode: h.schemeCode, schemeName: h.schemeName,
+                                    fundHouse: h.fundHouse, nav: h.currentNav,
+                                })}
+                                className="text-left group">
+                                <p className="font-semibold text-white group-hover:text-blue-400
+                                              transition-colors truncate" title={h.schemeName}>
+                                    {h.schemeName}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                    {h.fundHouse}{h.schemeCategory ? " · " + h.schemeCategory : ""}
+                                </p>
+                            </button>
+                        </td>
+                        {visibleColumns.map(c => (
+                            <td key={c.id} className={columnAlign(c.id) + " px-4 py-3.5 whitespace-nowrap"}>
+                                {columnCell(c.id, h)}
                             </td>
-                            <td className="text-right px-4 py-3.5 text-white">{fmtUnits(h.units)}</td>
-                            <td className="text-right px-4 py-3.5 text-slate-300">{fmt(h.avgCostNav)}</td>
-                            <td className="text-right px-4 py-3.5 text-slate-300">{fmt(h.currentNav)}</td>
-                            <td className="text-right px-4 py-3.5 text-slate-300">{fmt(h.totalInvested)}</td>
-                            <td className="text-right px-4 py-3.5 text-white font-medium">{fmt(h.currentValue)}</td>
-                            <td className={"text-right px-4 py-3.5 font-medium " + color}>{fmt(h.unrealizedPnl)}</td>
-                            <td className={"text-right px-4 py-3.5 font-medium " + color}>
-                                {isPos ? "+" : ""}{plPct.toFixed(2)}%
-                            </td>
-                        </tr>
-                    );
-                })}
+                        ))}
+                    </tr>
+                ))}
                 </tbody>
             </table></div>
+
+            {showCustomize && (
+                <CustomizeColumnsModal
+                    columns={columns}
+                    fixedLabel="Scheme"
+                    onClose={() => setShowCustomize(false)}
+                    onSave={(order, visible) => {
+                        setMfHoldingsColumnPrefs(order, visible);
+                        setColumns(getMfHoldingsColumnPrefs());
+                        setShowCustomize(false);
+                    }}
+                />
+            )}
         </div>
     );
 }
