@@ -21,6 +21,7 @@ import PortfolioValueChart from "../components/PortfolioValueChart";
 import StockDetailModal from "../components/StockDetailModal";
 import CustomizeColumnsModal from "../components/CustomizeColumnsModal";
 import HoldingSparkline from "../components/HoldingSparkline";
+import HoldingsBreakdownBar from "../components/HoldingsBreakdownBar";
 import { getClientPortfolioHistory } from "../api/admin";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
@@ -298,6 +299,59 @@ function PerformanceTable({ holdings, onOpenStock }) {
             )}
         </div>
     );
+}
+
+// ── Portfolio Breakdown — same component and visual style as the personal
+// Holdings page's "Portfolio Breakdown" bar, reused as-is rather than
+// rebuilt, so the two screens actually look like the same product. Own
+// independent price fetch (same pattern as Performance/Analytics tabs) so
+// a slow/failed fetch here can't block anything else on the page. Weight
+// is by CURRENT value (live price × qty), matching what the personal
+// Holdings page does — falls back to cost basis (qty × avgBuyPrice) only
+// if a live price genuinely failed to load for that symbol.
+function PortfolioBreakdownSection({ holdings }) {
+    const [prices, setPrices] = useState({});
+    const [loadingPrices, setLoadingPrices] = useState(true);
+
+    useEffect(() => {
+        if (!holdings || holdings.length === 0) { setLoadingPrices(false); return; }
+        let cancelled = false;
+        setLoadingPrices(true);
+        Promise.allSettled(holdings.map(h => getStockPrice(h.symbol)))
+            .then(results => {
+                if (cancelled) return;
+                const map = {};
+                results.forEach((r, i) => {
+                    if (r.status === "fulfilled") map[holdings[i].symbol] = r.value.data;
+                });
+                setPrices(map);
+            })
+            .finally(() => { if (!cancelled) setLoadingPrices(false); });
+        return () => { cancelled = true; };
+    }, [holdings]);
+
+    if (loadingPrices || !holdings || holdings.length === 0) return null;
+
+    const rows = holdings.map(h => {
+        const p = prices[h.symbol];
+        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const qty = parseFloat(h.quantity || 0);
+        const avg = parseFloat(h.avgBuyPrice || 0);
+        const value = ltp != null && ltp > 0 ? qty * ltp : qty * avg;
+        return { symbol: h.symbol, value };
+    });
+
+    const total = rows.reduce((s, r) => s + r.value, 0);
+    if (total === 0) return null;
+
+    const byStock = rows
+        .map(r => ({ label: r.symbol, percentage: (r.value / total) * 100 }))
+        .filter(r => r.percentage > 0.5)
+        .sort((a, b) => b.percentage - a.percentage);
+
+    if (byStock.length < 2) return null;
+
+    return <HoldingsBreakdownBar byStock={byStock} />;
 }
 
 function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions, onOpenStock }) {
@@ -965,6 +1019,14 @@ export default function TrackedClientDetailPage() {
                         scopeNote="ⓘ No price-history chart under MF or Combined scope yet — only stock price history exists. The total above is still correct for whichever scope is selected."
                     />
                 </div>
+            )}
+
+            {/* Same MF-scope gate as the tables below — client.holdings is
+                stock-only, so a "breakdown" here under MF scope would be
+                showing the wrong asset class's weights, same honesty
+                problem already fixed for Performance/Sync/Analytics. */}
+            {(client.portfolioScope || "COMBINED") !== "MF" && (
+                <PortfolioBreakdownSection holdings={client.holdings || []} />
             )}
 
             <div className="flex items-center gap-1 border-b border-slate-700/60">

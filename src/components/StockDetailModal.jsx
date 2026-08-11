@@ -399,15 +399,33 @@ export default function StockDetailModal({ stock, onClose }) {
         + (stock.exchange || "NSE") + ":" + stock.symbol + "&interval=W";
 
     const realPts    = chartData.filter(p => p.close != null);
-    const isUp       = realPts.length >= 2
-        && realPts[realPts.length - 1].close >= realPts[0].close;
+    // BUG FIXED HERE: isUp/lineColor/periodChange were always computed
+    // against realPts[0] — the first candle of whatever's currently
+    // loaded, which for Intraday is roughly the day's OPENING price, not
+    // previous close. A stock that opens sharply higher then pulls back
+    // is still up for the day (the header's +3.30% already gets this
+    // right, from quote.changePercent) — but the chart was coloring
+    // itself red and showing a negative "% this period" purely based on
+    // open-to-now, contradicting the header directly. Fixed: when viewing
+    // Intraday specifically, use quote.previousClose as the reference
+    // instead — that's the one anchor that actually answers "is this
+    // stock up or down today," which is what a red/green intraday chart
+    // implicitly promises. Longer ranges (1W/1M/etc.) keep using their own
+    // period-start as the reference — that's the correct, expected
+    // behavior there, same as everywhere else this pattern is used.
+    const referencePrice = tf.intraday && quote?.previousClose != null
+        ? parseFloat(quote.previousClose)
+        : (realPts.length > 0 ? realPts[0].close : null);
+    const isUp       = realPts.length >= 1 && referencePrice != null
+        && realPts[realPts.length - 1].close >= referencePrice;
     const lineColor  = isUp ? "#22c55e" : "#ef4444";
     const firstPrice = realPts.length > 0 ? realPts[0].close : null;
 
-    const periodChange = realPts.length >= 2
-        ? (((realPts[realPts.length - 1].close - realPts[0].close)
-            / realPts[0].close) * 100).toFixed(2)
+    const periodChange = realPts.length >= 1 && referencePrice
+        ? (((realPts[realPts.length - 1].close - referencePrice)
+            / referencePrice) * 100).toFixed(2)
         : null;
+    const periodLabel = tf.intraday ? "today" : "this period";
 
     const returnsOk = returns?.dataReliable === true
         && returns?.returns
@@ -415,8 +433,22 @@ export default function StockDetailModal({ stock, onClose }) {
 
     const yDomain = realPts.length > 0
         ? [
-            () => Math.min(...realPts.map(p => p.close)) * (1 - verticalPadding),
-            () => Math.max(...realPts.map(p => p.close)) * (1 + verticalPadding),
+            () => {
+                const vals = realPts.map(p => p.close);
+                // Include previousClose in the bounds when intraday — the
+                // new Prev. close reference line needs to actually be
+                // visible, not clipped off-chart if today's whole range
+                // happens to sit above or below where the stock closed
+                // yesterday (exactly the "opened high, fell, still above
+                // prev close" case that motivated adding this line).
+                if (tf.intraday && quote?.previousClose != null) vals.push(parseFloat(quote.previousClose));
+                return Math.min(...vals) * (1 - verticalPadding);
+            },
+            () => {
+                const vals = realPts.map(p => p.close);
+                if (tf.intraday && quote?.previousClose != null) vals.push(parseFloat(quote.previousClose));
+                return Math.max(...vals) * (1 + verticalPadding);
+            },
         ]
         : ["auto", "auto"];
 
@@ -845,7 +877,7 @@ export default function StockDetailModal({ stock, onClose }) {
                                                 ? "bg-green-900/40 text-green-400"
                                                 : "bg-red-900/40 text-red-400")
                                         }>
-                {parseFloat(periodChange) >= 0 ? "+" : ""}{periodChange}% this period
+                {parseFloat(periodChange) >= 0 ? "+" : ""}{periodChange}% {periodLabel}
             </span>
                                     )}
                                 </div>
@@ -970,6 +1002,25 @@ export default function StockDetailModal({ stock, onClose }) {
                                                     stroke="#334155"
                                                     strokeDasharray="6 4"
                                                     strokeWidth={1.5}
+                                                />
+                                            )}
+                                            {/* The line the user actually needs on Intraday: where the
+                                                stock CLOSED yesterday, not where it opened today. Distinct
+                                                color from the opening-price line above so both are readable
+                                                at once — this is the one that answers "is it actually up or
+                                                down today," which the red/green Area below now also matches. */}
+                                            {tf.intraday && quote?.previousClose != null && (
+                                                <ReferenceLine
+                                                    y={parseFloat(quote.previousClose)}
+                                                    stroke="#f59e0b"
+                                                    strokeDasharray="6 4"
+                                                    strokeWidth={1.5}
+                                                    label={{
+                                                        value: `Prev close ₹${parseFloat(quote.previousClose).toLocaleString("en-IN")}`,
+                                                        position: "insideTopRight",
+                                                        fill: "#f59e0b",
+                                                        fontSize: 11,
+                                                    }}
                                                 />
                                             )}
                                             <Area
