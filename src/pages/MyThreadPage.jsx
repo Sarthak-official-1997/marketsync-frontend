@@ -103,13 +103,23 @@ export default function MyThreadPage() {
     const toast = useToast();
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [text, setText] = useState("");
     const bottomRef = useRef(null);
 
+    // Same fix as ThreadPage.jsx — a failed load used to leave messages as
+    // [], which renders identically to "no messages yet, genuinely empty."
+    // Those are two very different situations and need to look different.
     const load = () => {
+        setLoadError(null);
         getMyThread()
             .then(res => setMessages(res.data || []))
-            .catch(() => toast.error("Couldn't load your thread"))
+            .catch(err => {
+                console.error("My thread load failed:", err?.response?.status, err?.response?.data || err);
+                setLoadError(err?.response?.status === 404
+                    ? "Messaging isn't available yet — check back soon."
+                    : "Couldn't load your messages. Check your connection and try again.");
+            })
             .finally(() => setLoading(false));
     };
 
@@ -141,11 +151,34 @@ export default function MyThreadPage() {
         </div>;
     }
 
+    if (loadError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[70vh] px-6 text-center gap-3">
+                <span className="text-3xl">⚠️</span>
+                <p className="text-white font-semibold text-sm">{loadError}</p>
+                <div className="flex gap-2 mt-2">
+                    <button onClick={() => navigate(-1)}
+                            className="px-4 py-2 bg-slate-700 text-white text-xs font-semibold rounded-lg">
+                        Go back
+                    </button>
+                    <button onClick={() => { setLoading(true); load(); }}
+                            className="px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     let lastDay = null;
 
+    // Same fix as ThreadPage.jsx's — see that file's comment for the full
+    // explanation. Short version: this component doesn't own the viewport,
+    // Layout.jsx's <main> does, and fighting it with h-[100dvh] is what
+    // pushed the composer below the fold.
     return (
-        <div className="flex flex-col h-[100dvh] bg-slate-950">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/60 flex-shrink-0">
+        <div className="flex flex-col -m-3 min-h-[calc(100vh-56px)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/60 bg-slate-950 sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="text-slate-400 text-xl">←</button>
                 <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">S</div>
                 <div>
@@ -154,11 +187,16 @@ export default function MyThreadPage() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
-                {messages.length === 0 && (
-                    <p className="text-center text-slate-600 text-xs mt-10">No messages yet.</p>
-                )}
-                {messages.map(m => {
+            <div className="flex-1 px-3 py-4 space-y-3">
+                {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center text-center gap-2 py-16 px-6">
+                        <span className="text-3xl">💬</span>
+                        <p className="text-slate-400 text-sm font-semibold">No messages yet</p>
+                        <p className="text-slate-600 text-xs max-w-[240px]">
+                            Sarthak will send ideas here as he shares them — you can also just say hello.
+                        </p>
+                    </div>
+                ) : messages.map(m => {
                     const day = fmtDay(m.createdAt);
                     const showDay = day !== lastDay;
                     lastDay = day;
@@ -196,7 +234,8 @@ export default function MyThreadPage() {
                 <div ref={bottomRef} />
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-700/60 flex-shrink-0">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-700/60
+                            bg-slate-950 sticky bottom-16 sm:bottom-0 z-10">
                 <input value={text} onChange={e => setText(e.target.value)}
                        onKeyDown={e => e.key === "Enter" && sendText()}
                        placeholder="Ask Sarthak a question…"

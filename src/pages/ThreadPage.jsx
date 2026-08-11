@@ -193,14 +193,31 @@ export default function ThreadPage() {
     const [client, setClient] = useState(null);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [text, setText] = useState("");
     const [showIdeaComposer, setShowIdeaComposer] = useState(false);
     const bottomRef = useRef(null);
 
+    // BUG FIXED HERE: on a failed load, the old code showed a toast but
+    // still fell through to the main render with client still null — that's
+    // exactly what produced the "?" avatar and "@unmapped" text instead of
+    // a real error screen. Toasts are easy to miss/dismiss; the person is
+    // left looking at a broken-looking thread with no indication anything
+    // actually went wrong. Now a failed load renders its own explicit
+    // error state with a Retry button, and the real error (not just the
+    // generic toast message) is logged so the actual cause — network,
+    // 404 because the endpoint isn't deployed yet, 500, whatever — is a
+    // console check away instead of a guess.
     const load = () => {
+        setLoadError(null);
         Promise.all([getTrackedClient(id), getThread(id)])
             .then(([c, t]) => { setClient(c.data); setMessages(t.data || []); })
-            .catch(() => toast.error("Couldn't load thread"))
+            .catch(err => {
+                console.error("Thread load failed:", err?.response?.status, err?.response?.data || err);
+                setLoadError(err?.response?.status === 404
+                    ? "This thread isn't available yet — the messaging feature may not be deployed on the backend yet."
+                    : "Couldn't load this thread. Check your connection and try again.");
+            })
             .finally(() => setLoading(false));
     };
 
@@ -222,11 +239,50 @@ export default function ThreadPage() {
         </div>;
     }
 
+    if (loadError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[70vh] px-6 text-center gap-3">
+                <span className="text-3xl">⚠️</span>
+                <p className="text-white font-semibold text-sm">{loadError}</p>
+                <div className="flex gap-2 mt-2">
+                    <button onClick={() => navigate(-1)}
+                            className="px-4 py-2 bg-slate-700 text-white text-xs font-semibold rounded-lg">
+                        Go back
+                    </button>
+                    <button onClick={() => { setLoading(true); load(); }}
+                            className="px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     let lastDay = null;
 
+    // BUG FIXED HERE: this page used to wrap itself in h-[100dvh] flex
+    // flex-col, trying to own the entire device viewport with its own
+    // internal scroll region and a flex-pinned composer at the bottom.
+    // But this component doesn't render at the top level — Layout.jsx
+    // already puts it inside <main className="flex-1 overflow-y-auto">,
+    // itself inside a padded wrapper div. No other page in this app tries
+    // to claim full-viewport height; they all just flow normally inside
+    // that existing scroll container. Claiming h-[100dvh] from inside a
+    // container that's already smaller than the viewport (Layout's mobile
+    // header takes 56px off the top) meant this component was taller than
+    // the space actually available, so Layout's OWN outer scroll took
+    // over instead of this component's intended inner scroll — that's
+    // what "had to scroll down to see the composer" actually was.
+    // Fixed by not fighting it: no forced height, message list is just
+    // normal flowing content, and the composer uses position:sticky
+    // instead of flex-pinning — sticky naturally pins to the bottom of
+    // whichever ancestor is actually scrolling, without this component
+    // needing to know or compute that ancestor's exact height itself.
+    // bottom-16 (64px) on mobile clears the app's fixed bottom nav;
+    // sm:bottom-0 removes that offset on desktop, which has no bottom nav.
     return (
-        <div className="flex flex-col h-[100dvh] bg-slate-950">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/60 flex-shrink-0">
+        <div className="flex flex-col -m-3 min-h-[calc(100vh-56px)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/60 bg-slate-950 sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="text-slate-400 text-xl">←</button>
                 <div className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-sm">
                     {client?.displayName?.[0]?.toUpperCase() || "?"}
@@ -237,11 +293,16 @@ export default function ThreadPage() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
-                {messages.length === 0 && (
-                    <p className="text-center text-slate-600 text-xs mt-10">No messages yet — send the first idea.</p>
-                )}
-                {messages.map(m => {
+            <div className="flex-1 px-3 py-4 space-y-3">
+                {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center text-center gap-2 py-16 px-6">
+                        <span className="text-3xl">💬</span>
+                        <p className="text-slate-400 text-sm font-semibold">No messages yet</p>
+                        <p className="text-slate-600 text-xs max-w-[240px]">
+                            Send {client?.displayName || "them"} a quick check-in, or tap 📊 below to share a stock idea with price levels.
+                        </p>
+                    </div>
+                ) : messages.map(m => {
                     const day = fmtDay(m.createdAt);
                     const showDay = day !== lastDay;
                     lastDay = day;
@@ -279,7 +340,8 @@ export default function ThreadPage() {
                 <div ref={bottomRef} />
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-700/60 flex-shrink-0">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-700/60
+                            bg-slate-950 sticky bottom-16 sm:bottom-0 z-10">
                 <button onClick={() => setShowIdeaComposer(true)}
                         className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-base flex-shrink-0">
                     📊
