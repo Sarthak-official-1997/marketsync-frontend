@@ -14,7 +14,8 @@ function DayChangeTriangle({ pct }) {
     const isUp = parseFloat(pct) >= 0;
     return (
         <svg width="8" height="8" viewBox="0 0 10 10" className="flex-shrink-0"
-             style={{ display: "inline-block" }}>
+             style={{ display: "inline-block" }}
+             title={isUp ? "Up today" : "Down today"}>
             {isUp
                 ? <polygon points="5,1 9,8 1,8" fill="#22c55e" />
                 : <polygon points="1,2 9,2 5,9" fill="#ef4444" />}
@@ -53,9 +54,16 @@ export default function HoldingsBreakdownBar({ byStock }) {
                                      style={{ width: `${item.percentage}%`,
                                          backgroundColor: COLORS[i % COLORS.length] }} />
                             </div>
-                            <span className="text-slate-400 w-10 text-right text-xs flex items-center justify-end gap-1">
-                                <DayChangeTriangle pct={item.dayChangePercent} />
+                            <span className="text-slate-400 w-10 text-right text-xs">
                                 {parseFloat(item.percentage).toFixed(1)}%
+                            </span>
+                            {/* Deliberately separated from the weight % with a divider —
+                                this is a DIFFERENT fact (today's direction, not portfolio
+                                weight), and sitting right next to the number read as
+                                "▼16.0%" = "down 16% today," which is backwards. */}
+                            <span className="w-4 flex items-center justify-center
+                                             border-l border-slate-700 pl-2.5">
+                                <DayChangeTriangle pct={item.dayChangePercent} />
                             </span>
                         </div>
                     </div>
