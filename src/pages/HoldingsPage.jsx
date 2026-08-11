@@ -787,6 +787,7 @@ function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
                 .map(h => ({
                     label:      h.stock.symbol,
                     percentage: (parseFloat(h.currentValue || h.totalInvested || 0) / total) * 100,
+                    dayChangePercent: h.dayChangePercent != null ? parseFloat(h.dayChangePercent) : null,
                 }))
                 .filter(r => r.percentage > 0.5)
                 .sort((a, b) => b.percentage - a.percentage);
@@ -798,6 +799,7 @@ function MobileHoldingsView({ holdings, mfHoldings, refreshing, onRefresh,
                 .map(h => ({
                     label:      h.schemeName?.split(" ").slice(0, 2).join(" ") || "MF",
                     percentage: (parseFloat(h.currentValue || h.totalInvested || 0) / total) * 100,
+                    dayChangePercent: h.dayChangePercent != null ? parseFloat(h.dayChangePercent) : null,
                 }))
                 .filter(r => r.percentage > 0.5)
                 .sort((a, b) => b.percentage - a.percentage);

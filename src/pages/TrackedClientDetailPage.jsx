@@ -335,17 +335,18 @@ function PortfolioBreakdownSection({ holdings }) {
     const rows = holdings.map(h => {
         const p = prices[h.symbol];
         const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const dayChangePercent = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? NaN) : null;
         const qty = parseFloat(h.quantity || 0);
         const avg = parseFloat(h.avgBuyPrice || 0);
         const value = ltp != null && ltp > 0 ? qty * ltp : qty * avg;
-        return { symbol: h.symbol, value };
+        return { symbol: h.symbol, value, dayChangePercent };
     });
 
     const total = rows.reduce((s, r) => s + r.value, 0);
     if (total === 0) return null;
 
     const byStock = rows
-        .map(r => ({ label: r.symbol, percentage: (r.value / total) * 100 }))
+        .map(r => ({ label: r.symbol, percentage: (r.value / total) * 100, dayChangePercent: r.dayChangePercent }))
         .filter(r => r.percentage > 0.5)
         .sort((a, b) => b.percentage - a.percentage);
 

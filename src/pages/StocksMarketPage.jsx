@@ -1792,8 +1792,24 @@ function MobileMarketView({ pinned, prices, holdingsMap, portfolioSummary, onOpe
                                 <div style={{ padding: pinned.some(s => holdingsMap[s.symbol]) ? "8px 12px 3px" : "5px 12px 3px",
                                     fontSize: 8, fontWeight: 800,
                                     letterSpacing: "0.1em", textTransform: "uppercase",
-                                    color: "#334155", background: "#060d1a" }}>
-                                    {holdingsMap && Object.keys(holdingsMap).length > 0 ? "On Your Board" : "Your Stocks"}
+                                    color: "#334155", background: "#060d1a",
+                                    display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <span>{holdingsMap && Object.keys(holdingsMap).length > 0 ? "On Your Board" : "Your Stocks"}</span>
+                                    {/* Same triangle language as Portfolio Breakdown — how many
+                                        of today's board constituents are actually up vs down right
+                                        now, at a glance, without reading every card individually. */}
+                                    {(gainers.length + losers.length) > 0 && (
+                                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, letterSpacing: "normal", textTransform: "none" }}>
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "#22c55e" }}>
+                                                <svg width="7" height="7" viewBox="0 0 10 10"><polygon points="5,1 9,8 1,8" fill="#22c55e" /></svg>
+                                                {gainers.length}
+                                            </span>
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "#ef4444" }}>
+                                                <svg width="7" height="7" viewBox="0 0 10 10"><polygon points="1,2 9,2 5,9" fill="#ef4444" /></svg>
+                                                {losers.length}
+                                            </span>
+                                        </span>
+                                    )}
                                 </div>
                             )}
                             {pinned.filter(s => !holdingsMap[s.symbol]).map(stock => (
@@ -2244,6 +2260,18 @@ export default function StocksMarketPage() {
         sectionsArray(sections).flatMap(s => s.symbols || [])
     )].length;
 
+    // Same up/down count shown on the mobile board header and in Portfolio
+    // Breakdown's triangles — how many of today's board stocks are actually
+    // green vs red right now, not a proxy for portfolio weight or holdings.
+    const boardGainCount = pinned.filter(s => {
+        const p = prices[s.symbol];
+        return p && parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) >= 0;
+    }).length;
+    const boardLoseCount = pinned.filter(s => {
+        const p = prices[s.symbol];
+        return p && parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) < 0;
+    }).length;
+
     return (
         <div className={isMobile ? "" : "space-y-4"}>
 
@@ -2303,6 +2331,19 @@ export default function StocksMarketPage() {
                                         bg-green-900/20 border border-green-500/20 rounded-full">
                                     <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"/>
                                     <span className="text-green-400 text-[10px] font-semibold">LIVE</span>
+                                </div>
+                            )}
+                            {(boardGainCount + boardLoseCount) > 0 && (
+                                <div className="flex items-center gap-2.5 px-2.5 py-0.5
+                                        bg-slate-800 border border-slate-700 rounded-full">
+                                    <span className="flex items-center gap-1 text-green-400 text-[10px] font-bold">
+                                        <svg width="7" height="7" viewBox="0 0 10 10"><polygon points="5,1 9,8 1,8" fill="#22c55e" /></svg>
+                                        {boardGainCount}
+                                    </span>
+                                    <span className="flex items-center gap-1 text-red-400 text-[10px] font-bold">
+                                        <svg width="7" height="7" viewBox="0 0 10 10"><polygon points="1,2 9,2 5,9" fill="#ef4444" /></svg>
+                                        {boardLoseCount}
+                                    </span>
                                 </div>
                             )}
                         </div>
