@@ -619,27 +619,48 @@ export default function StockDetailModal({ stock, onClose }) {
                         <div className="flex items-center justify-between
                         px-4 sm:px-7 py-3 sm:py-4 border-b border-slate-700/60
                         flex-shrink-0 gap-2">
-                            {/* Left: symbol badge + name */}
-                            <div className="flex items-center gap-4">
+                            {/* Left: symbol badge + name.
+                                BUG FIXED HERE: this used to be TWO side-by-side
+                                blocks (symbol+exchange, then a separate
+                                full-company-name+sector block), with no width
+                                constraint on the name. A long name ("Apollo
+                                Hospitals Enterprise Limited") just kept
+                                pushing right with nothing to stop it — and
+                                since this whole row has no min-w-0 anywhere,
+                                that push went straight through the price,
+                                every action button, and the close icon,
+                                shoving the close button outside the modal's
+                                visible bounds entirely. Fixed by stacking
+                                symbol above name in ONE column (matching how
+                                the mobile header already does it) and giving
+                                that column min-w-0 + the name a real
+                                truncation limit — a long name now ellipsizes
+                                instead of pushing anything. */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <StockLogo symbol={stock.symbol} name={stock.name} size={48} />
-                                <div>
-                                    <p className="text-xl font-bold text-white leading-none">
-                                        {stock.symbol}
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xl font-bold text-white leading-none whitespace-nowrap">
+                                            {stock.symbol}
+                                        </p>
+                                        <span className="text-xs text-blue-400 font-semibold flex-shrink-0">
+                                            {stock.exchange}
+                                        </span>
+                                    </div>
+                                    <p className="text-white font-medium text-sm mt-1 truncate max-w-[240px] sm:max-w-[320px]"
+                                       title={stock.name}>
+                                        {stock.name}
                                     </p>
-                                    <span className="text-xs text-blue-400 font-semibold mt-0.5 block">
-                                    {stock.exchange}
-                                </span>
-                                </div>
-                                <div>
-                                    <p className="text-white font-semibold text-lg">{stock.name}</p>
                                     {stock.sector && (
-                                        <p className="text-xs text-slate-400 mt-0.5">{stock.sector}</p>
+                                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[240px] sm:max-w-[320px]">
+                                            {stock.sector}
+                                        </p>
                                     )}
                                 </div>
                             </div>
 
                             {/* Right: price + action buttons */}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-shrink-0">
                                 {quoteLoading ? (
                                     <div className="h-9 w-36 bg-slate-700 rounded animate-pulse" />
                                 ) : quote ? (

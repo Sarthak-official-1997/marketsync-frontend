@@ -8,11 +8,14 @@
 // Mobile: full-screen. Desktop: centered. Same responsive pattern as the
 // rest of the app's modals.
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useMobile } from "../hooks/useMobile";
 import { useToast } from "../context/ToastContext";
-import { createAlert, createTradeSetupAlert, extractTradeSetup } from "../api/portfolio";
+import {
+    createAlert, createTradeSetupAlert, extractTradeSetup,
+    getAlerts, deleteAlert, deleteTradeSetupAlert,
+} from "../api/portfolio";
 
 export default function TradeSetupModal({ stock, onClose, onCreated }) {
     const isMobile = useMobile();
@@ -20,6 +23,42 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
 
     const [tab, setTab] = useState("simple"); // "simple" | "setup"
     const [saving, setSaving] = useState(false);
+
+    // Existing alerts already set on this stock — shown above the form so
+    // the person can see what's already configured (both simple-condition
+    // and trade-setup alerts, distinguished by tradeSetupId) before
+    // deciding whether to add another. getAlerts() has no symbol filter
+    // server-side, so filtering happens here.
+    const [existingAlerts, setExistingAlerts] = useState(null); // null = still loading
+    const [deletingId, setDeletingId] = useState(null);
+
+    useEffect(() => {
+        if (!stock?.symbol) return;
+        let cancelled = false;
+        getAlerts()
+            .then(res => {
+                if (cancelled) return;
+                setExistingAlerts((res.data || []).filter(a => a.symbol === stock.symbol));
+            })
+            .catch(() => { if (!cancelled) setExistingAlerts([]); });
+        return () => { cancelled = true; };
+    }, [stock?.symbol]);
+
+    const removeExistingAlert = (alert) => {
+        setDeletingId(alert.id);
+        const req = alert.tradeSetupId != null
+            ? deleteTradeSetupAlert(alert.tradeSetupId)
+            : deleteAlert(alert.id);
+        req
+            .then(() => {
+                setExistingAlerts(prev => alert.tradeSetupId != null
+                    ? prev.filter(a => a.tradeSetupId !== alert.tradeSetupId)
+                    : prev.filter(a => a.id !== alert.id));
+                toast.success("Alert removed");
+            })
+            .catch(() => toast.error("Couldn't remove alert"))
+            .finally(() => setDeletingId(null));
+    };
 
     // -- Simple condition state --
     const [condition, setCondition] = useState("above"); // above | below | equals
@@ -136,6 +175,73 @@ export default function TradeSetupModal({ stock, onClose, onCreated }) {
 
                 <div style={{ flex: "1 1 0", overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
                      className="px-4 py-4">
+
+                    {/* Existing alerts on this stock — shown before the form so
+                        it's clear what's already set before adding another. */}
+                    {existingAlerts === null ? (
+                        <div className="flex items-center gap-2 text-slate-500 text-xs mb-4">
+                            <span className="w-3 h-3 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                            Checking existing alerts…
+                        </div>
+                    ) : existingAlerts.length > 0 && (
+                        <div className="mb-4">
+                            <p className="text-slate-500 text-[11px] font-semibold uppercase tracking-wide mb-2">
+                                Existing alerts ({existingAlerts.length})
+                            </p>
+                            <div className="space-y-1.5">
+                                {(() => {
+                                    const simple = existingAlerts.filter(a => a.tradeSetupId == null);
+                                    const setupGroups = Object.values(
+                                        existingAlerts
+                                            .filter(a => a.tradeSetupId != null)
+                                            .reduce((acc, a) => {
+                                                (acc[a.tradeSetupId] ||= []).push(a);
+                                                return acc;
+                                            }, {})
+                                    );
+                                    const LABEL = {
+                                        PRICE_ABOVE: "Above", PRICE_BELOW: "Below", PRICE_EQUALS: "Equals",
+                                        PCT_UP: "Up", PCT_DOWN: "Down",
+                                    };
+                                    return (
+                                        <>
+                                            {simple.map(a => (
+                                                <div key={a.id}
+                                                     className="flex items-center justify-between bg-slate-800/70 border border-slate-700/60 rounded-lg px-3 py-2">
+                                                    <span className="text-xs text-slate-300">
+                                                        <span className={a.isEnabled && !a.triggeredAt ? "text-white font-semibold" : "text-slate-500"}>
+                                                            {LABEL[a.alertType] || a.alertType}
+                                                        </span>
+                                                        {" "}₹{parseFloat(a.computedTarget || a.targetPrice || 0).toLocaleString("en-IN")}
+                                                        {a.triggeredAt && <span className="text-slate-600 ml-1.5">· fired</span>}
+                                                        {!a.isEnabled && !a.triggeredAt && <span className="text-slate-600 ml-1.5">· off</span>}
+                                                    </span>
+                                                    <button onClick={() => removeExistingAlert(a)} disabled={deletingId === a.id}
+                                                            className="text-slate-500 hover:text-red-400 text-xs disabled:opacity-40 px-1">
+                                                        {deletingId === a.id ? "…" : "✕"}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {setupGroups.map(group => (
+                                                <div key={group[0].tradeSetupId}
+                                                     className="flex items-center justify-between bg-slate-800/70 border border-slate-700/60 rounded-lg px-3 py-2">
+                                                    <span className="text-xs text-slate-300">
+                                                        <span className="text-white font-semibold">Trade setup</span>
+                                                        {" "}— {group.length} linked alert{group.length === 1 ? "" : "s"}
+                                                        {group.some(a => a.triggeredAt) && <span className="text-slate-600 ml-1.5">· partly fired</span>}
+                                                    </span>
+                                                    <button onClick={() => removeExistingAlert(group[0])} disabled={deletingId === group[0].id}
+                                                            className="text-slate-500 hover:text-red-400 text-xs disabled:opacity-40 px-1">
+                                                        {deletingId === group[0].id ? "…" : "✕"}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Tabs */}
                     <div className="flex gap-2 mb-4">

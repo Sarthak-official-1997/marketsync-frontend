@@ -39,33 +39,37 @@ export default function HoldingsBreakdownBar({ byStock }) {
                 ))}
             </div>
 
-            {/* Legend */}
-            <div className="space-y-2">
+            {/* Legend — CSS grid with FIXED column widths, not flex
+                justify-between. justify-between let the bar's start
+                position drift per row depending on how long each stock
+                name was ("PERSISTENT" vs "PGIL" pushed the bar to two
+                completely different X positions) — that's what actually
+                read as "disoriented," not the bar's own size. A grid
+                guarantees every column lines up identically down the
+                whole list regardless of name length; long names truncate
+                with an ellipsis instead of shoving everything else around. */}
+            <div className="space-y-2.5">
                 {byStock.map((item, i) => (
-                    <div key={item.label} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                                 style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                            <span className="text-white font-medium">{item.label}</span>
+                    <div key={item.label}
+                         className="grid items-center gap-2 text-sm"
+                         style={{ gridTemplateColumns: "14px minmax(0,1fr) 56px 40px 14px" }}>
+                        <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                             style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <span className="text-white font-medium truncate" title={item.label}>
+                            {item.label}
+                        </span>
+                        <div className="bg-slate-700 rounded-full h-1.5 w-full">
+                            <div className="h-1.5 rounded-full"
+                                 style={{ width: `${item.percentage}%`,
+                                     backgroundColor: COLORS[i % COLORS.length] }} />
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="w-32 bg-slate-700 rounded-full h-1.5">
-                                <div className="h-1.5 rounded-full"
-                                     style={{ width: `${item.percentage}%`,
-                                         backgroundColor: COLORS[i % COLORS.length] }} />
-                            </div>
-                            <span className="text-slate-400 w-10 text-right text-xs">
-                                {parseFloat(item.percentage).toFixed(1)}%
-                            </span>
-                            {/* Deliberately separated from the weight % with a divider —
-                                this is a DIFFERENT fact (today's direction, not portfolio
-                                weight), and sitting right next to the number read as
-                                "▼16.0%" = "down 16% today," which is backwards. */}
-                            <span className="w-4 flex items-center justify-center
-                                             border-l border-slate-700 pl-2.5">
-                                <DayChangeTriangle pct={item.dayChangePercent} />
-                            </span>
-                        </div>
+                        <span className="text-slate-400 text-right text-xs whitespace-nowrap">
+                            {parseFloat(item.percentage).toFixed(1)}%
+                        </span>
+                        <span className="flex items-center justify-center
+                                         border-l border-slate-700 pl-1.5">
+                            <DayChangeTriangle pct={item.dayChangePercent} />
+                        </span>
                     </div>
                 ))}
             </div>
