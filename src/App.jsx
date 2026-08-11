@@ -26,6 +26,8 @@ import AdminAnalyticsPage      from "./pages/AdminAnalyticsPage";
 import AdminUserManagementPage from "./pages/AdminUserManagementPage";
 import ClientTrackerPage       from "./pages/ClientTrackerPage";
 import TrackedClientDetailPage from "./pages/TrackedClientDetailPage";
+import ThreadPage from "./pages/ThreadPage";
+import MyThreadPage from "./pages/MyThreadPage";
 
 // Auth pages
 import LoginPage           from "./pages/LoginPage";
@@ -250,6 +252,20 @@ function AppShell() {
                                 <TrackedClientDetailPage />
                             </ErrorBoundary>
                         </CreatorRoute>
+                    } />
+
+                    <Route path="/creator/client-tracker/:id/thread" element={
+                        <CreatorRoute>
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Thread failed to load">
+                                <ThreadPage />
+                            </ErrorBoundary>
+                        </CreatorRoute>
+                    } />
+
+                    <Route path="/my-thread" element={
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Thread failed to load">
+                            <MyThreadPage />
+                        </ErrorBoundary>
                     } />
 
                     {/* -- HOME -- a real dashboard, separate from Stocks Market */}

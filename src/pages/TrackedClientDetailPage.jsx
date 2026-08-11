@@ -967,6 +967,13 @@ export default function TrackedClientDetailPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    {client.mappedUserId && (
+                        <button onClick={() => navigate(`/creator/client-tracker/${client.id}/thread`)}
+                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs
+                                           font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                            💬 Message
+                        </button>
+                    )}
                     {client.mappedUserId && stagedCount > 0 && (
                         <button onClick={() => openPush(null)}
                                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs
