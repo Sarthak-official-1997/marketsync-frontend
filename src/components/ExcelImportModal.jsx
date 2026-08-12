@@ -13,51 +13,58 @@ import { importExcelPreview, confirmExcelImport } from "../api/portfolio";
 
 function RowCard({ row, onChange, onRemove }) {
     return (
-        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
+        <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3">
+            <div className="flex items-center justify-between gap-2">
+                {/* BUG FIXED HERE: this input was a fixed w-28 (112px)
+                    regardless of screen size — "ANANT RAJ LIMITED" and
+                    "AZAD ENGINEERING" both truncated mid-word even with
+                    the whole rest of the modal sitting empty next to them.
+                    flex-1 min-w-0 lets it actually use the space the wider
+                    modal below now provides, on both mobile and desktop. */}
                 <input value={row.symbol || ""} onChange={e => onChange({ ...row, symbol: e.target.value.toUpperCase() })}
-                       className="bg-transparent text-white font-bold text-sm focus:outline-none border-b border-transparent
-                                  focus:border-blue-500 w-28" />
-                <button onClick={onRemove} className="text-slate-500 hover:text-red-400 text-xs">Remove</button>
+                       title={row.symbol}
+                       className="bg-transparent text-white font-bold text-sm sm:text-base focus:outline-none border-b
+                                  border-transparent focus:border-blue-500 flex-1 min-w-0" />
+                <button onClick={onRemove} className="text-slate-500 hover:text-red-400 text-xs flex-shrink-0">Remove</button>
             </div>
             {row.warning && (
                 <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1">
                     ⚠️ {row.warning}
                 </p>
             )}
-            <div className="grid grid-cols-2 gap-2">
-                <div className="flex gap-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="flex gap-1 sm:gap-2">
                     {["BUY", "SELL"].map(t => (
                         <button key={t} onClick={() => onChange({ ...row, type: t })}
-                                className={"flex-1 text-[11px] font-semibold py-1.5 rounded-lg border transition-colors " +
-                                (row.type === t
-                                    ? (t === "BUY" ? "bg-green-600/20 border-green-500 text-green-300" : "bg-red-600/20 border-red-500 text-red-300")
-                                    : "bg-slate-800 border-slate-700 text-slate-400")}>
+                                className={"flex-1 text-[11px] sm:text-xs font-semibold py-1.5 sm:py-2 rounded-lg border transition-colors " +
+                                    (row.type === t
+                                        ? (t === "BUY" ? "bg-green-600/20 border-green-500 text-green-300" : "bg-red-600/20 border-red-500 text-red-300")
+                                        : "bg-slate-800 border-slate-700 text-slate-400")}>
                             {t}
                         </button>
                     ))}
                 </div>
                 <input type="date" value={row.transactionDate || ""} onChange={e => onChange({ ...row, transactionDate: e.target.value })}
-                       className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs
+                       className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 sm:py-2 text-white text-xs sm:text-sm
                                   focus:outline-none focus:border-blue-500" />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div>
-                    <p className="text-[9px] text-slate-500 mb-0.5">Qty</p>
+                    <p className="text-[9px] sm:text-[10.5px] text-slate-500 mb-0.5">Qty</p>
                     <input type="number" value={row.quantity ?? ""} onChange={e => onChange({ ...row, quantity: e.target.value })}
-                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs
+                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 sm:py-2 text-white text-xs sm:text-sm
                                       focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                    <p className="text-[9px] text-slate-500 mb-0.5">Price/share</p>
+                    <p className="text-[9px] sm:text-[10.5px] text-slate-500 mb-0.5">Price/share</p>
                     <input type="number" value={row.pricePerShare ?? ""} onChange={e => onChange({ ...row, pricePerShare: e.target.value })}
-                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs
+                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 sm:py-2 text-white text-xs sm:text-sm
                                       focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                    <p className="text-[9px] text-slate-500 mb-0.5">Fees</p>
+                    <p className="text-[9px] sm:text-[10.5px] text-slate-500 mb-0.5">Fees</p>
                     <input type="number" value={row.fees ?? 0} onChange={e => onChange({ ...row, fees: e.target.value })}
-                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs
+                           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 sm:py-2 text-white text-xs sm:text-sm
                                       focus:outline-none focus:border-blue-500" />
                 </div>
             </div>
@@ -121,8 +128,8 @@ export default function ExcelImportModal({ onClose, onImported }) {
     };
 
     const desktopStyle = {
-        width: "calc(100vw - 32px)", maxWidth: "480px",
-        minHeight: "360px", maxHeight: "88vh",
+        width: "calc(100vw - 48px)", maxWidth: "640px",
+        minHeight: "420px", maxHeight: "88vh",
         borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
         boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
     };
