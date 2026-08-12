@@ -861,7 +861,30 @@ export default function TrackedClientDetailPage() {
     };
     const confirmExcel = () => {
         confirmExcelHoldings(id, excelRows)
-            .then(() => { toast.success("Holdings imported"); setExcelRows(null); setAddMode(null); load(); loadStagedCount(); })
+            .then(res => {
+                const { imported, skipped, results } = res.data;
+                if (skipped > 0) {
+                    // These are rows the backend refused to guess at rather
+                    // than silently invent bad data for — most commonly a
+                    // real broker Excel export listing full company names
+                    // instead of exchange tickers, which won't match
+                    // anything already in the stock catalog. They need to
+                    // be added manually via search, where the person picks
+                    // the correct stock themselves.
+                    const failedSymbols = (results || [])
+                        .filter(r => !r.success)
+                        .map(r => r.symbol || `row ${r.rowNumber}`);
+                    toast.error(
+                        `Imported ${imported} of ${imported + skipped}. ` +
+                        `Couldn't match: ${failedSymbols.slice(0, 3).join(", ")}` +
+                        (failedSymbols.length > 3 ? ` +${failedSymbols.length - 3} more` : "") +
+                        " — add these manually via search."
+                    );
+                } else {
+                    toast.success(`Imported ${imported} holding${imported === 1 ? "" : "s"}`);
+                }
+                setExcelRows(null); setAddMode(null); load(); loadStagedCount();
+            })
             .catch(() => toast.error("Import failed"));
     };
 
