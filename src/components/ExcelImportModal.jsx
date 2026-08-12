@@ -127,8 +127,18 @@ export default function ExcelImportModal({ onClose, onImported }) {
             .finally(() => setConfirming(false));
     };
 
+    // BUG FIXED HERE: 480px, then 640px — both were still fixed numbers,
+    // not "dynamic." A fixed maxWidth means the modal stops growing the
+    // instant it hits that number, no matter how much wider the screen
+    // gets past that point — on a large monitor it just sits there small
+    // with empty space on both sides, exactly what the screenshot showed.
+    // clamp(min, preferred, max) actually scales continuously with the
+    // viewport: 55vw as the fluid middle term means it keeps growing as
+    // the window grows, never below 460px (still fine on a small laptop
+    // window) and never above 880px (so it doesn't become absurd on an
+    // ultrawide monitor).
     const desktopStyle = {
-        width: "calc(100vw - 48px)", maxWidth: "640px",
+        width: "clamp(460px, 55vw, 880px)",
         minHeight: "420px", maxHeight: "88vh",
         borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
         boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
