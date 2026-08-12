@@ -363,6 +363,11 @@ function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEd
     const [editQty, setEditQty] = useState("");
     const [editPrice, setEditPrice] = useState("");
     const [editDate, setEditDate] = useState("");
+    // Which holding's diff modal is open, or null — clicking the
+    // "Out of sync" badge opens this instead of just showing a static
+    // pill, so the person can actually see WHAT differs (qty, avg price,
+    // value) before deciding whether to Push, Pull, or leave it alone.
+    const [diffModalHolding, setDiffModalHolding] = useState(null);
 
     useEffect(() => {
         const closeMenus = () => setOpenMenuId(null);
@@ -432,13 +437,20 @@ function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEd
                                 )}
                                 {mapped && (
                                     <td className="text-center px-3 py-2.5">
-                                            <span className={"inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap " +
-                                                (h.inSync
-                                                    ? "bg-green-900/20 text-green-400 border-green-700/40"
-                                                    : "bg-amber-900/20 text-amber-400 border-amber-700/40")}>
-                                                <span className={"w-1.5 h-1.5 rounded-full " + (h.inSync ? "bg-green-400" : "bg-amber-400")} />
-                                                {h.inSync ? "In sync" : "Out of sync"}
-                                            </span>
+                                        {h.inSync ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap
+                                                                 bg-green-900/20 text-green-400 border-green-700/40">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                                    In sync
+                                                </span>
+                                        ) : (
+                                            <button onClick={() => setDiffModalHolding(h)}
+                                                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap
+                                                                   bg-amber-900/20 text-amber-400 border-amber-700/40 hover:bg-amber-900/30 cursor-pointer">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                Out of sync
+                                            </button>
+                                        )}
                                     </td>
                                 )}
                                 <td className="px-3 py-2.5">
@@ -537,6 +549,126 @@ function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEd
                     ))}
                     </tbody>
                 </table>
+            </div>
+
+            {diffModalHolding && (
+                <SyncDiffModal
+                    holding={diffModalHolding}
+                    onClose={() => setDiffModalHolding(null)}
+                    onPush={() => { onOpenPush(diffModalHolding); setDiffModalHolding(null); }}
+                    onPull={async () => {
+                        await onSync(diffModalHolding);
+                        setDiffModalHolding(null);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// ── Sync diff modal — shows exactly what differs between the reference
+// holding and the client's real one (qty, avg price, resulting value),
+// so Push/Pull is a decision made with the actual numbers in front of
+// you, not a blind "Out of sync" pill with no detail behind it. ────────
+function SyncDiffModal({ holding: h, onClose, onPush, onPull }) {
+    const toast = useToast();
+    const [pulling, setPulling] = useState(false);
+    const fmt = (n) => n == null ? "—" : parseFloat(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+    const hasReal = h.realQuantity != null;
+    const qtyDiff = hasReal ? parseFloat(h.realQuantity) - parseFloat(h.quantity || 0) : null;
+    const priceDiff = hasReal && h.realAvgBuyPrice != null
+        ? parseFloat(h.realAvgBuyPrice) - parseFloat(h.avgBuyPrice || 0) : null;
+    const yourValue = parseFloat(h.quantity || 0) * parseFloat(h.avgBuyPrice || 0);
+    const realValue = hasReal ? parseFloat(h.realQuantity) * parseFloat(h.realAvgBuyPrice || 0) : null;
+    const valueDiff = hasReal ? realValue - yourValue : null;
+
+    const handlePull = async () => {
+        setPulling(true);
+        try {
+            await onPull();
+        } catch {
+            toast.error("Couldn't sync — try again");
+        } finally {
+            setPulling(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9700] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+             onClick={onClose}>
+            <div onClick={e => e.stopPropagation()}
+                 className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5">
+                <div className="flex items-center justify-between mb-1">
+                    <p className="text-white font-bold text-base">{h.symbol}</p>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white text-lg leading-none">✕</button>
+                </div>
+                <p className="text-slate-500 text-xs mb-4">{h.name}</p>
+
+                {!hasReal ? (
+                    <p className="text-amber-400 text-xs bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-4">
+                        They don't hold this stock at all right now — your reference copy shows a
+                        holding they've fully exited (or never had).
+                    </p>
+                ) : (
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Your reference</p>
+                            <p className="text-white text-sm font-bold">{fmt(h.quantity)} sh</p>
+                            <p className="text-slate-400 text-xs">@ ₹{fmt(h.avgBuyPrice)}</p>
+                            <p className="text-slate-500 text-[10.5px] mt-1">₹{fmt(yourValue)}</p>
+                        </div>
+                        <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Their real holding</p>
+                            <p className="text-white text-sm font-bold">{fmt(h.realQuantity)} sh</p>
+                            <p className="text-slate-400 text-xs">@ ₹{fmt(h.realAvgBuyPrice)}</p>
+                            <p className="text-slate-500 text-[10.5px] mt-1">₹{fmt(realValue)}</p>
+                        </div>
+                    </div>
+                )}
+
+                {hasReal && (
+                    <div className="bg-slate-800/40 rounded-xl p-3 mb-5 space-y-1.5">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Difference (their side − yours)</p>
+                        {qtyDiff !== 0 && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-400">Quantity</span>
+                                <span className={qtyDiff > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                                    {qtyDiff > 0 ? "+" : ""}{fmt(qtyDiff)} sh
+                                </span>
+                            </div>
+                        )}
+                        {priceDiff !== 0 && priceDiff != null && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-400">Avg price</span>
+                                <span className={priceDiff > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                                    {priceDiff > 0 ? "+" : ""}₹{fmt(priceDiff)}
+                                </span>
+                            </div>
+                        )}
+                        <div className="flex justify-between text-xs pt-1.5 border-t border-slate-700/60">
+                            <span className="text-slate-400">Value</span>
+                            <span className={valueDiff > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                                {valueDiff > 0 ? "+" : ""}₹{fmt(valueDiff)}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2">
+                    <button onClick={onPush}
+                            className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-xl">
+                        ⬆ Push — update THEIR real holding to match your reference
+                    </button>
+                    <button onClick={handlePull} disabled={pulling || !hasReal}
+                            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-semibold rounded-xl">
+                        {pulling ? "Pulling…" : "⬇ Pull — update YOUR reference to match their real holding"}
+                    </button>
+                    <button onClick={onClose}
+                            className="w-full py-2 text-slate-400 hover:text-white text-xs font-medium">
+                        Not now
+                    </button>
+                </div>
             </div>
         </div>
     );
