@@ -167,13 +167,24 @@ export default function ExcelImportModal({ onClose, onImported }) {
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[9650] flex items-end sm:items-center justify-center"
-             onClick={onClose}>
+        <div className="fixed inset-0 z-[9650] flex items-end sm:items-center justify-center">
+            {/* BUG FIXED HERE: the backdrop used to close the modal on any
+                click that reached it (onClick={onClose} here, guarded only
+                by stopPropagation on the modal itself). That's fragile even
+                normally, but became a real bug the moment this modal got a
+                resize handle: dragging the corner is a mousedown→mousemove→
+                mouseup sequence, and once the box has shrunk during the
+                drag, the mouseup can land over the backdrop instead of the
+                modal — which fired onClose mid-resize. This is real user
+                data (an in-progress import review, possibly mid-edit on
+                several rows) — it should never disappear from an incidental
+                edge interaction. Closing this modal is now ONLY possible
+                via the explicit X button or the Cancel/Confirm actions
+                below, never a stray click. */}
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
             <div className="relative z-[9651] bg-slate-900 flex flex-col"
-                 style={isMobile ? mobileStyle : desktopStyle}
-                 onClick={e => e.stopPropagation()}>
+                 style={isMobile ? mobileStyle : desktopStyle}>
 
                 <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
                     <p className="text-white font-bold text-base">📊 Import Excel</p>
