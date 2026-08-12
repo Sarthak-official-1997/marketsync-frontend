@@ -27,6 +27,10 @@ export const previewExcelHoldings = (id, file) => {
 };
 export const confirmExcelHoldings = (id, rows) =>
     api.post(`/client-tracker/${id}/holdings/import-excel/confirm`, rows);
+// Read-only — shows which rows will/won't resolve before anything is
+// actually saved. Same row shape as confirm.
+export const checkExcelHoldings = (id, rows) =>
+    api.post(`/client-tracker/${id}/holdings/import-excel/check`, rows);
 
 // AI screenshot import — ALL screenshots in a batch go in ONE request, so
 // Gemini sees every image together and can recognize when several

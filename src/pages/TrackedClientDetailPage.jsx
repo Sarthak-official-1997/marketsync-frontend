@@ -26,7 +26,7 @@ import { getClientPortfolioHistory } from "../api/admin";
 import {
     getTrackedClient, deleteTrackedClient, mapTrackedClient,
     addTrackedHolding, deleteTrackedHolding,
-    previewExcelHoldings, confirmExcelHoldings,
+    previewExcelHoldings, confirmExcelHoldings, checkExcelHoldings,
     previewScreenshotHoldings, confirmScreenshotHoldings,
     syncTrackedHolding, getStagedEdits, updateTrackedClientScope,
 } from "../api/clientTracker";
@@ -775,6 +775,17 @@ export default function TrackedClientDetailPage() {
     const [addMode, setAddMode] = useState(null); // "manual" | "excel" | "screenshot" | null
     const [showMapPicker, setShowMapPicker] = useState(false);
     const [excelRows, setExcelRows] = useState(null);
+    // Pre-import check — lets the person see which rows will actually
+    // resolve to a real stock BEFORE clicking Confirm, instead of finding
+    // out afterward that some fraction silently failed (this is exactly
+    // what happened with the 20-row import that came back "0 imported" —
+    // real company names in the symbol field don't match anything by
+    // ticker, and the person had no way to know that until confirming).
+    const [checkResults, setCheckResults] = useState(null); // { [rowNumber]: RowCheckResult } | null = not checked yet
+    const [checking, setChecking] = useState(false);
+    const [pickerForRow, setPickerForRow] = useState(null); // rowNumber currently showing the manual-fix search, or null
+    const [pickerQuery, setPickerQuery] = useState("");
+    const [pickerResults, setPickerResults] = useState([]);
     const [screenshotTrades, setScreenshotTrades] = useState([]); // all trades from all uploaded screenshots
     const [extracting, setExtracting] = useState(false);
     const fileRef = useRef(null);
@@ -855,10 +866,52 @@ export default function TrackedClientDetailPage() {
         const file = e.target.files?.[0];
         if (!file) return;
         previewExcelHoldings(id, file)
-            .then(res => setExcelRows(res.data.rows || []))
+            .then(res => { setExcelRows(res.data.rows || []); setCheckResults(null); })
             .catch(() => toast.error("Couldn't read this file"))
             .finally(() => { if (fileRef.current) fileRef.current.value = ""; });
     };
+    const runExcelCheck = () => {
+        setChecking(true);
+        checkExcelHoldings(id, excelRows)
+            .then(res => {
+                const byRow = {};
+                (res.data || []).forEach(r => { byRow[r.rowNumber] = r; });
+                setCheckResults(byRow);
+            })
+            .catch(() => toast.error("Couldn't run the check"))
+            .finally(() => setChecking(false));
+    };
+
+    const openPicker = (rowNumber) => {
+        setPickerForRow(rowNumber);
+        setPickerQuery("");
+        setPickerResults([]);
+    };
+
+    const searchForPicker = (q) => {
+        setPickerQuery(q);
+        if (!q || q.length < 2) { setPickerResults([]); return; }
+        searchStocks(q).then(res => setPickerResults(res.data?.content || res.data || [])).catch(() => {});
+    };
+
+    // Manually picking a stock always wins over the automatic name match —
+    // the person just told us exactly which stock they mean. Updates the
+    // row itself (so confirm sends resolvedStockId) AND optimistically
+    // updates the check status to resolved, since there's nothing left to
+    // verify once a real stock has been explicitly chosen.
+    const pickStockForRow = (rowNumber, stock) => {
+        setExcelRows(prev => prev.map(r =>
+            r.rowNumber === rowNumber ? { ...r, resolvedStockId: stock.id } : r));
+        setCheckResults(prev => ({
+            ...prev,
+            [rowNumber]: {
+                rowNumber, resolved: true,
+                matchedStockId: stock.id, matchedSymbol: stock.symbol, matchedName: stock.name,
+            },
+        }));
+        setPickerForRow(null);
+    };
+
     const confirmExcel = () => {
         confirmExcelHoldings(id, excelRows)
             .then(res => {
@@ -1158,8 +1211,84 @@ export default function TrackedClientDetailPage() {
                             </>
                         ) : (
                             <>
-                                <p className="text-xs text-slate-400">{excelRows.length} rows extracted — review below</p>
-                                {excelRows.map((r, i) => <p key={i} className="text-xs text-white">{r.symbol} — {r.quantity} @ ₹{r.pricePerShare}</p>)}
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs text-slate-400">{excelRows.length} rows extracted — review below</p>
+                                    <button onClick={runExcelCheck} disabled={checking}
+                                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
+                                                       bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-50">
+                                        {checking ? "Checking…" : "🔍 Check"}
+                                    </button>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    {excelRows.map((r) => {
+                                        const result = checkResults?.[r.rowNumber];
+                                        const isPicking = pickerForRow === r.rowNumber;
+                                        return (
+                                            <div key={r.rowNumber}
+                                                 className={"rounded-lg px-2.5 py-2 border " +
+                                                     (result == null ? "bg-slate-800/60 border-slate-700/60"
+                                                         : result.resolved ? "bg-green-900/10 border-green-700/30"
+                                                             : "bg-red-900/10 border-red-700/30")}>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs text-white truncate">
+                                                            {r.symbol} — {r.quantity} @ ₹{r.pricePerShare}
+                                                        </p>
+                                                        {result?.resolved && (
+                                                            <p className="text-[10px] text-green-400 mt-0.5">
+                                                                ✓ Will import as {result.matchedSymbol} — {result.matchedName}
+                                                            </p>
+                                                        )}
+                                                        {result && !result.resolved && (
+                                                            <p className="text-[10px] text-red-400 mt-0.5">
+                                                                ✕ No match found for this name
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    {result && !result.resolved && !isPicking && (
+                                                        <button onClick={() => openPicker(r.rowNumber)}
+                                                                className="text-[10.5px] font-semibold text-blue-400 hover:text-blue-300 flex-shrink-0">
+                                                            Fix
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {isPicking && (
+                                                    <div className="mt-2 border-t border-slate-700/60 pt-2">
+                                                        <input value={pickerQuery} onChange={e => searchForPicker(e.target.value)}
+                                                               placeholder="Search for the real stock…" autoFocus
+                                                               className="w-full bg-slate-900 border border-slate-700 rounded-lg
+                                                                          px-2.5 py-1.5 text-white text-xs mb-1.5" />
+                                                        {pickerResults.length > 0 && (
+                                                            <div className="max-h-36 overflow-y-auto space-y-0.5">
+                                                                {pickerResults.map(s => (
+                                                                    <button key={s.id} onClick={() => pickStockForRow(r.rowNumber, s)}
+                                                                            className="w-full text-left px-2 py-1.5 hover:bg-slate-700/60 rounded-lg">
+                                                                        <span className="text-white text-xs font-semibold">{s.symbol}</span>
+                                                                        <span className="text-slate-500 text-[10.5px] ml-1.5">{s.name}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <button onClick={() => setPickerForRow(null)}
+                                                                className="text-[10.5px] text-slate-500 hover:text-slate-300 mt-1">
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {checkResults && Object.values(checkResults).some(r => !r.resolved) && (
+                                    <p className="text-[10.5px] text-amber-400 bg-amber-500/10 border border-amber-500/30
+                                                  rounded-lg px-2.5 py-1.5">
+                                        ⚠️ Rows still marked ✕ will be skipped on confirm unless fixed above.
+                                    </p>
+                                )}
+
                                 <button onClick={confirmExcel} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg">
                                     Confirm import
                                 </button>
