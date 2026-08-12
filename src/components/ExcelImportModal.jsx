@@ -137,9 +137,24 @@ export default function ExcelImportModal({ onClose, onImported }) {
     // the window grows, never below 460px (still fine on a small laptop
     // window) and never above 880px (so it doesn't become absurd on an
     // ultrawide monitor).
+    // BUG FIXED HERE: two separate asks. First, height was capped low
+    // (420px min, 88vh max) while width kept growing — a wide-but-short
+    // modal still feels small when the content needs vertical room to
+    // show more than ~2 rows without scrolling. Second, and the real
+    // ask: make it ACTUALLY resizable, not just a better-guessed default
+    // size — CSS `resize: both` turns on the browser's native resize grip
+    // (bottom-right corner, same mechanism as a <textarea>), so the person
+    // can drag it to whatever size they personally want instead of trusting
+    // any fixed guess from me. minWidth/maxWidth/minHeight/maxHeight below
+    // bound how far that drag can go, so it can't be resized into something
+    // broken (too narrow for the Qty/Price/Fees row, or larger than the
+    // viewport itself).
     const desktopStyle = {
         width: "clamp(460px, 55vw, 880px)",
-        minHeight: "420px", maxHeight: "88vh",
+        height: "min(82vh, 760px)",
+        minWidth: "420px", maxWidth: "95vw",
+        minHeight: "420px", maxHeight: "95vh",
+        resize: "both", overflow: "hidden",
         borderRadius: "20px", border: "1px solid rgba(71,85,105,0.6)",
         boxShadow: "0 25px 80px rgba(0,0,0,0.8)",
     };
