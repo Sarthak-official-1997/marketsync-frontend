@@ -355,7 +355,7 @@ function PortfolioBreakdownSection({ holdings }) {
     return <HoldingsBreakdownBar byStock={byStock} />;
 }
 
-function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions, onOpenStock }) {
+function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEdit, onViewTransactions, onOpenStock, diffModalHolding, setDiffModalHolding }) {
     const [openMenuId, setOpenMenuId] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [confirmingSyncId, setConfirmingSyncId] = useState(null);
@@ -363,11 +363,12 @@ function SyncActionsTable({ holdings, mapped, onDelete, onSync, onOpenPush, onEd
     const [editQty, setEditQty] = useState("");
     const [editPrice, setEditPrice] = useState("");
     const [editDate, setEditDate] = useState("");
-    // Which holding's diff modal is open, or null — clicking the
-    // "Out of sync" badge opens this instead of just showing a static
-    // pill, so the person can actually see WHAT differs (qty, avg price,
-    // value) before deciding whether to Push, Pull, or leave it alone.
-    const [diffModalHolding, setDiffModalHolding] = useState(null);
+    // diffModalHolding is now a prop, not local state — see the parent
+    // component for why: the post-push "open next out-of-sync record?"
+    // prompt lives in the PARENT (it fires after PushReviewModal succeeds,
+    // which this table has no visibility into), so both that prompt and
+    // this table's own badge-click need to control the same piece of
+    // state. Lifted up rather than duplicated.
 
     useEffect(() => {
         const closeMenus = () => setOpenMenuId(null);
@@ -926,6 +927,14 @@ export default function TrackedClientDetailPage() {
     const [viewingStockDetail, setViewingStockDetail] = useState(null); // holding-shaped stock, or null — opens StockDetailModal
     const [showPushReview, setShowPushReview] = useState(false);
     const [pushStockId, setPushStockId] = useState(null); // null = Push All, set = one stock
+    // After a SINGLE stock push succeeds, offers "open the next out-of-sync
+    // record" instead of just closing — holds that next holding, or null.
+    // Lifted up from SyncActionsTable — see that component's comment for
+    // why: the post-push "open next?" prompt below needs to control this
+    // same state, and it fires from here (PushReviewModal's onPushed),
+    // not from inside the table.
+    const [diffModalHolding, setDiffModalHolding] = useState(null);
+    const [nextSyncPrompt, setNextSyncPrompt] = useState(null);
     const [stagedCount, setStagedCount] = useState(0);
 
     // Performance = "how is this stock doing" (qty/avg/LTP/day change/value/
@@ -937,9 +946,9 @@ export default function TrackedClientDetailPage() {
 
     const load = () => {
         setLoading(true);
-        getTrackedClient(id)
-            .then(res => setClient(res.data))
-            .catch(() => toast.error("Couldn't load this client"))
+        return getTrackedClient(id)
+            .then(res => { setClient(res.data); return res.data; })
+            .catch(() => { toast.error("Couldn't load this client"); return null; })
             .finally(() => setLoading(false));
     };
     const loadStagedCount = () => {
@@ -1234,6 +1243,46 @@ export default function TrackedClientDetailPage() {
                         showChangeBadge={(client.portfolioScope || "COMBINED") === "STOCKS"}
                         scopeNote="ⓘ No price-history chart under MF or Combined scope yet — only stock price history exists. The total above is still correct for whichever scope is selected."
                     />
+
+                    {/* Total P&L and Today — the backend already computes
+                        both (client.realUnrealizedPL/Percent and
+                        realDayChangeAmount/Percent), they just weren't
+                        rendered anywhere on this page before. Value and %
+                        always shown together, never one without the other —
+                        a bare number with no percentage attached doesn't
+                        actually tell you whether that's a big move or not. */}
+                    {client.realUnrealizedPL != null && (
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2.5">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Total P&amp;L</p>
+                                <p className={"text-sm font-bold " +
+                                    (parseFloat(client.realUnrealizedPL) >= 0 ? "text-green-400" : "text-red-400")}>
+                                    {parseFloat(client.realUnrealizedPL) >= 0 ? "+" : ""}
+                                    ₹{Math.abs(parseFloat(client.realUnrealizedPL)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                    <span className="text-xs font-semibold ml-1.5">
+                                        ({parseFloat(client.realUnrealizedPL) >= 0 ? "+" : ""}
+                                        {parseFloat(client.realUnrealizedPLPercent || 0).toFixed(2)}%)
+                                    </span>
+                                </p>
+                            </div>
+                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2.5">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Today</p>
+                                {client.realDayChangeAmount != null ? (
+                                    <p className={"text-sm font-bold " +
+                                        (parseFloat(client.realDayChangeAmount) >= 0 ? "text-green-400" : "text-red-400")}>
+                                        {parseFloat(client.realDayChangeAmount) >= 0 ? "+" : ""}
+                                        ₹{Math.abs(parseFloat(client.realDayChangeAmount)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                        <span className="text-xs font-semibold ml-1.5">
+                                            ({parseFloat(client.realDayChangeAmount) >= 0 ? "+" : ""}
+                                            {parseFloat(client.realDayChangePercent || 0).toFixed(2)}%)
+                                        </span>
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-slate-600">—</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1313,6 +1362,8 @@ export default function TrackedClientDetailPage() {
                     onEdit={onEditHolding}
                     onViewTransactions={setViewingTransactionsFor}
                     onOpenStock={openStockDetail}
+                    diffModalHolding={diffModalHolding}
+                    setDiffModalHolding={setDiffModalHolding}
                 />
             ) : (
                 <AnalyticsTab holdings={client.holdings || []} />
@@ -1531,8 +1582,53 @@ export default function TrackedClientDetailPage() {
                     stockId={pushStockId}
                     clientName={client.displayName}
                     onClose={() => { setShowPushReview(false); setPushStockId(null); }}
-                    onPushed={() => { loadStagedCount(); load(); setPushStockId(null); }}
+                    onPushed={() => {
+                        // BUG FIXED HERE: this used to clear pushStockId to
+                        // null WITHOUT closing the modal — null is the exact
+                        // signal PushReviewModal uses for "Push All" mode, so
+                        // the still-open modal immediately re-rendered itself
+                        // into Push All right after a single-stock push
+                        // succeeded. Now the modal is explicitly closed here,
+                        // always, regardless of which mode it was in.
+                        const wasSingleStockPush = pushStockId != null;
+                        loadStagedCount();
+                        setShowPushReview(false);
+                        setPushStockId(null);
+                        // Refresh, THEN compute "next out of sync" from the
+                        // response data directly — not from `client` state,
+                        // which won't have updated yet inside this same tick.
+                        load().then(freshClient => {
+                            if (wasSingleStockPush && freshClient) {
+                                const next = (freshClient.holdings || []).find(h => h.inSync === false);
+                                if (next) setNextSyncPrompt(next);
+                            }
+                        });
+                    }}
                 />
+            )}
+
+            {nextSyncPrompt && (
+                <div className="fixed inset-0 z-[9700] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+                     onClick={() => setNextSyncPrompt(null)}>
+                    <div onClick={e => e.stopPropagation()}
+                         className="bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xs p-5 text-center">
+                        <p className="text-2xl mb-2">✓</p>
+                        <p className="text-white font-semibold text-sm mb-1">Pushed successfully</p>
+                        <p className="text-slate-500 text-xs mb-5">
+                            {nextSyncPrompt.symbol} is also out of sync — open it next?
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button onClick={() => { setDiffModalHolding(nextSyncPrompt); setNextSyncPrompt(null); }}
+                                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl">
+                                Open next out-of-sync record
+                            </button>
+                            <button onClick={() => setNextSyncPrompt(null)}
+                                    className="w-full py-2 text-slate-400 hover:text-white text-xs font-medium">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
