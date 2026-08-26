@@ -28,6 +28,8 @@ import ClientTrackerPage       from "./pages/ClientTrackerPage";
 import TrackedClientDetailPage from "./pages/TrackedClientDetailPage";
 import ThreadPage from "./pages/ThreadPage";
 import MyThreadPage from "./pages/MyThreadPage";
+import MyIdeasPage from "./pages/MyIdeasPage";
+import NeedsDecisionPage from "./pages/NeedsDecisionPage";
 
 // Auth pages
 import LoginPage           from "./pages/LoginPage";
@@ -266,6 +268,20 @@ function AppShell() {
                         <ErrorBoundary locationKey={locationKey} fallbackTitle="Thread failed to load">
                             <MyThreadPage />
                         </ErrorBoundary>
+                    } />
+
+                    <Route path="/my-ideas" element={
+                        <ErrorBoundary locationKey={locationKey} fallbackTitle="Ideas failed to load">
+                            <MyIdeasPage />
+                        </ErrorBoundary>
+                    } />
+
+                    <Route path="/creator/needs-decision" element={
+                        <CreatorRoute>
+                            <ErrorBoundary locationKey={locationKey} fallbackTitle="Alerts failed to load">
+                                <NeedsDecisionPage />
+                            </ErrorBoundary>
+                        </CreatorRoute>
                     } />
 
                     {/* -- HOME -- a real dashboard, separate from Stocks Market */}

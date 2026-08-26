@@ -15,9 +15,19 @@ export const sendThreadText     = (trackedClientId, body) =>
 export const sendThreadIdea     = (trackedClientId, idea) =>
     api.post(`/client-tracker/${trackedClientId}/thread/idea`, idea);
 export const getPendingIdeas    = () => api.get("/client-tracker/thread/pending-ideas");
+export const getCreatorNotifications = () => api.get("/client-tracker/thread/notifications");
+// On-demand SL/target check across every active trade setup this creator
+// has — persisted server-side, so calling this repeatedly doesn't
+// duplicate anything already flagged or already decided.
+export const getTradeSetupAlerts = () => api.get("/client-tracker/thread/alerts");
+export const decideOnAlert = (alertId, decision, notifyClient, customMessage) =>
+    api.post(`/client-tracker/thread/alerts/${alertId}/decide`, { decision, notifyClient, customMessage });
 
 // ── Client side ──────────────────────────────────────────────────────────
 export const getMyThread        = () => api.get("/my-thread");
 export const sendMyThreadText   = (body) => api.post("/my-thread/text", { body });
 export const markIdeaActed      = (ideaMessageId, dismissed, actionNote) =>
     api.post(`/my-thread/ideas/${ideaMessageId}/act`, { dismissed, actionNote });
+export const getClientNotifications = () => api.get("/my-thread/notifications");
+// "N other clients also hold this" — count only, never names.
+export const getOtherHolderCount = (stockId) => api.get(`/my-thread/holder-count/${stockId}`);

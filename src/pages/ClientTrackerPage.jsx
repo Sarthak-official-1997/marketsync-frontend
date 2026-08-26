@@ -200,11 +200,18 @@ export default function ClientTrackerPage() {
                         Everyone you're tracking — real performance for mapped clients, reference-only for the rest.
                     </p>
                 </div>
-                <button onClick={() => setShowNew(true)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white
-                                   text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
-                    + New
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => navigate("/creator/needs-decision")}
+                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
+                        ⚡ Needs Decision
+                    </button>
+                    <button onClick={() => setShowNew(true)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white
+                                       text-sm font-semibold rounded-xl transition-colors">
+                        + New
+                    </button>
+                </div>
             </div>
 
             {/* At-a-glance across every MAPPED client — the "how's everyone

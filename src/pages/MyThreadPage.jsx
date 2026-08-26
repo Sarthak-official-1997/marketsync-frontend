@@ -32,12 +32,16 @@ function fmtDay(iso) {
 
 function IdeaBubble({ m, onAct }) {
     const meta = SIGNAL_META[m.signalType] || { label: m.signalType, cls: "bg-slate-700 text-slate-300" };
+    const isMf = m.assetType === "MF";
     const [acting, setActing] = useState(false);
+    const allTargets = m.targets && m.targets.length > 0
+        ? m.targets
+        : (m.targetPrice != null ? [{ targetPrice: m.targetPrice, hit: false }] : []);
 
     const act = (dismissed) => {
         const note = dismissed
             ? null
-            : window.prompt(`Mark ${m.stockSymbol} as done — add a note? (e.g. "Bought at ₹2,015 · 100 sh")`, "");
+            : window.prompt(`Mark ${isMf ? m.mfSchemeName : m.stockSymbol} as done — add a note? (e.g. "Bought at ₹2,015 · 100 sh")`, "");
         if (!dismissed && note === null) return; // cancelled
         setActing(true);
         onAct(m.id, dismissed, note).finally(() => setActing(false));
@@ -45,16 +49,25 @@ function IdeaBubble({ m, onAct }) {
 
     return (
         <div className="w-64 bg-slate-800 border border-purple-500/30 rounded-2xl rounded-bl-md p-3">
-            <div className="flex items-center justify-between mb-2">
-                <div>
-                    <p className="text-white font-bold text-sm">{m.stockSymbol}</p>
-                    <p className="text-slate-500 text-[10px]">{m.stockName}</p>
+            <div className="flex items-center justify-between mb-1.5">
+                <div className="min-w-0">
+                    <p className="text-white font-bold text-sm truncate">
+                        {isMf ? m.mfSchemeName : m.stockSymbol}
+                    </p>
+                    <p className="text-slate-500 text-[10px] truncate">
+                        {isMf ? m.mfFundHouse : m.stockName}
+                    </p>
                 </div>
-                <span className={"text-[10px] font-bold px-2.5 py-1 rounded-full uppercase " + meta.cls}>
+                <span className={"text-[10px] font-bold px-2.5 py-1 rounded-full uppercase flex-shrink-0 " + meta.cls}>
                     {meta.label}
                 </span>
             </div>
-            {(m.buyRangeLow || m.targetPrice || m.stopLossPrice) && (
+            {m.category && (
+                <p className="text-[9.5px] text-slate-500 mb-1.5">
+                    {m.category === "TRADE_SETUP" ? "⚡ Trade Setup" : "📈 Investment"}
+                </p>
+            )}
+            {(m.buyRangeLow || allTargets.length > 0 || m.stopLossPrice) && (
                 <div className="grid grid-cols-3 gap-1.5 mb-2">
                     {m.buyRangeLow && (
                         <div className="bg-slate-900/60 rounded-lg text-center py-1.5 px-1">
@@ -62,12 +75,14 @@ function IdeaBubble({ m, onAct }) {
                             <p className="text-[11px] font-bold text-white">{m.buyRangeLow}–{m.buyRangeHigh}</p>
                         </div>
                     )}
-                    {m.targetPrice && (
-                        <div className="bg-slate-900/60 rounded-lg text-center py-1.5 px-1">
-                            <p className="text-[8px] text-slate-500 uppercase">Target</p>
-                            <p className="text-[11px] font-bold text-white">{m.targetPrice}</p>
+                    {allTargets.map((t, i) => (
+                        <div key={i} className={"rounded-lg text-center py-1.5 px-1 " + (t.hit ? "bg-green-900/25" : "bg-slate-900/60")}>
+                            <p className="text-[8px] text-slate-500 uppercase">{allTargets.length > 1 ? `T${i + 1}` : "Target"}</p>
+                            <p className={"text-[11px] font-bold " + (t.hit ? "text-green-400" : "text-white")}>
+                                {t.targetPrice}{t.hit ? " ✓" : ""}
+                            </p>
                         </div>
-                    )}
+                    ))}
                     {m.stopLossPrice && (
                         <div className="bg-slate-900/60 rounded-lg text-center py-1.5 px-1">
                             <p className="text-[8px] text-slate-500 uppercase">SL</p>
@@ -181,10 +196,14 @@ export default function MyThreadPage() {
             <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/60 bg-slate-950 sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="text-slate-400 text-xl">←</button>
                 <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">S</div>
-                <div>
+                <div className="flex-1">
                     <p className="text-white font-bold text-sm">Sarthak</p>
                     <p className="text-slate-500 text-[10.5px]">Your advisor</p>
                 </div>
+                <button onClick={() => navigate("/my-ideas")}
+                        className="text-[11px] font-semibold text-purple-400 flex-shrink-0">
+                    📊 My Ideas
+                </button>
             </div>
 
             <div className="flex-1 px-3 py-4 space-y-3">
