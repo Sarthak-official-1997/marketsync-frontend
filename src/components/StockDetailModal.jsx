@@ -668,11 +668,25 @@ export default function StockDetailModal({ stock, onClose }) {
                                         <p className="text-3xl font-bold text-white tracking-tight">
                                             {fmt(quote.currentPrice, quote.currency)}
                                         </p>
-                                        <p className={"text-sm font-medium " + plClr}>
-                                            {isPos ? "▲" : "▼"}{" "}
-                                            {fmt(Math.abs(quote.change || 0), quote.currency)}{" "}
-                                            ({isPos ? "+" : ""}{pl.toFixed(2)}%) today
-                                        </p>
+                                        {/* BUG FIXED HERE: this badge used to render
+                                            unconditionally — a green "▲ +1.59% today"
+                                            with no check on quote.dataSource, even though
+                                            the Data row further down the page already
+                                            correctly says "MOCK". A colored, confident-
+                                            looking badge is the single most misleading
+                                            thing to show from fabricated data — it reads
+                                            exactly like a real live quote at a glance. */}
+                                        {quote.dataSource === "MOCK" ? (
+                                            <p className="text-xs font-medium text-amber-500">
+                                                ⚠ No live price — showing placeholder data
+                                            </p>
+                                        ) : (
+                                            <p className={"text-sm font-medium " + plClr}>
+                                                {isPos ? "▲" : "▼"}{" "}
+                                                {fmt(Math.abs(quote.change || 0), quote.currency)}{" "}
+                                                ({isPos ? "+" : ""}{pl.toFixed(2)}%) today
+                                            </p>
+                                        )}
                                     </div>
                                 ) : null}
 
@@ -891,7 +905,11 @@ export default function StockDetailModal({ stock, onClose }) {
                                  style={{ minWidth: 0 }}>
                                 <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
                                     <p className="text-sm font-semibold text-white">Price Chart</p>
-                                    {periodChange && !chartLoading && (
+                                    {quote?.dataSource === "MOCK" ? (
+                                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-900/30 text-amber-500">
+                                            ⚠ Placeholder data
+                                        </span>
+                                    ) : periodChange && !chartLoading && (
                                         <span className={
                                             "text-xs font-semibold px-2.5 py-1 rounded-full " +
                                             (parseFloat(periodChange) >= 0

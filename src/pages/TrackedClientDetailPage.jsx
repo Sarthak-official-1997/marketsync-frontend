@@ -180,7 +180,8 @@ function PerformanceTable({ holdings, onOpenStock }) {
             case "ltp":
                 return (
                     <span className="text-white font-semibold">
-                        {loadingPrices ? "…" : (row.ltp != null ? "₹" + fmt(row.ltp) : "—")}
+                        {loadingPrices ? "…" : (row.ltp != null ? "₹" + fmt(row.ltp)
+                            : row.isMock ? <span className="text-amber-500 text-[10px] font-normal">no live data</span> : "—")}
                     </span>
                 );
             case "dayChange":
@@ -212,15 +213,29 @@ function PerformanceTable({ holdings, onOpenStock }) {
 
     const rows = holdings.map(h => {
         const p = prices[h.symbol];
-        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
-        const dayChg = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
+        // BUG FIXED HERE: this used to trust p.currentPrice unconditionally,
+        // with no check on p.dataSource. When the real price provider has
+        // no data for a symbol, the backend's mock fallback still returns
+        // a fully-populated quote (currentPrice, change, changePercent —
+        // everything a real quote would have, just fabricated), tagged
+        // dataSource: "MOCK". Nothing here ever looked at that tag, so a
+        // fake price got treated exactly like a real one — computed into
+        // this row's value, AND summed into totalValue below, which is
+        // the shared denominator EVERY row's % of Portfolio is computed
+        // against. One bad mock price with no real relationship to the
+        // stock's actual cost basis was enough to distort every other
+        // holding's weight, not just its own row — a 21x-inflated fake
+        // price on one holding can dwarf a whole real portfolio's value.
+        const isMock = p != null && p.dataSource === "MOCK";
+        const ltp = (p != null && !isMock) ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const dayChg = (p != null && !isMock) ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? 0) : null;
         const qty = parseFloat(h.quantity || 0);
         const avg = parseFloat(h.avgBuyPrice || 0);
         const value = ltp != null ? qty * ltp : null;
         const gainLoss = ltp != null ? (ltp - avg) * qty : null;
         const gainLossPct = avg > 0 && ltp != null ? ((ltp - avg) / avg) * 100 : null;
         return {
-            holding: h, qty, avg, ltp, dayChg, value, gainLoss, gainLossPct,
+            holding: h, qty, avg, ltp, dayChg, value, gainLoss, gainLossPct, isMock,
             dayUp: dayChg != null && dayChg >= 0,
             glUp: gainLoss != null && gainLoss >= 0,
         };
@@ -334,8 +349,13 @@ function PortfolioBreakdownSection({ holdings }) {
 
     const rows = holdings.map(h => {
         const p = prices[h.symbol];
-        const ltp = p != null ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
-        const dayChangePercent = p != null ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? NaN) : null;
+        // Same bug, same fix as PerformanceTable above — a mock-sourced
+        // price with no relationship to the stock's real value was being
+        // treated as legitimate, distorting this weight bar the same way
+        // it distorted the Performance table's % of Portfolio column.
+        const isMock = p != null && p.dataSource === "MOCK";
+        const ltp = (p != null && !isMock) ? parseFloat(p.currentPrice ?? p.regularMarketPrice ?? 0) : null;
+        const dayChangePercent = (p != null && !isMock) ? parseFloat(p.changePercent ?? p.regularMarketChangePercent ?? NaN) : null;
         const qty = parseFloat(h.quantity || 0);
         const avg = parseFloat(h.avgBuyPrice || 0);
         const value = ltp != null && ltp > 0 ? qty * ltp : qty * avg;
